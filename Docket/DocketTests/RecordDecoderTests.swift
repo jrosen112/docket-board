@@ -1,0 +1,57 @@
+//
+//  RecordDecoderTests.swift
+//  DocketTests
+//
+//  The record-type → model dispatch that the service relies on.
+//
+
+import XCTest
+import CloudKit
+@testable import Docket
+
+final class RecordDecoderTests: XCTestCase {
+
+    private let addedBy = CKRecord.Reference(
+        recordID: CKRecord.ID(recordName: "profile-1"),
+        action: .none
+    )
+
+    func testPartitionSplitsItemsAndProfilesAndDropsUnknown() {
+        let restaurant = Restaurant(
+            id: CKRecord.ID(recordName: "r1"), title: "Tartine", addedBy: addedBy
+        ).toRecord()
+        let movie = Movie(
+            id: CKRecord.ID(recordName: "m1"), title: "Heat", addedBy: addedBy
+        ).toRecord()
+        let profile = UserProfile(
+            id: CKRecord.ID(recordName: "profile-1"), firstName: "Alice", lastName: ""
+        ).toRecord()
+        // Stand-in for records the zone contains but the board doesn't render
+        // (e.g. the CKShare system record).
+        let unknown = CKRecord(recordType: "cloudkit.share")
+
+        let (items, profiles) = RecordDecoder.partition([restaurant, movie, profile, unknown])
+
+        XCTAssertEqual(items.count, 2)
+        XCTAssertEqual(profiles.count, 1)
+        XCTAssertEqual(profiles.first?.firstName, "Alice")
+    }
+
+    func testItemDispatchesToConcreteTypes() throws {
+        let bar = Bar(
+            id: CKRecord.ID(recordName: "b1"), title: "Trick Dog", addedBy: addedBy
+        ).toRecord()
+
+        let decoded = try XCTUnwrap(RecordDecoder.item(from: bar))
+        XCTAssertEqual(decoded.category, .bar)
+        XCTAssertTrue(decoded is Bar)
+    }
+
+    func testMalformedKnownTypeIsDropped() {
+        // Right record type, missing required shared fields.
+        let empty = CKRecord(recordType: Schema.RecordType.restaurant)
+        let (items, profiles) = RecordDecoder.partition([empty])
+        XCTAssertTrue(items.isEmpty)
+        XCTAssertTrue(profiles.isEmpty)
+    }
+}

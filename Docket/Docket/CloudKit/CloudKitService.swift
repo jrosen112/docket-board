@@ -2,14 +2,12 @@
 //  CloudKitService.swift
 //  Docket
 //
-//  The CloudKit "engine": owns the container + shared zone and does all record
-//  I/O. Knows nothing about SwiftUI. An actor so its mutable state (the
-//  zone-ensured flag) is safe to touch from anywhere.
+//  The CloudKit "engine": binds one Space (board) to real CloudKit I/O. Knows
+//  nothing about SwiftUI. An actor so its mutable state (the zone-ensured flag)
+//  is safe to touch from anywhere.
 //
-//  Phase 1 operates against the OWNER's private database + custom zone, so the
-//  owner can use the app solo. When we wire share acceptance, a participant
-//  variant will point the same operations at `sharedCloudDatabase` and the
-//  owner's zone ID.
+//  Owned space  → private database, this user's zone.
+//  Joined space → shared database, the owner's zone.
 //
 //  Fetching uses CKFetchRecordZoneChangesOperation (zone changes) rather than
 //  CKQuery on purpose: querying a fresh record type requires manually adding
@@ -19,25 +17,27 @@
 
 import CloudKit
 
-actor CloudKitService {
+actor CloudKitService: SpaceDataService {
 
     nonisolated let container: CKContainer
-    nonisolated let zoneID: CKRecordZone.ID
+    nonisolated let space: Space
+    /// Owned → private database; joined → shared database.
+    nonisolated let database: CKDatabase
 
-    /// The owner's private database (where the shared zone physically lives).
-    nonisolated var database: CKDatabase { container.privateCloudDatabase }
+    nonisolated var zoneID: CKRecordZone.ID { space.zoneID }
 
     private var didEnsureZone = false
 
-    init(containerIdentifier: String = "iCloud.jaredrosen.docket") {
-        self.container = CKContainer(identifier: containerIdentifier)
-        self.zoneID = CKRecordZone.ID(
-            zoneName: Schema.zoneName,
-            ownerName: CKCurrentUserDefaultName
-        )
+    init(space: Space = .default, containerIdentifier: String = "iCloud.jaredrosen.docket") {
+        let container = CKContainer(identifier: containerIdentifier)
+        self.container = container
+        self.space = space
+        self.database = space.isOwned
+            ? container.privateCloudDatabase
+            : container.sharedCloudDatabase
     }
 
-    /// A record ID inside the shared zone. Callers use this when creating new
+    /// A record ID inside this space's zone. Callers use this when creating new
     /// records so they land in the right zone.
     nonisolated func newRecordID() -> CKRecord.ID {
         CKRecord.ID(recordName: UUID().uuidString, zoneID: zoneID)
@@ -45,8 +45,10 @@ actor CloudKitService {
 
     // MARK: - Zone
 
-    /// Creates the shared zone if it doesn't exist yet. Idempotent.
+    /// Creates the zone if it doesn't exist yet. Idempotent. A joined space's
+    /// zone already exists in the owner's database, so this is a no-op there.
     func ensureZone() async throws {
+        guard space.isOwned else { return }
         if didEnsureZone { return }
         let zone = CKRecordZone(zoneID: zoneID)
         _ = try await database.modifyRecordZones(saving: [zone], deleting: [])
@@ -69,29 +71,7 @@ actor CloudKitService {
 
     /// One combined load of everything in the zone: category items + profiles.
     func loadEverything() async throws -> (items: [any SharedListItem], profiles: [UserProfile]) {
-        let records = try await fetchAllRecords()
-        var items: [any SharedListItem] = []
-        var profiles: [UserProfile] = []
-        for record in records {
-            switch record.recordType {
-            case Schema.RecordType.userProfile:
-                if let profile = UserProfile(record: record) { profiles.append(profile) }
-            default:
-                if let item = Self.item(from: record) { items.append(item) }
-            }
-        }
-        return (items, profiles)
-    }
-
-    /// Maps a raw record to its concrete category type, or nil for unrelated
-    /// records (e.g. the CKShare record itself).
-    private static func item(from record: CKRecord) -> (any SharedListItem)? {
-        switch record.recordType {
-        case Schema.RecordType.restaurant: Restaurant(record: record)
-        case Schema.RecordType.bar: Bar(record: record)
-        case Schema.RecordType.movie: Movie(record: record)
-        default: nil
-        }
+        RecordDecoder.partition(try await fetchAllRecords())
     }
 
     /// Pulls every record currently in the zone via zone-changes (no schema
@@ -121,10 +101,22 @@ actor CloudKitService {
 
     // MARK: - Sharing
 
-    /// Creates (or returns the existing) zone-wide share for the shared zone.
-    /// The caller hands this to a UICloudSharingController to send the invite.
+    /// Returns the zone-wide share for this space, creating it on first call.
+    /// CloudKit allows exactly ONE zone-wide share per zone, so subsequent
+    /// calls must return the existing share rather than trying to save a new
+    /// one (which the server rejects). Owner-only: a joined space was shared
+    /// by someone else.
     func createZoneShare() async throws -> CKShare {
+        guard space.isOwned else { throw CloudKitServiceError.sharingRequiresOwner }
         try await ensureZone()
+
+        // Reuse the existing share if the zone already has one.
+        let zone = try await database.recordZone(for: zoneID)
+        if let shareReference = zone.share,
+           let existing = try await database.record(for: shareReference.recordID) as? CKShare {
+            return existing
+        }
+
         let share = CKShare(recordZoneID: zoneID)
         share[CKShare.SystemFieldKey.title] = "Our Docket" as CKRecordValue
 
@@ -133,6 +125,17 @@ actor CloudKitService {
         switch result {
         case .success(let saved): return (saved as? CKShare) ?? share
         case .failure(let error): throw error
+        }
+    }
+}
+
+nonisolated enum CloudKitServiceError: LocalizedError {
+    case sharingRequiresOwner
+
+    var errorDescription: String? {
+        switch self {
+        case .sharingRequiresOwner:
+            "Only the person who created the board can invite others."
         }
     }
 }

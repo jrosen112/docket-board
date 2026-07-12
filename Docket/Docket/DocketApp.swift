@@ -6,9 +6,11 @@
 //
 
 import SwiftUI
+import CloudKit
 
 @main
 struct DocketApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var store = BoardStore()
 
     var body: some Scene {
@@ -16,6 +18,13 @@ struct DocketApp: App {
             ContentView()
                 .environment(store)
                 .task { await store.bootstrap() }
+                .onReceive(NotificationCenter.default.publisher(for: .docketDidAcceptShare)) { note in
+                    guard let zoneID = note.userInfo?["zoneID"] as? CKRecordZone.ID else { return }
+                    Task { await store.switchTo(space: Space(zoneID: zoneID, access: .joined)) }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .docketShareAcceptFailed)) { note in
+                    store.errorMessage = note.userInfo?["error"] as? String
+                }
         }
     }
 }

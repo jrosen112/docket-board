@@ -20,14 +20,16 @@ struct BoardView: View {
             content
                 .navigationTitle("The Board")
                 .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button {
-                            Task {
-                                await store.prepareShare()
-                                showingShare = store.activeShare != nil
+                    if store.isOwner {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button {
+                                Task {
+                                    await store.prepareShare()
+                                    showingShare = store.activeShare != nil
+                                }
+                            } label: {
+                                Image(systemName: "person.crop.circle.badge.plus")
                             }
-                        } label: {
-                            Image(systemName: "person.crop.circle.badge.plus")
                         }
                     }
                     ToolbarItem(placement: .topBarTrailing) {

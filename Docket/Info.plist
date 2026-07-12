@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Partial Info.plist. GENERATE_INFOPLIST_FILE is left ON, so Xcode merges the
+	  usual auto-generated keys (scene manifest, launch screen, orientations, etc.)
+	  on top of these. Only keys that can't be expressed as INFOPLIST_KEY_* build
+	  settings belong here.
+
+	  CKSharingSupported must be a real boolean <true/>; it tells the system this
+	  app can accept CloudKit share invites (required for the invitee's tap-to-join
+	  flow). The INFOPLIST_KEY_ build-setting form is silently dropped for this key.
+	-->
+	<key>CKSharingSupported</key>
+	<true/>
+</dict>
+</plist>
