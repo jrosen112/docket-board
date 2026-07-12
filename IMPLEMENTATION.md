@@ -30,7 +30,7 @@ swappable layer on top. Don't bake presentation decisions into the data layer.
 1. **CloudKit container/zone/share setup** — ✅ owner zone + share send + invitee acceptance (owner/participant scopes)
 2. **CKRecord conversion per category** — ✅ done (models + round-trip tests)
 3. **Masonry board view w/ filtering** — 🟡 plain list board wired; masonry + filters pending
-4. **Add/edit form** — 🟡 add form done; edit pending
+4. **Add/edit form** — ✅ done (`ItemFormView`: add + tap-to-edit)
 5. **Category detail views** — 🔲 not started
 6. **Map view for location categories** — 🔲 not started
 7. **Push sync + photo attachments + polish** — 🔲 not started
@@ -40,7 +40,11 @@ swappable layer on top. Don't bake presentation decisions into the data layer.
   `ItemStatus`/`ItemCategory` enums + shared encode/decode helpers; `UserProfile`;
   `Restaurant`/`Bar`/`Movie` with round-trip CKRecord conversion. All marked
   `nonisolated` so the background service actor can build them (project uses
-  Xcode 26 default-MainActor isolation).
+  Xcode 26 default-MainActor isolation). Every decoded model carries a
+  `systemFields: Data?` archive (`CKRecord+SystemFields.swift`) so edits keep
+  the server change tag — saving a from-scratch CKRecord over an existing one
+  fails with `serverRecordChanged`, and the change tag also gives real
+  conflict detection between the two participants.
 - **CloudKit schema constants** (`CloudKit/CloudKitSchema.swift`) — namespaced
   `Schema.RecordType` / `Schema.Field` / `Schema.zoneName` to dodge both the
   case-sensitivity duplicate-field trap and CloudKit's own `CKRecord.RecordType`
@@ -75,16 +79,17 @@ swappable layer on top. Don't bake presentation decisions into the data layer.
   the owned board's identity.
 - **UI** (`Views/`, plain styling on purpose) — `ContentView` gate
   (loading → profile setup → board), `ProfileSetupView`, `BoardView` (list +
-  add/share toolbar + pull-to-refresh + swipe-delete), `AddItemView` (category
-  picker → category fields), `CloudSharingSheet` (UICloudSharingController bridge).
-- **Tests** — 23 offline tests, all passing: `ModelConversionTests` (6),
-  `RecordDecoderTests` (3), `SpaceTests` (3), `BoardStoreTests` (11, via
-  `MockSpaceService` — loading, sorting, error surfacing, profile identity +
-  legacy-key migration, add/delete, space switching). Full app builds clean for
-  the iOS 26 simulator with no warnings.
+  add/share toolbar + pull-to-refresh + swipe-delete + tap-to-edit),
+  `ItemFormView` (add: category picker → category fields; edit: pre-filled,
+  category fixed, preserves record identity), `CloudSharingSheet`
+  (UICloudSharingController bridge).
+- **Tests** — 27 offline tests, all passing: `ModelConversionTests` (8, incl.
+  system-fields/edit round-trips), `RecordDecoderTests` (3), `SpaceTests` (3),
+  `BoardStoreTests` (12, via `MockSpaceService` — loading, sorting, error
+  surfacing, profile identity + legacy-key migration, add/edit/delete, space
+  switching). Full app builds clean for the iOS 26 simulator with no warnings.
 
 ## Next up
-- [ ] Edit-item flow (reuse AddItemView).
 - [ ] Masonry/corkboard styling + category color accents + status/category filters.
 - [ ] Then step 5+ (detail views, map, push sync, photos).
 
@@ -112,6 +117,10 @@ Notes for later:
   3. Force-quit and relaunch → profile is remembered, item still there (proves
      the CloudKit round-trip, not just local state).
   4. Swipe-delete an item → it's gone after a refresh.
+  5. Tap an item → edit form pre-filled (no category picker) → change the title
+     and status → Save → row updates; force-quit + relaunch → edit persisted.
+     This exercises the change-tag path (real CloudKit rejects tag-less
+     updates, which the mock can't simulate — worth checking on-device).
   - If any CloudKit call errors, the message surfaces on-screen (profile screen)
     or is stored in `store.errorMessage`. Tell me the exact text.
 - **Sharing smoke test (needs two iCloud accounts + two real devices — CloudKit

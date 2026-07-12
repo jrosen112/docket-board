@@ -25,6 +25,8 @@ nonisolated struct Bar: SharedListItem {
     let addedBy: CKRecord.Reference
     let dateAdded: Date
     var category: ItemCategory { .bar }
+    /// nil until first fetched from CloudKit; carries the change tag for edits.
+    var systemFields: Data?
 
     // Bar-specific
     var location: String?
@@ -62,6 +64,7 @@ nonisolated struct Bar: SharedListItem {
         self.status = shared.status
         self.addedBy = shared.addedBy
         self.dateAdded = shared.dateAdded
+        self.systemFields = shared.systemFields
         self.location = record[Schema.Field.location] as? String
         if let raw = record[Schema.Field.barType] as? String {
             self.barType = BarType(rawValue: raw)
@@ -69,7 +72,7 @@ nonisolated struct Bar: SharedListItem {
     }
 
     func toRecord() -> CKRecord {
-        let record = CKRecord(recordType: Schema.RecordType.bar, recordID: id)
+        let record = CKRecord.base(type: Schema.RecordType.bar, id: id, systemFields: systemFields)
         record.applySharedFields(
             title: title, notes: notes, status: status,
             addedBy: addedBy, dateAdded: dateAdded

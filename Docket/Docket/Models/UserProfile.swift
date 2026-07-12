@@ -13,6 +13,13 @@ nonisolated struct UserProfile: Identifiable, Equatable {
     let id: CKRecord.ID
     var firstName: String
     var lastName: String
+    /// nil until first fetched from CloudKit; carries the change tag for edits.
+    var systemFields: Data?
+
+    /// Equality is content identity; CloudKit metadata doesn't participate.
+    static func == (lhs: UserProfile, rhs: UserProfile) -> Bool {
+        lhs.id == rhs.id && lhs.firstName == rhs.firstName && lhs.lastName == rhs.lastName
+    }
     // profilePicture (CKAsset) is added with the photo work; the field key is
     // already reserved in Schema.Field.profilePicture.
 
@@ -43,10 +50,11 @@ nonisolated struct UserProfile: Identifiable, Equatable {
         self.id = record.recordID
         self.firstName = firstName
         self.lastName = record[Schema.Field.lastName] as? String ?? ""
+        self.systemFields = record.systemFieldsData
     }
 
     func toRecord() -> CKRecord {
-        let record = CKRecord(recordType: Schema.RecordType.userProfile, recordID: id)
+        let record = CKRecord.base(type: Schema.RecordType.userProfile, id: id, systemFields: systemFields)
         record[Schema.Field.firstName] = firstName
         record[Schema.Field.lastName] = lastName
         return record

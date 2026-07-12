@@ -147,11 +147,33 @@ final class BoardStoreTests: XCTestCase {
             addedBy: store.currentProfile!.reference
         )
 
-        await store.add(movie)
+        await store.save(movie)
         XCTAssertEqual(store.items.map(\.title), ["Past Lives"])
 
         await store.delete(store.items[0])
         XCTAssertTrue(store.items.isEmpty)
+    }
+
+    func testEditingItemUpdatesInPlaceWithoutDuplicating() async {
+        await store.createProfile(firstName: "Jared", lastName: "R")
+        let movie = Movie(
+            id: store.newItemID(),
+            title: "Old Title",
+            addedBy: store.currentProfile!.reference
+        )
+        await store.save(movie)
+
+        // Edit what came back from the "server" (has systemFields), the way
+        // the edit form does.
+        var loaded = store.items[0] as! Movie
+        XCTAssertNotNil(loaded.systemFields)
+        loaded.title = "New Title"
+        loaded.status = .completed
+        await store.save(loaded)
+
+        XCTAssertEqual(store.items.count, 1, "editing must not create a second record")
+        XCTAssertEqual(store.items[0].title, "New Title")
+        XCTAssertEqual(store.items[0].status, .completed)
     }
 
     // MARK: - Space switching

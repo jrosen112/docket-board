@@ -128,7 +128,10 @@ final class BoardStore {
     /// A fresh record ID in this space's zone, for building a new item.
     func newItemID() -> CKRecord.ID { service.newRecordID() }
 
-    func add(_ item: any SharedListItem) async {
+    /// Saves a new or edited item. Edited items carry their CloudKit change
+    /// tag (systemFields), so concurrent-edit conflicts surface as errors
+    /// rather than silently clobbering the other person's change.
+    func save(_ item: any SharedListItem) async {
         do {
             try await service.save(item.toRecord())
             await refresh()

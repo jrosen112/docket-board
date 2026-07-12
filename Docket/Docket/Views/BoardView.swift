@@ -8,12 +8,14 @@
 //
 
 import SwiftUI
+import CloudKit
 
 struct BoardView: View {
     @Environment(BoardStore.self) private var store
 
     @State private var showingAdd = false
     @State private var showingShare = false
+    @State private var editTarget: EditTarget?
 
     var body: some View {
         NavigationStack {
@@ -39,7 +41,10 @@ struct BoardView: View {
                     }
                 }
                 .refreshable { await store.refresh() }
-                .sheet(isPresented: $showingAdd) { AddItemView() }
+                .sheet(isPresented: $showingAdd) { ItemFormView() }
+                .sheet(item: $editTarget) { target in
+                    ItemFormView(editing: target.item)
+                }
                 .sheet(isPresented: $showingShare) {
                     if let share = store.activeShare {
                         CloudSharingSheet(share: share, container: store.container)
@@ -58,7 +63,12 @@ struct BoardView: View {
         } else {
             List {
                 ForEach(store.items, id: \.id) { item in
-                    ItemRow(item: item, addedBy: store.displayName(for: item))
+                    Button {
+                        editTarget = EditTarget(item: item)
+                    } label: {
+                        ItemRow(item: item, addedBy: store.displayName(for: item))
+                    }
+                    .buttonStyle(.plain)
                 }
                 .onDelete { indexSet in
                     let toDelete = indexSet.map { store.items[$0] }
@@ -67,6 +77,13 @@ struct BoardView: View {
             }
         }
     }
+}
+
+/// Wraps an item for .sheet(item:) — existentials can't satisfy Identifiable's
+/// generic constraint directly.
+private struct EditTarget: Identifiable {
+    let item: any SharedListItem
+    var id: CKRecord.ID { item.id }
 }
 
 private struct ItemRow: View {

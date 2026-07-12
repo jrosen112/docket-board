@@ -102,6 +102,8 @@ nonisolated struct SharedFields {
     let status: ItemStatus
     let addedBy: CKRecord.Reference
     let dateAdded: Date
+    /// System-fields archive of the source record, so edits carry the change tag.
+    let systemFields: Data
 
     init?(record: CKRecord) {
         guard
@@ -117,5 +119,6 @@ nonisolated struct SharedFields {
         self.status = status
         self.addedBy = addedBy
         self.dateAdded = dateAdded
+        self.systemFields = record.systemFieldsData
     }
 }

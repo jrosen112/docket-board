@@ -126,4 +126,48 @@ final class ModelConversionTests: XCTestCase {
         )
         XCTAssertNil(Movie(record: empty))
     }
+
+    // MARK: System fields (edit support)
+
+    func testDecodedModelCarriesSystemFieldsIntoNextRecord() throws {
+        // New model → no system fields; decoded model → carries them, and
+        // toRecord() resurrects the same record identity from the archive.
+        let fresh = Movie(
+            id: CKRecord.ID(recordName: "m3"),
+            title: "Heat",
+            addedBy: addedBy,
+            dateAdded: fixedDate
+        )
+        XCTAssertNil(fresh.systemFields)
+
+        let decoded = try XCTUnwrap(Movie(record: fresh.toRecord()))
+        XCTAssertNotNil(decoded.systemFields)
+
+        let reencoded = decoded.toRecord()
+        XCTAssertEqual(reencoded.recordID, fresh.id)
+        XCTAssertEqual(reencoded.recordType, Schema.RecordType.movie)
+    }
+
+    func testEditedFieldsSurviveSystemFieldsRoundTrip() throws {
+        let original = Restaurant(
+            id: CKRecord.ID(recordName: "r2"),
+            title: "Before",
+            addedBy: addedBy,
+            dateAdded: fixedDate
+        )
+
+        var edited = try XCTUnwrap(Restaurant(record: original.toRecord()))
+        edited.title = "After"
+        edited.status = .planned
+        edited.cuisine = "Thai"
+
+        let decoded = try XCTUnwrap(Restaurant(record: edited.toRecord()))
+        XCTAssertEqual(decoded.id, original.id)
+        XCTAssertEqual(decoded.title, "After")
+        XCTAssertEqual(decoded.status, .planned)
+        XCTAssertEqual(decoded.cuisine, "Thai")
+        // Untouched fields carry through.
+        XCTAssertEqual(decoded.dateAdded, fixedDate)
+        XCTAssertEqual(decoded.addedBy.recordID, addedBy.recordID)
+    }
 }

@@ -16,6 +16,8 @@ nonisolated struct Movie: SharedListItem {
     let addedBy: CKRecord.Reference
     let dateAdded: Date
     var category: ItemCategory { .movie }
+    /// nil until first fetched from CloudKit; carries the change tag for edits.
+    var systemFields: Data?
 
     // Movie-specific
     var runtimeMinutes: Int?
@@ -56,13 +58,14 @@ nonisolated struct Movie: SharedListItem {
         self.status = shared.status
         self.addedBy = shared.addedBy
         self.dateAdded = shared.dateAdded
+        self.systemFields = shared.systemFields
         self.runtimeMinutes = record[Schema.Field.runtimeMinutes] as? Int
         self.streamingService = record[Schema.Field.streamingService] as? String
         self.releaseYear = record[Schema.Field.releaseYear] as? Int
     }
 
     func toRecord() -> CKRecord {
-        let record = CKRecord(recordType: Schema.RecordType.movie, recordID: id)
+        let record = CKRecord.base(type: Schema.RecordType.movie, id: id, systemFields: systemFields)
         record.applySharedFields(
             title: title, notes: notes, status: status,
             addedBy: addedBy, dateAdded: dateAdded

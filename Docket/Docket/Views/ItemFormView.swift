@@ -1,16 +1,21 @@
 //
-//  AddItemView.swift
+//  ItemFormView.swift
 //  Docket
 //
-//  Category picker → category-specific fields → save. Only the Phase 1 subset
-//  (Restaurant, Bar, Movie) is offered.
+//  Add + edit form. Adding: category picker → category-specific fields → new
+//  item. Editing: same fields pre-filled, category fixed (an item's category is
+//  its CKRecord type, which can't change), and the save path mutates the
+//  existing item so its record identity + change tag are preserved.
 //
 
 import SwiftUI
 
-struct AddItemView: View {
+struct ItemFormView: View {
     @Environment(BoardStore.self) private var store
     @Environment(\.dismiss) private var dismiss
+
+    /// nil → adding a new item.
+    private let editingItem: (any SharedListItem)?
 
     @State private var category: ItemCategory = .restaurant
     @State private var title = ""
@@ -33,17 +38,47 @@ struct AddItemView: View {
 
     private let supportedCategories: [ItemCategory] = [.restaurant, .bar, .movie]
 
+    init(editing item: (any SharedListItem)? = nil) {
+        self.editingItem = item
+        guard let item else { return }
+
+        _category = State(initialValue: item.category)
+        _title = State(initialValue: item.title)
+        _notes = State(initialValue: item.notes ?? "")
+        _status = State(initialValue: item.status)
+
+        switch item {
+        case let restaurant as Restaurant:
+            _location = State(initialValue: restaurant.location ?? "")
+            _cuisine = State(initialValue: restaurant.cuisine ?? "")
+            _priceRange = State(initialValue: restaurant.priceRange)
+        case let bar as Bar:
+            _location = State(initialValue: bar.location ?? "")
+            _barType = State(initialValue: bar.barType)
+        case let movie as Movie:
+            _runtime = State(initialValue: movie.runtimeMinutes.map(String.init) ?? "")
+            _streamingService = State(initialValue: movie.streamingService ?? "")
+            _releaseYear = State(initialValue: movie.releaseYear.map(String.init) ?? "")
+        default:
+            break
+        }
+    }
+
+    private var isEditing: Bool { editingItem != nil }
+
     private var canSave: Bool {
-        !title.trimmed.isEmpty && !isSaving && store.currentProfile != nil
+        !title.trimmed.isEmpty && !isSaving && (isEditing || store.currentProfile != nil)
     }
 
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    Picker("Category", selection: $category) {
-                        ForEach(supportedCategories, id: \.self) { category in
-                            Text(category.label).tag(category)
+                if !isEditing {
+                    Section {
+                        Picker("Category", selection: $category) {
+                            ForEach(supportedCategories, id: \.self) { category in
+                                Text(category.label).tag(category)
+                            }
                         }
                     }
                 }
@@ -60,14 +95,14 @@ struct AddItemView: View {
 
                 categorySection
             }
-            .navigationTitle("Add to the Board")
+            .navigationTitle(isEditing ? "Edit \(category.label)" : "Add to the Board")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") { Task { await save() } }
+                    Button(isEditing ? "Save" : "Add") { Task { await save() } }
                         .disabled(!canSave)
                 }
             }
@@ -111,39 +146,80 @@ struct AddItemView: View {
     }
 
     private func save() async {
-        guard let me = store.currentProfile else { return }
         isSaving = true
         defer { isSaving = false }
 
+        let item: (any SharedListItem)?
+        if let editingItem {
+            item = applyingFields(to: editingItem)
+        } else {
+            item = newItem()
+        }
+        guard let item else { return }
+
+        await store.save(item)
+        dismiss()
+    }
+
+    /// Editing path: mutate the existing typed item so id / addedBy /
+    /// dateAdded / systemFields all carry through untouched.
+    private func applyingFields(to existing: any SharedListItem) -> (any SharedListItem)? {
+        switch existing {
+        case var restaurant as Restaurant:
+            restaurant.title = title.trimmed
+            restaurant.notes = notes.orNil
+            restaurant.status = status
+            restaurant.location = location.orNil
+            restaurant.cuisine = cuisine.orNil
+            restaurant.priceRange = priceRange
+            return restaurant
+        case var bar as Bar:
+            bar.title = title.trimmed
+            bar.notes = notes.orNil
+            bar.status = status
+            bar.location = location.orNil
+            bar.barType = barType
+            return bar
+        case var movie as Movie:
+            movie.title = title.trimmed
+            movie.notes = notes.orNil
+            movie.status = status
+            movie.runtimeMinutes = Int(runtime)
+            movie.streamingService = streamingService.orNil
+            movie.releaseYear = Int(releaseYear)
+            return movie
+        default:
+            return nil
+        }
+    }
+
+    private func newItem() -> (any SharedListItem)? {
+        guard let me = store.currentProfile else { return nil }
         let id = store.newItemID()
         let addedBy = me.reference
         let trimmedTitle = title.trimmed
         let trimmedNotes = notes.orNil
 
-        let item: any SharedListItem
         switch category {
         case .restaurant:
-            item = Restaurant(
+            return Restaurant(
                 id: id, title: trimmedTitle, notes: trimmedNotes, status: status,
                 addedBy: addedBy, location: location.orNil,
                 cuisine: cuisine.orNil, priceRange: priceRange
             )
         case .bar:
-            item = Bar(
+            return Bar(
                 id: id, title: trimmedTitle, notes: trimmedNotes, status: status,
                 addedBy: addedBy, location: location.orNil, barType: barType
             )
         case .movie:
-            item = Movie(
+            return Movie(
                 id: id, title: trimmedTitle, notes: trimmedNotes, status: status,
                 addedBy: addedBy, runtimeMinutes: Int(runtime),
                 streamingService: streamingService.orNil, releaseYear: Int(releaseYear)
             )
         default:
-            return
+            return nil
         }
-
-        await store.add(item)
-        dismiss()
     }
 }
