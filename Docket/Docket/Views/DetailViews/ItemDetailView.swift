@@ -15,8 +15,11 @@ struct ItemDetailView: View {
         Group {
             if let item {
                 detail(for: item)
-                    .navigationTitle(item.title)
+                    .navigationTitle(item.category.label)
                     .navigationBarTitleDisplayMode(.inline)
+                    .toolbarBackground(DocketTheme.ink, for: .navigationBar)
+                    .toolbarBackground(.visible, for: .navigationBar)
+                    .toolbarColorScheme(.dark, for: .navigationBar)
                     .toolbar {
                         ToolbarItem(placement: .topBarTrailing) {
                             Button("Edit") { showingEdit = true }

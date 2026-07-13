@@ -12,6 +12,7 @@ import CloudKit
 
 struct BoardView: View {
     @Environment(BoardStore.self) private var store
+    @Namespace private var toolbarTransitionNamespace
 
     @State private var showingAdd = false
     @State private var showingShare = false
@@ -35,20 +36,42 @@ struct BoardView: View {
             .toolbarBackground(DocketTheme.ink, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbar { toolbarItems }
+            .toolbar {
+                topToolbarItems
+                BoardBottomToolbar(
+                    isOwner: store.isOwner,
+                    transitionNamespace: toolbarTransitionNamespace,
+                    onShare: prepareShare,
+                    onAdd: { showingAdd = true }
+                )
+            }
             .overlay(alignment: .bottom) {
                 if let message = store.errorMessage {
                     ErrorBanner(message: message) { store.errorMessage = nil }
                         .padding(.bottom, 8)
                 }
             }
-            .sheet(isPresented: $showingAdd) { ItemFormView() }
+            .sheet(isPresented: $showingAdd) {
+                ItemFormView()
+                    .navigationTransition(
+                        .zoom(
+                            sourceID: BoardToolbarTransitionID.add,
+                            in: toolbarTransitionNamespace
+                        )
+                    )
+            }
             .sheet(item: $editTarget) { target in
                 ItemFormView(editing: target.item)
             }
             .sheet(isPresented: $showingShare) {
                 if let share = store.activeShare {
                     CloudSharingSheet(share: share, container: store.container)
+                        .navigationTransition(
+                            .zoom(
+                                sourceID: BoardToolbarTransitionID.share,
+                                in: toolbarTransitionNamespace
+                            )
+                        )
                 }
             }
             .navigationDestination(item: $detailTarget) { target in
@@ -104,30 +127,18 @@ struct BoardView: View {
         }
     }
 
-    @ToolbarContentBuilder private var toolbarItems: some ToolbarContent {
+    private func prepareShare() {
+        Task {
+            await store.prepareShare()
+            showingShare = store.activeShare != nil
+        }
+    }
+
+    @ToolbarContentBuilder private var topToolbarItems: some ToolbarContent {
         ToolbarItem(placement: .principal) {
             Text("The Board")
                 .font(DocketTheme.display(20))
                 .foregroundStyle(DocketTheme.cream)
-        }
-        if store.isOwner {
-            ToolbarItem(placement: .topBarLeading) {
-                Button {
-                    Task {
-                        await store.prepareShare()
-                        showingShare = store.activeShare != nil
-                    }
-                } label: {
-                    Image(systemName: "person.crop.circle.badge.plus")
-                        .foregroundStyle(DocketTheme.brass)
-                }
-            }
-        }
-        ToolbarItem(placement: .topBarTrailing) {
-            Button { showingAdd = true } label: {
-                Image(systemName: "plus")
-                    .foregroundStyle(DocketTheme.brass)
-            }
         }
         #if DEBUG
         ToolbarItem(placement: .topBarTrailing) {

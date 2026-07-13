@@ -5,26 +5,36 @@ struct RestaurantDetailView: View {
     let addedBy: String
 
     var body: some View {
-        Form {
-            Section("Docket") {
-                LabeledContent("Status", value: restaurant.status.label)
-                LabeledContent("Added by", value: addedBy)
+        DetailPage(item: restaurant, addedBy: addedBy, symbol: "fork.knife") {
+            if let location = restaurant.location {
+                DetailFactRow(
+                    symbol: "mappin.and.ellipse",
+                    label: "Location",
+                    value: location,
+                    accent: restaurant.category.accent
+                )
             }
-            Section("Restaurant") {
-                optionalRow("Location", value: restaurant.location)
-                optionalRow("Cuisine", value: restaurant.cuisine)
-                optionalRow("Price", value: restaurant.priceRange?.rawValue)
+            if let cuisine = restaurant.cuisine {
+                DetailFactRow(
+                    symbol: "takeoutbag.and.cup.and.straw.fill",
+                    label: "Cuisine",
+                    value: cuisine,
+                    accent: restaurant.category.accent
+                )
             }
-            if let notes = restaurant.notes {
-                Section("Notes") { Text(notes) }
+            if let price = restaurant.priceRange {
+                DetailFactRow(
+                    symbol: "creditcard.fill",
+                    label: "Price",
+                    value: price.rawValue,
+                    accent: restaurant.category.accent
+                )
             }
-        }
-    }
-
-    @ViewBuilder
-    private func optionalRow(_ label: String, value: String?) -> some View {
-        if let value {
-            LabeledContent(label, value: value)
+            if restaurant.location == nil,
+               restaurant.cuisine == nil,
+               restaurant.priceRange == nil {
+                DetailEmptyFacts()
+            }
         }
     }
 }

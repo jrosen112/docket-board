@@ -5,21 +5,25 @@ struct BarDetailView: View {
     let addedBy: String
 
     var body: some View {
-        Form {
-            Section("Docket") {
-                LabeledContent("Status", value: bar.status.label)
-                LabeledContent("Added by", value: addedBy)
+        DetailPage(item: bar, addedBy: addedBy, symbol: "wineglass.fill") {
+            if let location = bar.location {
+                DetailFactRow(
+                    symbol: "mappin.and.ellipse",
+                    label: "Location",
+                    value: location,
+                    accent: bar.category.accent
+                )
             }
-            Section("Bar") {
-                if let location = bar.location {
-                    LabeledContent("Location", value: location)
-                }
-                if let type = bar.barType {
-                    LabeledContent("Type", value: type.rawValue.capitalized)
-                }
+            if let type = bar.barType {
+                DetailFactRow(
+                    symbol: "sparkles",
+                    label: "Vibe",
+                    value: type.rawValue.capitalized,
+                    accent: bar.category.accent
+                )
             }
-            if let notes = bar.notes {
-                Section("Notes") { Text(notes) }
+            if bar.location == nil, bar.barType == nil {
+                DetailEmptyFacts()
             }
         }
     }

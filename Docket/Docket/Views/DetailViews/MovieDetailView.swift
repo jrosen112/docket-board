@@ -5,24 +5,35 @@ struct MovieDetailView: View {
     let addedBy: String
 
     var body: some View {
-        Form {
-            Section("Docket") {
-                LabeledContent("Status", value: movie.status.label)
-                LabeledContent("Added by", value: addedBy)
+        DetailPage(item: movie, addedBy: addedBy, symbol: "film.fill") {
+            if let year = movie.releaseYear {
+                DetailFactRow(
+                    symbol: "calendar",
+                    label: "Released",
+                    value: String(year),
+                    accent: movie.category.accent
+                )
             }
-            Section("Movie") {
-                if let year = movie.releaseYear {
-                    LabeledContent("Release year", value: String(year))
-                }
-                if let runtime = movie.runtimeMinutes {
-                    LabeledContent("Runtime", value: "\(runtime) min")
-                }
-                if let service = movie.streamingService {
-                    LabeledContent("Streaming", value: service)
-                }
+            if let runtime = movie.runtimeMinutes {
+                DetailFactRow(
+                    symbol: "clock.fill",
+                    label: "Runtime",
+                    value: "\(runtime) min",
+                    accent: movie.category.accent
+                )
             }
-            if let notes = movie.notes {
-                Section("Notes") { Text(notes) }
+            if let service = movie.streamingService {
+                DetailFactRow(
+                    symbol: "play.tv.fill",
+                    label: "Watch on",
+                    value: service,
+                    accent: movie.category.accent
+                )
+            }
+            if movie.releaseYear == nil,
+               movie.runtimeMinutes == nil,
+               movie.streamingService == nil {
+                DetailEmptyFacts()
             }
         }
     }
