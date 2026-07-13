@@ -99,8 +99,9 @@ items and inline edits.
 `CloudKitService` is an actor bound to one `Space` and selects the private or
 shared database from that space's access mode.
 
-Reads use `CKFetchRecordZoneChangesOperation`, avoiding query-index setup and
-capturing record-level and zone-level failures. Fetches have request/resource
+Reads use `CKFetchRecordZoneChangesOperation`, avoiding query-index setup.
+Zone-level failures fail the load; record-level failures are skipped so one
+bad record cannot take down the whole board. Fetches have request/resource
 timeouts so a lost connection cannot leave refresh UI running indefinitely.
 
 `RecordDecoder` owns record dispatch and partitions fetched records into items

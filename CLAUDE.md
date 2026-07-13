@@ -11,7 +11,7 @@ A shared iOS app for two people to collaboratively track places and experiences 
 - iOS only
 
 ## Sharing Model
-- One shared `CKRecordZone` per "space" (e.g. me + girlfriend). Multi-space support (other couples/friend groups) is a future direction — each space is just its own zone + `CKShare`, don't over-engineer this now.
+- One shared `CKRecordZone` per "space"/board (e.g. me + girlfriend). Multi-board is **built**: users can create additional named boards (each its own private zone), switch between them, and hold per-board profiles. See IMPLEMENTATION.md for the current state.
 - Zone owner creates the `CKShare`, sends invite link via native share sheet, other person accepts. Data lives in the owner's private database; both read/write into the shared zone.
 - Full read/write for both participants — no read-only permission tiers needed in Phase 1.
 
@@ -53,7 +53,6 @@ Palette: ink-navy background (`#14181F`), warm cream cards (`#EFE6D3`), brass/go
 - Custom auth beyond Apple ID + CloudKit sharing
 - Backend server
 - App Store submission
-- Multi-couple / multi-space UI (schema should allow it later, don't build it now)
 
 ## Working Agreement
 - **Do not run the app on simulators or devices.** Build and run tests (`xcodebuild build`, `xcodebuild test`, `swift build`, etc.) are fine, but launching/running the app itself is reserved for me to do manually in Xcode. If something needs to be visually verified or tested against live CloudKit sync, tell me what to check rather than launching it.

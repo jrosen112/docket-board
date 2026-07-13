@@ -144,8 +144,8 @@ struct ItemDetailView: View {
             }
         case .conflict:
             showingConflict = true
-        case .failed:
-            saveErrorMessage = store.errorMessage
+        case .failed(let message):
+            saveErrorMessage = message
         }
     }
 

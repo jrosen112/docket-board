@@ -115,8 +115,8 @@ struct NewItemView: View {
         switch await store.save(item) {
         case .saved:
             dismiss()
-        case .conflict, .failed:
-            saveErrorMessage = store.errorMessage
+        case .conflict(let message), .failed(let message):
+            saveErrorMessage = message
         }
     }
 }

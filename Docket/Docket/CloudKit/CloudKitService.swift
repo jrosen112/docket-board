@@ -94,11 +94,11 @@ actor CloudKitService: SpaceDataService {
             operationConfiguration.timeoutIntervalForResource = Self.resourceTimeout
             operation.configuration = operationConfiguration
             operation.recordWasChangedBlock = { _, result in
-                switch result {
-                case .success(let record):
+                // One undecodable/failed record must not take down the whole
+                // board — skip it and render everything else. Zone-level
+                // failures below still fail the load.
+                if case .success(let record) = result {
                     accumulator.append(record)
-                case .failure(let error):
-                    accumulator.record(error)
                 }
             }
             operation.recordZoneFetchResultBlock = { _, result in

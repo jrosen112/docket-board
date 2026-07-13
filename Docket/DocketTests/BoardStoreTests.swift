@@ -205,6 +205,19 @@ final class BoardStoreTests: XCTestCase {
         XCTAssertNil(store.errorMessage)
     }
 
+    func testRefreshMissingProfileRecordDoesNotSignOutUser() async {
+        await store.createProfile(firstName: "Jared", lastName: "R")
+        let profileID = store.currentProfile!.id
+
+        // A fetch can transiently omit the remembered profile record (e.g.
+        // eventual consistency right after the save). That must not blank
+        // `currentProfile` and bounce a signed-in user back to onboarding.
+        mock.records.removeValue(forKey: profileID)
+        await store.refresh()
+
+        XCTAssertEqual(store.currentProfile?.id, profileID)
+    }
+
     func testDisplayNameResolvesThroughProfiles() async {
         let alice = seedProfile()
         seedMovie("Heat", addedBy: alice, dateAdded: .now)
@@ -292,9 +305,14 @@ final class BoardStoreTests: XCTestCase {
 
         let result = await store.save(movie)
 
-        XCTAssertEqual(result, .failed)
+        guard case .failed(let message) = result else {
+            return XCTFail("Expected .failed, got \(result)")
+        }
+        XCTAssertFalse(message.isEmpty)
         XCTAssertTrue(store.items.isEmpty)
-        XCTAssertNotNil(store.errorMessage)
+        // The edit surface shows the failure inline; the shared board banner
+        // must stay clear so it doesn't linger after the sheet is dismissed.
+        XCTAssertNil(store.errorMessage)
     }
 
     func testConflictReturnsDistinctResult() async {
@@ -308,8 +326,11 @@ final class BoardStoreTests: XCTestCase {
 
         let result = await store.save(movie)
 
-        XCTAssertEqual(result, .conflict)
-        XCTAssertTrue(store.errorMessage?.contains("Someone else edited") == true)
+        guard case .conflict(let message) = result else {
+            return XCTFail("Expected .conflict, got \(result)")
+        }
+        XCTAssertTrue(message.contains("Someone else edited"))
+        XCTAssertNil(store.errorMessage)
     }
 
     // MARK: - Space switching

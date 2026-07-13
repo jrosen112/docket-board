@@ -21,8 +21,8 @@ nonisolated enum BoardLoadState: Equatable {
 
 nonisolated enum StoreSaveResult: Equatable {
     case saved
-    case conflict
-    case failed
+    case conflict(message: String)
+    case failed(message: String)
 }
 
 nonisolated struct BoardRefreshSummary: Equatable, Sendable {
@@ -134,7 +134,12 @@ final class BoardStore {
             currentProfile = nil
             return
         }
-        currentProfile = profiles.first(where: { $0.id.recordName == name })
+        // A fetch can transiently omit the remembered record (e.g. a refresh
+        // racing the profile save it follows). Never downgrade an already-set
+        // profile to nil, or a signed-in user gets bounced back to onboarding.
+        if let match = profiles.first(where: { $0.id.recordName == name }) {
+            currentProfile = match
+        }
     }
 
     // MARK: - Lifecycle
@@ -230,20 +235,24 @@ final class BoardStore {
     /// Saves a new or edited item. Edited items carry their CloudKit change
     /// tag (systemFields), so concurrent-edit conflicts surface as errors
     /// rather than silently clobbering the other person's change.
+    ///
+    /// Failures ride back in the result rather than `errorMessage`: every
+    /// edit surface presents its own inline error, and the shared board
+    /// banner must not linger after the sheet is dismissed.
     @discardableResult
     func save(_ item: any SharedListItem) async -> StoreSaveResult {
-        errorMessage = nil
         do {
             try await requireNetwork()
             try await service.save(item.toRecord())
             await refresh()
             return .saved
         } catch {
-            let isConflict = Self.isConflict(error)
-            errorMessage = isConflict
-                ? "Someone else edited this item. Reload the board to see their version, then try your edit again."
-                : Self.message(for: error)
-            return isConflict ? .conflict : .failed
+            if Self.isConflict(error) {
+                return .conflict(
+                    message: "Someone else edited this item. Reload the board to see their version, then try your edit again."
+                )
+            }
+            return .failed(message: Self.message(for: error))
         }
     }
 
@@ -468,9 +477,10 @@ final class BoardStore {
                     publishRemoteLoad(loaded)
                 }
             } catch {
-                if candidate == space {
-                    errorMessage = UserFacingError.message(for: error)
-                }
+                // A push-triggered fetch failing is invisible work the user
+                // never asked for; don't surface a banner over valid data.
+                // The data on screen simply stays as it was.
+                continue
             }
         }
         return receivedData
@@ -479,6 +489,9 @@ final class BoardStore {
     private func publishRemoteLoad(
         _ loaded: (items: [any SharedListItem], profiles: [UserProfile])
     ) {
+        // Supersede any in-flight refresh: it started before this push-driven
+        // fetch, so letting it publish would overwrite newer data with older.
+        refreshGeneration += 1
         items = loaded.items.sorted { $0.dateAdded > $1.dateAdded }
         profiles = loaded.profiles
         reconcileCurrentProfile()

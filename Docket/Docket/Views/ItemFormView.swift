@@ -2,10 +2,11 @@
 //  ItemFormView.swift
 //  Docket
 //
-//  Add + edit form. Adding: category picker → category-specific fields → new
-//  item. Editing: same fields pre-filled, category fixed (an item's category is
-//  its CKRecord type, which can't change), and the save path mutates the
-//  existing item so its record identity + change tag are preserved.
+//  Quick-edit form for an existing item, presented from the board. Fields are
+//  pre-filled, category is fixed (an item's category is its CKRecord type,
+//  which can't change), and the save path mutates the existing item so its
+//  record identity + change tag are preserved. Adding new items goes through
+//  NewItemView.
 //
 
 import SwiftUI
@@ -14,8 +15,7 @@ struct ItemFormView: View {
     @Environment(BoardStore.self) private var store
     @Environment(\.dismiss) private var dismiss
 
-    /// nil → adding a new item.
-    private let editingItem: (any SharedListItem)?
+    private let item: any SharedListItem
 
     @State private var draft: ItemDraft
 
@@ -23,30 +23,18 @@ struct ItemFormView: View {
     @State private var showingConflict = false
     @State private var saveErrorMessage: String?
 
-    init(editing item: (any SharedListItem)? = nil) {
-        self.editingItem = item
-        _draft = State(initialValue: item.map { ItemDraft(item: $0) } ?? ItemDraft())
+    init(editing item: any SharedListItem) {
+        self.item = item
+        _draft = State(initialValue: ItemDraft(item: item))
     }
 
-    private var isEditing: Bool { editingItem != nil }
-
     private var canSave: Bool {
-        draft.isValid && !isSaving && (isEditing || store.currentProfile != nil)
+        draft.isValid && !isSaving
     }
 
     var body: some View {
         NavigationStack {
             Form {
-                if !isEditing {
-                    Section {
-                        Picker("Category", selection: $draft.category) {
-                            ForEach(ItemCategory.supported, id: \.self) { category in
-                                Text(category.label).tag(category)
-                            }
-                        }
-                    }
-                }
-
                 Section("Details") {
                     TextField("Title", text: $draft.title)
                     TextField("Notes", text: $draft.notes, axis: .vertical)
@@ -66,14 +54,14 @@ struct ItemFormView: View {
                     }
                 }
             }
-            .navigationTitle(isEditing ? "Edit \(draft.category.label)" : "Add to the Board")
+            .navigationTitle("Edit \(draft.category.label)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(isEditing ? "Save" : "Add") { Task { await save() } }
+                    Button("Save") { Task { await save() } }
                         .disabled(!canSave)
                 }
             }
@@ -130,27 +118,15 @@ struct ItemFormView: View {
         saveErrorMessage = nil
         defer { isSaving = false }
 
-        let item: (any SharedListItem)?
-        if let editingItem {
-            item = draft.applying(to: editingItem)
-        } else {
-            item = newItem()
-        }
-        guard let item else { return }
+        guard let edited = draft.applying(to: item) else { return }
 
-        let result = await store.save(item)
-        switch result {
+        switch await store.save(edited) {
         case .saved:
             dismiss()
         case .conflict:
             showingConflict = true
-        case .failed:
-            saveErrorMessage = store.errorMessage
+        case .failed(let message):
+            saveErrorMessage = message
         }
-    }
-
-    private func newItem() -> (any SharedListItem)? {
-        guard let me = store.currentProfile else { return nil }
-        return draft.makeNew(id: store.newItemID(), addedBy: me.reference)
     }
 }

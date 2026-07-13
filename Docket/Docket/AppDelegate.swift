@@ -114,6 +114,12 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     }
 
     private static func boardTitle(from metadata: CKShare.Metadata) -> String {
+        // The share title carries the owner's chosen board name (set in
+        // CloudKitService.loadShare), so prefer it; a name derived from the
+        // owner's identity is only a fallback for untitled shares.
+        if let title = (metadata.share[CKShare.SystemFieldKey.title] as? String)?.orNil {
+            return title
+        }
         if let components = metadata.ownerIdentity.nameComponents {
             let ownerName = PersonNameComponentsFormatter.localizedString(
                 from: components,
@@ -125,10 +131,6 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                     ? "\(ownerName)’ Board"
                     : "\(ownerName)’s Board"
             }
-        }
-        if let title = metadata.share[CKShare.SystemFieldKey.title] as? String,
-           !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return title
         }
         return "Shared Board"
     }
