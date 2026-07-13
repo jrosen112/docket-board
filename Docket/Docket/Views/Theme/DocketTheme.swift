@@ -75,6 +75,33 @@ nonisolated enum DocketTheme {
         static let shadowColor = Color.black.opacity(0.24)
     }
 
+    enum BoardSwitcher {
+        static let labelSpacing: CGFloat = 6
+        static let titleFont: Font = DocketTheme.display(20)
+        static let chevronFont: Font = .caption2.weight(.bold)
+        static let titleColor = DocketTheme.cream
+        static let chevronColor = DocketTheme.brass.opacity(0.8)
+    }
+
+    enum CreateBoard {
+        static let contentSpacing: CGFloat = 14
+        static let horizontalPadding: CGFloat = 22
+        static let topPadding: CGFloat = 34
+        static let inputPadding: CGFloat = 16
+        static let inputCornerRadius: CGFloat = 14
+        static let headingFont: Font = DocketTheme.display(28)
+        static let supportingFont: Font = .subheadline
+        static let inputFont: Font = DocketTheme.displayRegular(20)
+        static let errorFont: Font = .footnote
+        static let headingColor = DocketTheme.cream
+        static let supportingColor = DocketTheme.cream.opacity(0.68)
+        static let inputColor = DocketTheme.ink
+        static let inputBackground = DocketTheme.cream
+        static let cancelColor = DocketTheme.cream
+        static let errorColor = Color.red.opacity(0.9)
+        static let focusDelay: Duration = .milliseconds(180)
+    }
+
     enum BoardScrollNote {
         static let font: Font = .footnote.weight(.medium)
         static let color = DocketTheme.cream.opacity(0.62)

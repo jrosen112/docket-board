@@ -2,8 +2,8 @@
 //  CloudSharingSheet.swift
 //  Docket
 //
-//  Bridges UICloudSharingController into SwiftUI so the owner can send the
-//  native CloudKit share invite for the shared zone.
+//  Bridges UICloudSharingController into SwiftUI. CloudKit presents owner
+//  membership controls or participant view/leave controls for the same share.
 //
 
 import SwiftUI

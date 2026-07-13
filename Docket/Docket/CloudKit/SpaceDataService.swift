@@ -24,5 +24,7 @@ nonisolated protocol SpaceDataService: Sendable {
     @discardableResult
     func save(_ record: CKRecord) async throws -> CKRecord
     func delete(_ recordID: CKRecord.ID) async throws
-    func createZoneShare() async throws -> CKShare
+    /// Loads this board's existing share. For an owned, not-yet-shared board,
+    /// creates the zone-wide share first.
+    func loadShare() async throws -> CKShare
 }

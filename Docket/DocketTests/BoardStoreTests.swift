@@ -15,6 +15,7 @@ final class BoardStoreTests: XCTestCase {
 
     private var defaults: UserDefaults!
     private var mock: MockSpaceService!
+    private var notificationMock: MockBoardNotificationService!
     private var store: BoardStore!
     private let suiteName = "BoardStoreTestsSuite"
 
@@ -23,6 +24,7 @@ final class BoardStoreTests: XCTestCase {
         defaults = UserDefaults(suiteName: suiteName)
         defaults.removePersistentDomain(forName: suiteName)
         mock = MockSpaceService()
+        notificationMock = MockBoardNotificationService()
         store = makeStore()
     }
 
@@ -35,9 +37,13 @@ final class BoardStoreTests: XCTestCase {
     /// "relaunches" see the same data.
     private func makeStore() -> BoardStore {
         let mock = self.mock!
-        return BoardStore(defaults: defaults) { space in
-            space == mock.space ? mock : MockSpaceService(space: space)
-        }
+        return BoardStore(
+            defaults: defaults,
+            makeService: { space in
+                space == mock.space ? mock : MockSpaceService(space: space)
+            },
+            notificationService: notificationMock
+        )
     }
 
     private func seedProfile(name: String = "Alice") -> UserProfile {
@@ -72,6 +78,8 @@ final class BoardStoreTests: XCTestCase {
         XCTAssertEqual(store.items.count, 1)
         XCTAssertEqual(store.profiles.count, 1)
         XCTAssertNil(store.errorMessage)
+        let prepareCount = await notificationMock.prepareCount
+        XCTAssertEqual(prepareCount, 1)
     }
 
     func testItemsSortedNewestFirst() async {
@@ -251,6 +259,48 @@ final class BoardStoreTests: XCTestCase {
 
     // MARK: - Space switching
 
+    func testCreateBoardMakesDistinctOwnedSpaceAndCopiesCurrentProfile() async {
+        await store.createProfile(firstName: "Jared", lastName: "R")
+        let originalSpace = store.space
+
+        let created = await store.createBoard(title: "Date Nights")
+
+        XCTAssertTrue(created)
+        XCTAssertTrue(store.isOwner)
+        XCTAssertNotEqual(store.space, originalSpace)
+        XCTAssertEqual(store.space.title, "Date Nights")
+        XCTAssertEqual(store.currentProfile?.displayName, "Jared R")
+        XCTAssertEqual(store.currentProfile?.id.zoneID, store.space.zoneID)
+        XCTAssertEqual(store.spaces.count, 2)
+        XCTAssertEqual(SpaceStore.load(from: defaults), store.space)
+    }
+
+    func testCreateBoardFailureKeepsCurrentBoardSelectedAndUncatalogued() async {
+        let ownedService = mock!
+        let failingStore = BoardStore(
+            defaults: defaults,
+            makeService: { space in
+                guard space == ownedService.space else {
+                    let service = MockSpaceService(space: space)
+                    service.saveError = CKError(.networkFailure)
+                    return service
+                }
+                return ownedService
+            },
+            notificationService: notificationMock
+        )
+        await failingStore.createProfile(firstName: "Jared", lastName: "R")
+        let originalSpace = failingStore.space
+
+        let created = await failingStore.createBoard(title: "Won't Persist")
+
+        XCTAssertFalse(created)
+        XCTAssertEqual(failingStore.space, originalSpace)
+        XCTAssertEqual(failingStore.spaces, [originalSpace])
+        XCTAssertEqual(SpaceStore.load(from: defaults), originalSpace)
+        XCTAssertNotNil(failingStore.errorMessage)
+    }
+
     func testSwitchToJoinedSpacePersistsAndDropsOwnership() async {
         await store.createProfile(firstName: "Jared", lastName: "R")
         XCTAssertTrue(store.isOwner)
@@ -265,6 +315,9 @@ final class BoardStoreTests: XCTestCase {
         XCTAssertEqual(store.space, joined)
         XCTAssertNil(store.currentProfile) // fresh identity on the new board
         XCTAssertTrue(store.items.isEmpty)
+        XCTAssertEqual(store.spaces.count, 2)
+        XCTAssertTrue(store.spaces.contains(.default))
+        XCTAssertTrue(store.spaces.contains(joined))
         // Choice survives relaunch.
         XCTAssertEqual(SpaceStore.load(from: defaults), joined)
     }
@@ -308,9 +361,13 @@ final class BoardStoreTests: XCTestCase {
         joinedService.records[joinedMovie.id] = joinedMovie.toRecord()
 
         let ownedService = mock!
-        let switchingStore = BoardStore(defaults: defaults) { space in
-            space == ownedService.space ? ownedService : joinedService
-        }
+        let switchingStore = BoardStore(
+            defaults: defaults,
+            makeService: { space in
+                space == ownedService.space ? ownedService : joinedService
+            },
+            notificationService: notificationMock
+        )
         let oldRefresh = Task { await switchingStore.refresh() }
         try? await Task.sleep(nanoseconds: 10_000_000)
 
@@ -320,5 +377,50 @@ final class BoardStoreTests: XCTestCase {
         XCTAssertEqual(switchingStore.space, joined)
         XCTAssertEqual(switchingStore.items.map(\.title), ["New board item"])
         XCTAssertEqual(switchingStore.loadState, .loaded)
+    }
+
+    // MARK: - Remote additions
+
+    func testRemoteAdditionByAnotherProfilePostsBoardNotification() async {
+        await store.createProfile(firstName: "Jared", lastName: "R")
+        let alice = seedProfile(name: "Alice")
+        seedMovie("Heat", addedBy: alice, dateAdded: .now)
+
+        let receivedData = await store.handleRemoteDatabaseChange(scope: .private)
+
+        XCTAssertTrue(receivedData)
+        let notices = await notificationMock.capturedNotices()
+        XCTAssertEqual(notices.count, 1)
+        XCTAssertEqual(notices[0].title, "My Board")
+        XCTAssertEqual(notices[0].body, "Alice Nguyen added “Heat”.")
+        XCTAssertEqual(store.items.map(\.title), ["Heat"])
+    }
+
+    func testRemoteAdditionByCurrentProfileDoesNotPostNotification() async {
+        await store.createProfile(firstName: "Jared", lastName: "R")
+        seedMovie("Mine", addedBy: store.currentProfile!, dateAdded: .now)
+
+        let receivedData = await store.handleRemoteDatabaseChange(scope: .private)
+
+        XCTAssertTrue(receivedData)
+        let notices = await notificationMock.capturedNotices()
+        XCTAssertTrue(notices.isEmpty)
+    }
+
+    func testRemoteEditDoesNotPostAdditionNotification() async {
+        let alice = seedProfile(name: "Alice")
+        seedMovie("Original", addedBy: alice, dateAdded: .now)
+        await store.bootstrap()
+
+        let recordID = mock.records.keys.first { $0.recordName == "movie-Original" }!
+        var movie = Movie(record: mock.records[recordID]!)!
+        movie.title = "Edited"
+        mock.records[recordID] = movie.toRecord()
+
+        _ = await store.handleRemoteDatabaseChange(scope: .private)
+
+        let notices = await notificationMock.capturedNotices()
+        XCTAssertTrue(notices.isEmpty)
+        XCTAssertEqual(store.items.map(\.title), ["Edited"])
     }
 }

@@ -45,8 +45,8 @@ nonisolated final class MockSpaceService: SpaceDataService, @unchecked Sendable 
         records[recordID] = nil
     }
 
-    func createZoneShare() async throws -> CKShare {
-        guard space.isOwned else { throw CloudKitServiceError.sharingRequiresOwner }
+    func loadShare() async throws -> CKShare {
+        guard space.isOwned else { throw CloudKitServiceError.shareUnavailable }
         return CKShare(recordZoneID: space.zoneID)
     }
 }

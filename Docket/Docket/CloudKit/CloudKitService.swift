@@ -120,21 +120,23 @@ actor CloudKitService: SpaceDataService {
     /// Returns the zone-wide share for this space, creating it on first call.
     /// CloudKit allows exactly ONE zone-wide share per zone, so subsequent
     /// calls must return the existing share rather than trying to save a new
-    /// one (which the server rejects). Owner-only: a joined space was shared
-    /// by someone else.
-    func createZoneShare() async throws -> CKShare {
-        guard space.isOwned else { throw CloudKitServiceError.sharingRequiresOwner }
+    /// one (which the server rejects). Owners can manage membership; joined
+    /// participants use the same record to view the people list or leave.
+    func loadShare() async throws -> CKShare {
         try await ensureZone()
 
-        // Reuse the existing share if the zone already has one.
+        // Owners manage membership; participants use the same share record to
+        // view the people list and leave the board.
         let zone = try await database.recordZone(for: zoneID)
         if let shareReference = zone.share,
            let existing = try await database.record(for: shareReference.recordID) as? CKShare {
             return existing
         }
 
+        guard space.isOwned else { throw CloudKitServiceError.shareUnavailable }
+
         let share = CKShare(recordZoneID: zoneID)
-        share[CKShare.SystemFieldKey.title] = "Our Docket" as CKRecordValue
+        share[CKShare.SystemFieldKey.title] = space.title as CKRecordValue
 
         let (saveResults, _) = try await database.modifyRecords(saving: [share], deleting: [])
         guard let result = saveResults[share.recordID] else { return share }
@@ -169,12 +171,12 @@ nonisolated final class CloudKitFetchAccumulator: @unchecked Sendable {
 }
 
 nonisolated enum CloudKitServiceError: LocalizedError {
-    case sharingRequiresOwner
+    case shareUnavailable
 
     var errorDescription: String? {
         switch self {
-        case .sharingRequiresOwner:
-            "Only the person who created the board can invite others."
+        case .shareUnavailable:
+            "This board's sharing details aren't available yet. Try again after refreshing."
         }
     }
 }

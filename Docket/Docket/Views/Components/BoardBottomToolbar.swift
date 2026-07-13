@@ -12,17 +12,20 @@ struct BoardBottomToolbar: ToolbarContent {
     let onAdd: () -> Void
 
     var body: some ToolbarContent {
-        if isOwner {
-            ToolbarItem(placement: .bottomBar) {
-                Button(action: onShare) {
-                    Label("Share", systemImage: "person.crop.circle.badge.plus")
-                }
+        ToolbarItem(placement: .bottomBar) {
+            Button(action: onShare) {
+                Label(
+                    isOwner ? "Invite" : "People",
+                    systemImage: isOwner
+                        ? "person.crop.circle.badge.plus"
+                        : "person.2"
+                )
             }
-            .matchedTransitionSource(
-                id: BoardToolbarTransitionID.share,
-                in: transitionNamespace
-            )
         }
+        .matchedTransitionSource(
+            id: BoardToolbarTransitionID.share,
+            in: transitionNamespace
+        )
 
         ToolbarSpacer(.flexible, placement: .bottomBar)
 

@@ -17,6 +17,7 @@ struct BoardView: View {
 
     @State private var addTarget: AddTarget?
     @State private var showingShare = false
+    @State private var showingCreateBoard = false
     @State private var editTarget: EditTarget?
     @State private var detailTarget: DetailTarget?
     @State private var filter = BoardFilter()
@@ -80,6 +81,9 @@ struct BoardView: View {
                             )
                         )
                 }
+            }
+            .sheet(isPresented: $showingCreateBoard) {
+                CreateBoardView()
             }
             .navigationDestination(item: $detailTarget) { target in
                 ItemDetailView(itemID: target.id)
@@ -171,9 +175,14 @@ struct BoardView: View {
 
     @ToolbarContentBuilder private var topToolbarItems: some ToolbarContent {
         ToolbarItem(placement: .principal) {
-            Text("The Board")
-                .font(DocketTheme.display(20))
-                .foregroundStyle(DocketTheme.cream)
+            BoardSwitcher(
+                currentSpace: store.space,
+                spaces: store.spaces
+            ) { space in
+                Task { await store.switchTo(space: space) }
+            } onCreate: {
+                showingCreateBoard = true
+            }
         }
         #if DEBUG
         ToolbarItem(placement: .topBarTrailing) {

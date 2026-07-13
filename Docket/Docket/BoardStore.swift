@@ -31,10 +31,13 @@ final class BoardStore {
 
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let makeService: @Sendable (Space) -> any SpaceDataService
+    @ObservationIgnored private let notificationService: any BoardNotificationService
     private var service: any SpaceDataService
 
     /// The board (space) this store is currently pointed at.
     private(set) var space: Space
+    /// Every owned or accepted board available to the switcher.
+    private(set) var spaces: [Space]
     /// True when this device owns the current board (can invite others).
     var isOwner: Bool { space.isOwned }
 
@@ -70,12 +73,15 @@ final class BoardStore {
 
     init(
         defaults: UserDefaults = .standard,
-        makeService: @escaping @Sendable (Space) -> any SpaceDataService = { CloudKitService(space: $0) }
+        makeService: @escaping @Sendable (Space) -> any SpaceDataService = { CloudKitService(space: $0) },
+        notificationService: any BoardNotificationService = CloudKitBoardNotificationService()
     ) {
         let space = SpaceStore.load(from: defaults)
         self.defaults = defaults
         self.makeService = makeService
+        self.notificationService = notificationService
         self.space = space
+        self.spaces = SpaceStore.loadAll(from: defaults)
         self.service = makeService(space)
         migrateLegacyProfileKey()
     }
@@ -84,7 +90,11 @@ final class BoardStore {
 
     /// Which profile record is "me" is local state, and it's per-board: the
     /// same person can have different profiles on different boards.
-    private var profileKey: String { "docket.currentProfileRecordName.\(space.id)" }
+    private var profileKey: String { profileKey(for: space) }
+
+    private func profileKey(for space: Space) -> String {
+        "docket.currentProfileRecordName.\(space.id)"
+    }
 
     /// Pre-Space builds stored the profile record name under a single global
     /// key. Carry it over to the default owned space so existing test devices
@@ -113,6 +123,7 @@ final class BoardStore {
 
     func bootstrap() async {
         await loadForPresentation()
+        try? await notificationService.prepare()
     }
 
     private func loadForPresentation() async {
@@ -148,6 +159,7 @@ final class BoardStore {
             items = loaded.items.sorted { $0.dateAdded > $1.dateAdded }
             profiles = loaded.profiles
             reconcileCurrentProfile()
+            remember(items: loaded.items, in: space)
             errorMessage = nil
             isLoading = false
             return .loaded
@@ -224,9 +236,61 @@ final class BoardStore {
 
     func prepareShare() async {
         do {
-            activeShare = try await service.createZoneShare()
+            activeShare = try await service.loadShare()
         } catch {
             errorMessage = Self.message(for: error)
+        }
+    }
+
+    // MARK: - Board creation
+
+    /// Creates a distinct private record zone and copies this person's profile
+    /// into it before switching. The current board remains visible if any
+    /// CloudKit step fails, so creation never strands the user in a half-built
+    /// board.
+    @discardableResult
+    func createBoard(title: String) async -> Bool {
+        let cleanedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanedTitle.isEmpty, let existingProfile = currentProfile else {
+            return false
+        }
+
+        errorMessage = nil
+        isLoading = true
+        let newSpace = Space.newOwned(title: cleanedTitle)
+        let newService = makeService(newSpace)
+        let newProfile = UserProfile(
+            id: newService.newRecordID(),
+            firstName: existingProfile.firstName,
+            lastName: existingProfile.lastName
+        )
+
+        do {
+            // The first load creates the custom zone. Saving the copied profile
+            // then makes the board immediately usable when it becomes current.
+            _ = try await newService.loadEverything()
+            try await newService.save(newProfile.toRecord())
+            let loaded = try await newService.loadEverything()
+
+            refreshGeneration += 1
+            SpaceStore.save(newSpace, in: defaults)
+            spaces = SpaceStore.loadAll(from: defaults)
+            space = newSpace
+            service = newService
+            defaults.set(newProfile.id.recordName, forKey: profileKey(for: newSpace))
+            items = loaded.items.sorted { $0.dateAdded > $1.dateAdded }
+            profiles = loaded.profiles
+            reconcileCurrentProfile()
+            remember(items: loaded.items, in: newSpace)
+            activeShare = nil
+            errorMessage = nil
+            isLoading = false
+            loadState = .loaded
+            return true
+        } catch {
+            errorMessage = Self.message(for: error)
+            isLoading = false
+            return false
         }
     }
 
@@ -261,21 +325,134 @@ final class BoardStore {
     }
     #endif
 
-    /// Point the store at a different board (e.g. after accepting a share
-    /// invite) and reload. Per-space profile keys mean any profile on the
-    /// previous board stays intact for when multi-board switching arrives.
+    /// Adds an accepted board to the catalog, selects it, and reloads. Existing
+    /// memberships and their per-board profiles remain available to switch
+    /// back to at any time.
     func switchTo(space newSpace: Space) async {
-        guard newSpace != space else { return }
+        SpaceStore.save(newSpace, in: defaults)
+        spaces = SpaceStore.loadAll(from: defaults)
+        let selectedSpace = spaces.first(where: { $0.id == newSpace.id }) ?? newSpace
+        guard selectedSpace != space else {
+            space = selectedSpace
+            return
+        }
         // Invalidate any in-flight read before changing services.
         refreshGeneration += 1
-        SpaceStore.save(newSpace, in: defaults)
-        space = newSpace
-        service = makeService(newSpace)
+        space = selectedSpace
+        service = makeService(selectedSpace)
         items = []
         profiles = []
         currentProfile = nil
         activeShare = nil
         await loadForPresentation()
+    }
+
+    // MARK: - Remote board changes
+
+    /// Handles a silent CloudKit database notification. A push is only a hint
+    /// that something changed, so each matching board is fetched and compared
+    /// with its persisted item IDs. Only newly-created records belonging to a
+    /// different profile become visible notifications.
+    func handleRemoteDatabaseChange(scope: CKDatabase.Scope) async -> Bool {
+        let matchingSpaces = spaces.filter { candidate in
+            switch scope {
+            case .private: candidate.isOwned
+            case .shared: !candidate.isOwned
+            default: false
+            }
+        }
+        guard !matchingSpaces.isEmpty else { return false }
+
+        var receivedData = false
+        for candidate in matchingSpaces {
+            do {
+                let loaded = try await makeService(candidate).loadEverything()
+                let previousIDs = rememberedItemIDs(in: candidate)
+                let currentIDs = Set(loaded.items.map { $0.id.recordName })
+                remember(itemIDs: currentIDs, in: candidate)
+                // A database push means the server observed a change. Even an
+                // edit can leave the set of IDs untouched while still giving
+                // us fresh data to publish.
+                receivedData = true
+
+                if let previousIDs {
+                    let newItems = loaded.items.filter {
+                        !previousIDs.contains($0.id.recordName)
+                    }
+                    let myProfileID = defaults.string(forKey: profileKey(for: candidate))
+                    let additionsByOthers = newItems.filter {
+                        $0.addedBy.recordID.recordName != myProfileID
+                    }
+                    if !additionsByOthers.isEmpty {
+                        try? await notificationService.post(
+                            notice(
+                                for: additionsByOthers,
+                                profiles: loaded.profiles,
+                                in: candidate
+                            )
+                        )
+                    }
+                }
+
+                if candidate == space {
+                    publishRemoteLoad(loaded)
+                }
+            } catch {
+                if candidate == space {
+                    errorMessage = Self.message(for: error)
+                }
+            }
+        }
+        return receivedData
+    }
+
+    private func publishRemoteLoad(
+        _ loaded: (items: [any SharedListItem], profiles: [UserProfile])
+    ) {
+        items = loaded.items.sorted { $0.dateAdded > $1.dateAdded }
+        profiles = loaded.profiles
+        reconcileCurrentProfile()
+        errorMessage = nil
+        loadState = .loaded
+    }
+
+    private func notice(
+        for newItems: [any SharedListItem],
+        profiles: [UserProfile],
+        in space: Space
+    ) -> BoardChangeNotice {
+        let body: String
+        if newItems.count == 1, let item = newItems.first {
+            let author = profiles.first {
+                $0.id.recordName == item.addedBy.recordID.recordName
+            }?.displayName
+            if let author, !author.isEmpty {
+                body = "\(author) added “\(item.title)”."
+            } else {
+                body = "Someone added “\(item.title)”."
+            }
+        } else {
+            body = "\(newItems.count) new items were added."
+        }
+        return BoardChangeNotice(boardID: space.id, title: space.title, body: body)
+    }
+
+    private func rememberedItemIDs(in space: Space) -> Set<String>? {
+        let key = rememberedItemsKey(for: space)
+        guard defaults.object(forKey: key) != nil else { return nil }
+        return Set(defaults.stringArray(forKey: key) ?? [])
+    }
+
+    private func remember(items: [any SharedListItem], in space: Space) {
+        remember(itemIDs: Set(items.map { $0.id.recordName }), in: space)
+    }
+
+    private func remember(itemIDs: Set<String>, in space: Space) {
+        defaults.set(itemIDs.sorted(), forKey: rememberedItemsKey(for: space))
+    }
+
+    private func rememberedItemsKey(for space: Space) -> String {
+        "docket.knownItemRecordNames.\(space.id)"
     }
 
     // MARK: - Error presentation

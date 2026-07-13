@@ -34,13 +34,17 @@ final class SpaceTests: XCTestCase {
     func testJoinedSpaceRoundTrip() {
         let joined = Space(
             zoneID: CKRecordZone.ID(zoneName: "SharedSpace", ownerName: "_ownerRecordName"),
-            access: .joined
+            access: .joined,
+            title: "Alice’s Board"
         )
         SpaceStore.save(joined, in: defaults)
 
         let loaded = SpaceStore.load(from: defaults)
         XCTAssertEqual(loaded, joined)
+        XCTAssertEqual(loaded.title, "Alice’s Board")
         XCTAssertFalse(loaded.isOwned)
+        XCTAssertEqual(SpaceStore.loadAll(from: defaults).count, 2)
+        XCTAssertTrue(SpaceStore.loadAll(from: defaults).contains(.default))
     }
 
     func testOwnedAndJoinedSpacesWithSameZoneNameHaveDistinctIdentity() {
@@ -58,5 +62,21 @@ final class SpaceTests: XCTestCase {
         )
         XCTAssertNotEqual(mine.id, girlfriends.id)
         XCTAssertNotEqual(girlfriends.id, brothers.id)
+    }
+
+    func testNewOwnedBoardsUseDistinctZonesAndKeepTheirTitles() {
+        let first = Space.newOwned(
+            title: "Date Nights",
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+        )
+        let second = Space.newOwned(
+            title: "Family Plans",
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
+        )
+
+        XCTAssertTrue(first.isOwned)
+        XCTAssertEqual(first.title, "Date Nights")
+        XCTAssertNotEqual(first.zoneID, second.zoneID)
+        XCTAssertNotEqual(first, second)
     }
 }
