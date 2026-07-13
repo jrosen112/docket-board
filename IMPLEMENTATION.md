@@ -29,7 +29,7 @@ swappable layer on top. Don't bake presentation decisions into the data layer.
 ## Build order (from CLAUDE.md) & status
 1. **CloudKit container/zone/share setup** — ✅ owner zone + share send + invitee acceptance (owner/participant scopes)
 2. **CKRecord conversion per category** — ✅ done (models + round-trip tests)
-3. **Masonry board view w/ filtering** — 🟡 plain list board wired; masonry + filters pending
+3. **Masonry board view w/ filtering** — ✅ done (corkboard styling + category/status filters)
 4. **Add/edit form** — ✅ done (`ItemFormView`: add + tap-to-edit)
 5. **Category detail views** — 🔲 not started
 6. **Map view for location categories** — 🔲 not started
@@ -77,21 +77,42 @@ swappable layer on top. Don't bake presentation decisions into the data layer.
   stored per-space (`docket.currentProfileRecordName.<space.id>`), with a
   one-time migration from the old global key; joining another board never wipes
   the owned board's identity.
-- **UI** (`Views/`, plain styling on purpose) — `ContentView` gate
-  (loading → profile setup → board), `ProfileSetupView`, `BoardView` (list +
-  add/share toolbar + pull-to-refresh + swipe-delete + tap-to-edit),
-  `ItemFormView` (add: category picker → category fields; edit: pre-filled,
-  category fixed, preserves record identity), `CloudSharingSheet`
-  (UICloudSharingController bridge).
-- **Tests** — 27 offline tests, all passing: `ModelConversionTests` (8, incl.
+- **UI — composable, one component per file (hard requirement from Jared:
+  no screen-view state bloat; components are dumb, screens only compose):**
+  - `Views/Theme/DocketTheme.swift` — ALL design tokens: palette (ink navy /
+    cream / brass per CLAUDE.md), Georgia display fonts, per-category accents,
+    per-status chip colors, deterministic card rotation (keyed by record name,
+    NOT hashValue which is process-seeded). Restyling = edit this file only.
+  - `Support/BoardFilter.swift` — pure category/status filter logic (tested).
+  - `Views/Components/` — `MasonryLayout` (custom Layout, shortest-column
+    packing), `BoardCard` (cream stock, brass pin, accent stripe, tilt),
+    `StatusChip`, `FilterChip`, `BoardFilterBar`, `EmptyBoardView`,
+    `ErrorBanner` (CloudKit errors now surface on the board, dismissable),
+    `ItemPresentation.swift` (category-specific subtitle line — presentation
+    formatting kept OUT of model files).
+  - Screens: `ContentView` gate (themed loading → profile setup → board),
+    `BoardView` (composition only; state = 2 sheet flags + edit target +
+    filter), `ItemFormView` (add + edit), `ProfileSetupView`,
+    `CloudSharingSheet`. Card tap = edit; card long-press = Edit/Delete menu
+    (replaces the old list swipe-delete).
+- **Debug seeding** (`Support/SampleData.swift` + BoardStore debug section +
+  ⋯ toolbar menu; all `#if DEBUG`, compiled out of TestFlight) — "Seed sample
+  data" pins 9 varied items (all categories/statuses, mixed note lengths for
+  masonry variance, staggered dates); "Delete sample data" removes ONLY records
+  with the `sample-` recordName prefix, never real items.
+- **Tests** — 37 offline tests, all passing: `ModelConversionTests` (8, incl.
   system-fields/edit round-trips), `RecordDecoderTests` (3), `SpaceTests` (3),
-  `BoardStoreTests` (12, via `MockSpaceService` — loading, sorting, error
-  surfacing, profile identity + legacy-key migration, add/edit/delete, space
-  switching). Full app builds clean for the iOS 26 simulator with no warnings.
+  `BoardStoreTests` (12, via `MockSpaceService`), `BoardFilterTests` (5),
+  `DocketThemeTests` (3, rotation determinism/range), `SampleDataTests` (2).
+  Full app builds clean for the iOS 26 simulator with no warnings.
 
 ## Next up
-- [ ] Masonry/corkboard styling + category color accents + status/category filters.
-- [ ] Then step 5+ (detail views, map, push sync, photos).
+- [ ] Category-specific detail views (build order step 5).
+- [ ] Map view for location-based categories (step 6) — will want the
+      MKLocalSearch location upgrade around the same time.
+- [ ] Push sync (`CKDatabaseSubscription` + silent push) + photo attachments +
+      remaining categories (HappyHour/Landmark/Hike/Activity) (step 7).
+- [ ] Owner smoke test of the new board UI (see verification notes).
 
 Notes for later:
 - `INFOPLIST_KEY_CKSharingSupported=YES` build setting is **silently dropped**
@@ -117,10 +138,13 @@ Notes for later:
   3. Force-quit and relaunch → profile is remembered, item still there (proves
      the CloudKit round-trip, not just local state).
   4. Swipe-delete an item → it's gone after a refresh.
-  5. Tap an item → edit form pre-filled (no category picker) → change the title
-     and status → Save → row updates; force-quit + relaunch → edit persisted.
-     This exercises the change-tag path (real CloudKit rejects tag-less
-     updates, which the mock can't simulate — worth checking on-device).
+  5. ~~Tap an item → edit → persists after relaunch~~ ✅ verified on-device
+     2026-07-12 (add + edit both survive force-quit; change-tag path works).
+  6. **Board UI pass (new):** cards pack into two tilted columns with brass
+     pins; category chips filter (tap again to clear); status chips filter;
+     card tap opens edit; card long-press shows Edit/Delete; empty + filtered
+     empty states render; kill network → refresh → error banner appears at the
+     bottom and X dismisses it.
   - If any CloudKit call errors, the message surfaces on-screen (profile screen)
     or is stored in `store.errorMessage`. Tell me the exact text.
 - **Sharing smoke test (needs two iCloud accounts + two real devices — CloudKit

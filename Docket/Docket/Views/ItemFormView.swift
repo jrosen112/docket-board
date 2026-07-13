@@ -36,8 +36,6 @@ struct ItemFormView: View {
 
     @State private var isSaving = false
 
-    private let supportedCategories: [ItemCategory] = [.restaurant, .bar, .movie]
-
     init(editing item: (any SharedListItem)? = nil) {
         self.editingItem = item
         guard let item else { return }
@@ -76,7 +74,7 @@ struct ItemFormView: View {
                 if !isEditing {
                     Section {
                         Picker("Category", selection: $category) {
-                            ForEach(supportedCategories, id: \.self) { category in
+                            ForEach(ItemCategory.supported, id: \.self) { category in
                                 Text(category.label).tag(category)
                             }
                         }

@@ -35,6 +35,10 @@ nonisolated enum ItemCategory: String, CaseIterable, Codable {
     case hike
     case activity
 
+    /// Categories implemented in the Phase 1 subset — the single list the add
+    /// form and filter bar both read.
+    static let supported: [ItemCategory] = [.restaurant, .bar, .movie]
+
     var label: String {
         switch self {
         case .restaurant: "Restaurant"

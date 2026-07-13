@@ -164,6 +164,37 @@ final class BoardStore {
         }
     }
 
+    // MARK: - Debug seeding (compiled out of Release/TestFlight)
+
+    #if DEBUG
+    /// Populates the board with SampleData so UI iteration doesn't require
+    /// re-entering items by hand. Saved once, then a single refresh.
+    func seedSampleData() async {
+        guard let me = currentProfile else { return }
+        do {
+            for item in SampleData.items(addedBy: me.reference, in: service.space.zoneID) {
+                try await service.save(item.toRecord())
+            }
+            await refresh()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Removes ONLY seeded records (sample- ID prefix); real items untouched.
+    func deleteSampleData() async {
+        let samples = items.filter { SampleData.isSample($0.id) }
+        do {
+            for item in samples {
+                try await service.delete(item.id)
+            }
+            await refresh()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+    #endif
+
     /// Point the store at a different board (e.g. after accepting a share
     /// invite) and reload. Per-space profile keys mean any profile on the
     /// previous board stays intact for when multi-board switching arrives.

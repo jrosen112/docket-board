@@ -2,9 +2,9 @@
 //  BoardView.swift
 //  Docket
 //
-//  The board. A plain list for now (masonry / corkboard styling comes later);
-//  the point at this stage is to prove data flows from CloudKit through the
-//  store into the UI, and back out via Add / Delete / Share.
+//  The board screen. Pure composition: background + filter bar + masonry of
+//  cards + toolbar + sheets. All visuals live in components/DocketTheme; the
+//  only state here is screen-local (sheet flags, filter selection).
 //
 
 import SwiftUI
@@ -16,66 +16,134 @@ struct BoardView: View {
     @State private var showingAdd = false
     @State private var showingShare = false
     @State private var editTarget: EditTarget?
+    @State private var filter = BoardFilter()
+
+    private var filteredItems: [any SharedListItem] {
+        filter.apply(to: store.items)
+    }
 
     var body: some View {
         NavigationStack {
-            content
-                .navigationTitle("The Board")
-                .toolbar {
-                    if store.isOwner {
-                        ToolbarItem(placement: .topBarLeading) {
-                            Button {
-                                Task {
-                                    await store.prepareShare()
-                                    showingShare = store.activeShare != nil
-                                }
-                            } label: {
-                                Image(systemName: "person.crop.circle.badge.plus")
-                            }
-                        }
-                    }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button { showingAdd = true } label: {
-                            Image(systemName: "plus")
-                        }
-                    }
+            ZStack {
+                Rectangle()
+                    .fill(DocketTheme.boardBackground)
+                    .ignoresSafeArea()
+                boardContent
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(DocketTheme.ink, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbar { toolbarItems }
+            .overlay(alignment: .bottom) {
+                if let message = store.errorMessage {
+                    ErrorBanner(message: message) { store.errorMessage = nil }
+                        .padding(.bottom, 8)
                 }
-                .refreshable { await store.refresh() }
-                .sheet(isPresented: $showingAdd) { ItemFormView() }
-                .sheet(item: $editTarget) { target in
-                    ItemFormView(editing: target.item)
-                }
-                .sheet(isPresented: $showingShare) {
-                    if let share = store.activeShare {
-                        CloudSharingSheet(share: share, container: store.container)
-                    }
-                }
-        }
-    }
-
-    @ViewBuilder private var content: some View {
-        if store.items.isEmpty {
-            ContentUnavailableView(
-                "Nothing on the board yet",
-                systemImage: "pin",
-                description: Text("Tap + to add your first spot.")
-            )
-        } else {
-            List {
-                ForEach(store.items, id: \.id) { item in
-                    Button {
-                        editTarget = EditTarget(item: item)
-                    } label: {
-                        ItemRow(item: item, addedBy: store.displayName(for: item))
-                    }
-                    .buttonStyle(.plain)
-                }
-                .onDelete { indexSet in
-                    let toDelete = indexSet.map { store.items[$0] }
-                    Task { for item in toDelete { await store.delete(item) } }
+            }
+            .sheet(isPresented: $showingAdd) { ItemFormView() }
+            .sheet(item: $editTarget) { target in
+                ItemFormView(editing: target.item)
+            }
+            .sheet(isPresented: $showingShare) {
+                if let share = store.activeShare {
+                    CloudSharingSheet(share: share, container: store.container)
                 }
             }
         }
+    }
+
+    // MARK: - Pieces
+
+    private var boardContent: some View {
+        ScrollView {
+            VStack(spacing: 18) {
+                BoardFilterBar(filter: $filter, categories: ItemCategory.supported)
+
+                if filteredItems.isEmpty {
+                    EmptyBoardView(isFiltered: filter.isActive && !store.items.isEmpty)
+                } else {
+                    MasonryLayout(columns: 2, spacing: 14) {
+                        ForEach(filteredItems, id: \.id) { item in
+                            card(for: item)
+                        }
+                    }
+                    // Breathing room so pins/tilts don't clip at the edges.
+                    .padding(.top, 6)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 32)
+        }
+        .refreshable { await store.refresh() }
+    }
+
+    private func card(for item: any SharedListItem) -> some View {
+        BoardCard(
+            item: item,
+            subtitle: cardSubtitle(for: item),
+            addedBy: store.displayName(for: item)
+        )
+        .onTapGesture { editTarget = EditTarget(item: item) }
+        .contextMenu {
+            Button {
+                editTarget = EditTarget(item: item)
+            } label: {
+                Label("Edit", systemImage: "pencil")
+            }
+            Button(role: .destructive) {
+                Task { await store.delete(item) }
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+    }
+
+    @ToolbarContentBuilder private var toolbarItems: some ToolbarContent {
+        ToolbarItem(placement: .principal) {
+            Text("The Board")
+                .font(DocketTheme.display(20))
+                .foregroundStyle(DocketTheme.cream)
+        }
+        if store.isOwner {
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    Task {
+                        await store.prepareShare()
+                        showingShare = store.activeShare != nil
+                    }
+                } label: {
+                    Image(systemName: "person.crop.circle.badge.plus")
+                        .foregroundStyle(DocketTheme.brass)
+                }
+            }
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            Button { showingAdd = true } label: {
+                Image(systemName: "plus")
+                    .foregroundStyle(DocketTheme.brass)
+            }
+        }
+        #if DEBUG
+        ToolbarItem(placement: .topBarTrailing) {
+            Menu {
+                Button {
+                    Task { await store.seedSampleData() }
+                } label: {
+                    Label("Seed sample data", systemImage: "sparkles")
+                }
+                Button(role: .destructive) {
+                    Task { await store.deleteSampleData() }
+                } label: {
+                    Label("Delete sample data", systemImage: "trash")
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .foregroundStyle(DocketTheme.brass.opacity(0.7))
+            }
+        }
+        #endif
     }
 }
 
@@ -84,32 +152,4 @@ struct BoardView: View {
 private struct EditTarget: Identifiable {
     let item: any SharedListItem
     var id: CKRecord.ID { item.id }
-}
-
-private struct ItemRow: View {
-    let item: any SharedListItem
-    let addedBy: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(item.title).font(.headline)
-            HStack(spacing: 6) {
-                Text(item.category.label)
-                Text("·")
-                Text(item.status.label)
-                Spacer()
-                Text(addedBy)
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-
-            if let notes = item.notes, !notes.isEmpty {
-                Text(notes)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-        }
-        .padding(.vertical, 2)
-    }
 }
