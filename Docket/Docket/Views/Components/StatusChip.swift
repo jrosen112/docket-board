@@ -12,9 +12,10 @@ struct StatusChip: View {
 
     var body: some View {
         Text(status.label)
-            .font(.caption2.weight(.semibold))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
+            .font(DocketTheme.StatusBadge.font)
+            .lineLimit(1)
+            .padding(.horizontal, DocketTheme.StatusBadge.horizontalPadding)
+            .padding(.vertical, DocketTheme.StatusBadge.verticalPadding)
             .background(Capsule().fill(status.chipColor.opacity(0.16)))
             .foregroundStyle(status.chipColor)
     }

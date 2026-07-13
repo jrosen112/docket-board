@@ -49,6 +49,48 @@ nonisolated enum DocketTheme {
     static func display(_ size: CGFloat) -> Font { .custom("Georgia-Bold", size: size) }
     static func displayRegular(_ size: CGFloat) -> Font { .custom("Georgia", size: size) }
 
+    // MARK: Board card header
+
+    enum BoardCardHeader {
+        static let categoryFont: Font = .caption2.weight(.bold)
+        static let categoryTracking: CGFloat = 1.2
+    }
+
+    enum StatusBadge {
+        static let horizontalPadding: CGFloat = 8
+        static let verticalPadding: CGFloat = 3
+        static let cardTopPadding: CGFloat = 2
+        static let font: Font = .caption2.weight(.semibold)
+    }
+
+    enum BoardFilterHeader {
+        static let contentPadding: CGFloat = 10
+        static let verticalMargin: CGFloat = 8
+        static let cornerRadius: CGFloat = 18
+        static let borderWidth: CGFloat = 1
+        static let shadowRadius: CGFloat = 5
+        static let shadowY: CGFloat = 3
+        static let glassTint = DocketTheme.inkLight.opacity(0.52)
+        static let borderColor = DocketTheme.cream.opacity(0.08)
+        static let shadowColor = Color.black.opacity(0.24)
+    }
+
+    enum BoardScrollNote {
+        static let font: Font = .footnote.weight(.medium)
+        static let color = DocketTheme.cream.opacity(0.62)
+        static let fadeStart: CGFloat = 480
+        static let fadeDistance: CGFloat = 300
+        static let progressStep: CGFloat = 0.05
+        static let hiddenOffset: CGFloat = 8
+        static let bottomPadding: CGFloat = 12
+
+        static func progress(for offset: CGFloat) -> CGFloat {
+            let rawProgress = (offset - fadeStart) / fadeDistance
+            let clampedProgress = min(max(rawProgress, 0), 1)
+            return (clampedProgress / progressStep).rounded() * progressStep
+        }
+    }
+
     // MARK: Card rotation
 
     /// Deterministic per-card tilt in the range -1.5°…+1.5°, keyed by record

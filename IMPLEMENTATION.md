@@ -30,7 +30,7 @@ swappable layer on top. Don't bake presentation decisions into the data layer.
 1. **CloudKit container/zone/share setup** — ✅ owner zone + share send + invitee acceptance (owner/participant scopes)
 2. **CKRecord conversion per category** — ✅ done (models + round-trip tests)
 3. **Masonry board view w/ filtering** — ✅ done (corkboard styling + category/status filters)
-4. **Add/edit form** — ✅ done (`ItemFormView` for adds; shared `ItemDraft` conversion)
+4. **Add/edit form** — ✅ done (detail-style add flow; shared `ItemDraft` conversion)
 5. **Category detail views** — ✅ done (tap card → typed detail; tap any field → inline edit)
 6. **Map view for location categories** — 🔲 not started
 7. **Push sync + photo attachments + polish** — 🔲 not started
@@ -102,16 +102,20 @@ swappable layer on top. Don't bake presentation decisions into the data layer.
     card long-press also offers Edit/Delete. `ItemDraft` is the single tested
     conversion path used by both the add form and inline editor. Failed saves
     keep the editor open, and concurrent-edit conflicts offer a reload.
+  - Board filters are a pinned section header beneath the native navigation bar,
+    leaving filters continuously usable without scroll-driven layout changes.
+    The Add toolbar action opens the same card-based editing experience as details.
 - **Debug seeding** (`Support/SampleData.swift` + BoardStore debug section +
   ⋯ toolbar menu; all `#if DEBUG`, compiled out of TestFlight) — "Seed sample
   data" pins 9 varied items (all categories/statuses, mixed note lengths for
   masonry variance, staggered dates); "Delete sample data" removes ONLY records
   with the `sample-` recordName prefix, never real items.
-- **Tests** — 45 offline tests, all passing: `ModelConversionTests` (8, incl.
+- **Tests** — 49 offline tests, all passing: `ModelConversionTests` (8, incl.
   system-fields/edit round-trips), `RecordDecoderTests` (3), `SpaceTests` (3),
-  `BoardStoreTests` (16, via `MockSpaceService`), `CloudKitFetchAccumulatorTests`
+  `BoardStoreTests` (17, via `MockSpaceService`), `CloudKitFetchAccumulatorTests`
   (2), `BoardFilterTests` (5),
-  `DocketThemeTests` (3, rotation determinism/range), `SampleDataTests` (2),
+  `DocketThemeTests` (6, rotation and scroll-note fade behavior),
+  `SampleDataTests` (2), and
   `ItemDraftTests` (3, including CloudKit metadata preservation).
   Placeholder unit/UI tests were removed. Full app builds clean for iOS.
 

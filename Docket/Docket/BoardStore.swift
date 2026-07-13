@@ -44,6 +44,13 @@ final class BoardStore {
     var profiles: [UserProfile] = []
     /// Whichever profile belongs to this device's user on this board.
     var currentProfile: UserProfile?
+    /// Number of board items created by the profile selected on this device.
+    var currentUserItemCount: Int {
+        guard let currentProfile else { return 0 }
+        return items.count {
+            $0.addedBy.recordID.recordName == currentProfile.id.recordName
+        }
+    }
 
     var isLoading = false
     var errorMessage: String?

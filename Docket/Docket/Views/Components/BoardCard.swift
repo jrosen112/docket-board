@@ -19,14 +19,11 @@ struct BoardCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(item.category.label.uppercased())
-                    .font(.caption2.weight(.bold))
-                    .tracking(1.2)
-                    .foregroundStyle(accent)
-                Spacer(minLength: 8)
-                StatusChip(status: item.status)
-            }
+            Text(item.category.label.uppercased())
+                .font(DocketTheme.BoardCardHeader.categoryFont)
+                .tracking(DocketTheme.BoardCardHeader.categoryTracking)
+                .foregroundStyle(accent)
+                .lineLimit(1)
 
             Text(item.title)
                 .font(DocketTheme.display(17))
@@ -45,6 +42,9 @@ struct BoardCard: View {
                     .foregroundStyle(DocketTheme.ink.opacity(0.8))
                     .lineLimit(3)
             }
+
+            StatusChip(status: item.status)
+                .padding(.top, DocketTheme.StatusBadge.cardTopPadding)
 
             Text("— \(addedBy)")
                 .font(.caption2.italic())

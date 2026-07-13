@@ -4,6 +4,7 @@ struct RestaurantDetailView: View {
     let restaurant: Restaurant
     let addedBy: String
     let isEditing: Bool
+    let allowsCategorySelection: Bool
     let saveErrorMessage: String?
     @Binding var draft: ItemDraft
     let focusedField: FocusState<ItemDraftField?>.Binding
@@ -15,6 +16,7 @@ struct RestaurantDetailView: View {
             addedBy: addedBy,
             symbol: "fork.knife",
             isEditing: isEditing,
+            allowsCategorySelection: allowsCategorySelection,
             saveErrorMessage: saveErrorMessage,
             draft: $draft,
             focusedField: focusedField,

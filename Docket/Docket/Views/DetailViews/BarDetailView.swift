@@ -4,6 +4,7 @@ struct BarDetailView: View {
     let bar: Bar
     let addedBy: String
     let isEditing: Bool
+    let allowsCategorySelection: Bool
     let saveErrorMessage: String?
     @Binding var draft: ItemDraft
     let focusedField: FocusState<ItemDraftField?>.Binding
@@ -15,6 +16,7 @@ struct BarDetailView: View {
             addedBy: addedBy,
             symbol: "wineglass.fill",
             isEditing: isEditing,
+            allowsCategorySelection: allowsCategorySelection,
             saveErrorMessage: saveErrorMessage,
             draft: $draft,
             focusedField: focusedField,

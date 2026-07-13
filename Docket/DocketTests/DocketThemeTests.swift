@@ -33,4 +33,27 @@ final class DocketThemeTests: XCTestCase {
         let tilts = Set((0..<50).map { DocketTheme.rotationDegrees(for: "card-\($0)") })
         XCTAssertGreaterThan(tilts.count, 10)
     }
+
+    func testScrollNoteIsHiddenBeforeFadeRange() {
+        XCTAssertEqual(DocketTheme.BoardScrollNote.progress(for: 0), 0)
+        XCTAssertEqual(
+            DocketTheme.BoardScrollNote.progress(
+                for: DocketTheme.BoardScrollNote.fadeStart - 1
+            ),
+            0
+        )
+    }
+
+    func testScrollNoteFadesProgressively() {
+        let midpoint = DocketTheme.BoardScrollNote.fadeStart
+            + DocketTheme.BoardScrollNote.fadeDistance / 2
+        XCTAssertEqual(DocketTheme.BoardScrollNote.progress(for: midpoint), 0.5)
+    }
+
+    func testScrollNoteStaysVisiblePastFadeRange() {
+        let beyondFade = DocketTheme.BoardScrollNote.fadeStart
+            + DocketTheme.BoardScrollNote.fadeDistance
+            + 1_000
+        XCTAssertEqual(DocketTheme.BoardScrollNote.progress(for: beyondFade), 1)
+    }
 }

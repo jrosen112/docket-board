@@ -88,7 +88,8 @@ nonisolated struct ItemDraft {
 
     func makeNew(
         id: CKRecord.ID,
-        addedBy: CKRecord.Reference
+        addedBy: CKRecord.Reference,
+        dateAdded: Date = .now
     ) -> (any SharedListItem)? {
         switch category {
         case .restaurant:
@@ -98,6 +99,7 @@ nonisolated struct ItemDraft {
                 notes: notes.orNil,
                 status: status,
                 addedBy: addedBy,
+                dateAdded: dateAdded,
                 location: location.orNil,
                 cuisine: cuisine.orNil,
                 priceRange: priceRange
@@ -109,6 +111,7 @@ nonisolated struct ItemDraft {
                 notes: notes.orNil,
                 status: status,
                 addedBy: addedBy,
+                dateAdded: dateAdded,
                 location: location.orNil,
                 barType: barType
             )
@@ -119,6 +122,7 @@ nonisolated struct ItemDraft {
                 notes: notes.orNil,
                 status: status,
                 addedBy: addedBy,
+                dateAdded: dateAdded,
                 runtimeMinutes: Int(runtime),
                 streamingService: streamingService.orNil,
                 releaseYear: Int(releaseYear)

@@ -152,6 +152,19 @@ final class BoardStoreTests: XCTestCase {
         XCTAssertEqual(store.displayName(for: item), "Alice Nguyen")
     }
 
+    func testCurrentUserItemCountUsesProfileReferences() async {
+        await store.createProfile(firstName: "Jared", lastName: "R")
+        let currentProfile = store.currentProfile!
+        seedMovie("Mine", addedBy: currentProfile, dateAdded: .now)
+
+        let alice = seedProfile(name: "Alice")
+        seedMovie("Hers", addedBy: alice, dateAdded: .now)
+        await store.refresh()
+
+        XCTAssertEqual(store.currentUserItemCount, 1)
+        XCTAssertEqual(store.items.count, 2)
+    }
+
     func testLegacyGlobalProfileKeyMigratesToDefaultSpace() async {
         let profile = seedProfile(name: "Jared")
         defaults.set(profile.id.recordName, forKey: "docket.currentProfileRecordName")

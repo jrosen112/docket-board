@@ -21,12 +21,23 @@ struct ItemDetailView: View {
         Group {
             if let item {
                 content(for: item)
-                    .navigationTitle(item.category.label)
+                    .navigationTitle("")
                     .navigationBarTitleDisplayMode(.inline)
-                    .toolbarBackground(DocketTheme.ink, for: .navigationBar)
-                    .toolbarBackground(.visible, for: .navigationBar)
+                    .toolbarVisibility(.visible, for: .navigationBar)
+                    .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
                     .toolbarColorScheme(.dark, for: .navigationBar)
-                    .toolbar { editingToolbar(for: item) }
+                    .navigationBarBackButtonHidden(isEditing)
+                    .toolbar {
+                        DetailBottomToolbar(
+                            isEditing: isEditing,
+                            hasKeyboardFocus: focusedField != nil,
+                            isSaving: isSaving,
+                            canSave: draft.isValid,
+                            onEdit: { beginEditing(item, field: .title) },
+                            onCancel: cancelEditing,
+                            onSave: { Task { await save() } }
+                        )
+                    }
                     .alert("This item changed", isPresented: $showingConflict) {
                         Button("Keep Editing", role: .cancel) {}
                         Button("Reload Their Version") {
@@ -62,6 +73,7 @@ struct ItemDetailView: View {
                 restaurant: restaurant,
                 addedBy: addedBy,
                 isEditing: isEditing,
+                allowsCategorySelection: false,
                 saveErrorMessage: saveErrorMessage,
                 draft: $draft,
                 focusedField: $focusedField,
@@ -72,6 +84,7 @@ struct ItemDetailView: View {
                 bar: bar,
                 addedBy: addedBy,
                 isEditing: isEditing,
+                allowsCategorySelection: false,
                 saveErrorMessage: saveErrorMessage,
                 draft: $draft,
                 focusedField: $focusedField,
@@ -82,6 +95,7 @@ struct ItemDetailView: View {
                 movie: movie,
                 addedBy: addedBy,
                 isEditing: isEditing,
+                allowsCategorySelection: false,
                 saveErrorMessage: saveErrorMessage,
                 draft: $draft,
                 focusedField: $focusedField,
@@ -89,24 +103,6 @@ struct ItemDetailView: View {
             )
         default:
             ContentUnavailableView("Unsupported item", systemImage: "questionmark")
-        }
-    }
-
-    @ToolbarContentBuilder
-    private func editingToolbar(for item: any SharedListItem) -> some ToolbarContent {
-        if isEditing {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel") { cancelEditing() }
-                    .disabled(isSaving)
-            }
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Save") { Task { await save() } }
-                    .disabled(!draft.isValid || isSaving)
-            }
-        } else {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Edit") { beginEditing(item, field: .title) }
-            }
         }
     }
 

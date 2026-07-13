@@ -6,6 +6,7 @@ struct DetailPage<Details: View>: View {
     let addedBy: String
     let symbol: String
     let isEditing: Bool
+    let allowsCategorySelection: Bool
     let saveErrorMessage: String?
     @Binding var draft: ItemDraft
     let focusedField: FocusState<ItemDraftField?>.Binding
@@ -93,10 +94,28 @@ struct DetailPage<Details: View>: View {
                     )
                     .background(Circle().fill(accent))
 
-                Text(item.category.label.uppercased())
-                    .font(DocketDetailTheme.Hero.categoryFont)
-                    .tracking(DocketDetailTheme.Hero.categoryTracking)
-                    .foregroundStyle(accent)
+                if isEditing && allowsCategorySelection {
+                    Picker(selection: $draft.category) {
+                        ForEach(ItemCategory.supported, id: \.self) { category in
+                            Text(category.label).tag(category)
+                        }
+                    } label: {
+                        HStack(spacing: DocketDetailTheme.Edit.fieldSpacing) {
+                            Text(draft.category.label.uppercased())
+                            Image(systemName: "chevron.up.chevron.down")
+                        }
+                        .font(DocketDetailTheme.Hero.categoryFont)
+                        .tracking(DocketDetailTheme.Hero.categoryTracking)
+                        .foregroundStyle(accent)
+                    }
+                    .pickerStyle(.menu)
+                    .tint(accent)
+                } else {
+                    Text(item.category.label.uppercased())
+                        .font(DocketDetailTheme.Hero.categoryFont)
+                        .tracking(DocketDetailTheme.Hero.categoryTracking)
+                        .foregroundStyle(accent)
+                }
 
                 Spacer()
                 if isEditing {

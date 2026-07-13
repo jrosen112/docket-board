@@ -62,10 +62,14 @@ final class ItemDraftTests: XCTestCase {
         draft.location = "Mission"
         draft.barType = .cocktail
         let id = CKRecord.ID(recordName: "bar-1")
+        let dateAdded = Date(timeIntervalSince1970: 456_789)
 
-        let bar = try XCTUnwrap(draft.makeNew(id: id, addedBy: addedBy) as? Bar)
+        let bar = try XCTUnwrap(
+            draft.makeNew(id: id, addedBy: addedBy, dateAdded: dateAdded) as? Bar
+        )
 
         XCTAssertEqual(bar.id, id)
+        XCTAssertEqual(bar.dateAdded, dateAdded)
         XCTAssertEqual(bar.title, "Trick Dog")
         XCTAssertEqual(bar.location, "Mission")
         XCTAssertEqual(bar.barType, .cocktail)

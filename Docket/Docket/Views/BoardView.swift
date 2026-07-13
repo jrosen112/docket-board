@@ -13,12 +13,14 @@ import CloudKit
 struct BoardView: View {
     @Environment(BoardStore.self) private var store
     @Namespace private var toolbarTransitionNamespace
+    @Namespace private var boardTransitionNamespace
 
-    @State private var showingAdd = false
+    @State private var addTarget: AddTarget?
     @State private var showingShare = false
     @State private var editTarget: EditTarget?
     @State private var detailTarget: DetailTarget?
     @State private var filter = BoardFilter()
+    @State private var scrollNoteProgress: CGFloat = 0
 
     private var filteredItems: [any SharedListItem] {
         filter.apply(to: store.items)
@@ -26,10 +28,15 @@ struct BoardView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
+            ZStack(alignment: .bottom) {
                 Rectangle()
                     .fill(DocketTheme.boardBackground)
                     .ignoresSafeArea()
+                BoardScrollNote(
+                    progress: scrollNoteProgress,
+                    createdCount: store.currentUserItemCount,
+                    totalCount: store.items.count
+                )
                 boardContent
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -42,7 +49,7 @@ struct BoardView: View {
                     isOwner: store.isOwner,
                     transitionNamespace: toolbarTransitionNamespace,
                     onShare: prepareShare,
-                    onAdd: { showingAdd = true }
+                    onAdd: beginAdding
                 )
             }
             .overlay(alignment: .bottom) {
@@ -51,8 +58,8 @@ struct BoardView: View {
                         .padding(.bottom, 8)
                 }
             }
-            .sheet(isPresented: $showingAdd) {
-                ItemFormView()
+            .sheet(item: $addTarget) { target in
+                NewItemView(itemID: target.id, dateAdded: target.dateAdded)
                     .navigationTransition(
                         .zoom(
                             sourceID: BoardToolbarTransitionID.add,
@@ -76,6 +83,9 @@ struct BoardView: View {
             }
             .navigationDestination(item: $detailTarget) { target in
                 ItemDetailView(itemID: target.id)
+                    .navigationTransition(
+                        .zoom(sourceID: target.id, in: boardTransitionNamespace)
+                    )
             }
         }
     }
@@ -84,26 +94,46 @@ struct BoardView: View {
 
     private var boardContent: some View {
         ScrollView {
-            VStack(spacing: 18) {
-                BoardFilterBar(filter: $filter, categories: ItemCategory.supported)
-
-                if filteredItems.isEmpty {
-                    EmptyBoardView(isFiltered: filter.isActive && !store.items.isEmpty)
-                } else {
-                    MasonryLayout(columns: 2, spacing: 14) {
-                        ForEach(filteredItems, id: \.id) { item in
-                            card(for: item)
-                        }
-                    }
-                    // Breathing room so pins/tilts don't clip at the edges.
-                    .padding(.top, 6)
+            LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                Section {
+                    boardItems
+                        .padding(.top, 10)
+                        .padding(.bottom, 32)
+                } header: {
+                    BoardFilterHeader(
+                        filter: $filter,
+                        categories: ItemCategory.supported
+                    )
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.top, 12)
-            .padding(.bottom, 32)
         }
         .refreshable { await store.refresh() }
+        .onScrollGeometryChange(
+            for: CGFloat.self,
+            of: { geometry in
+                let offset = geometry.contentOffset.y + geometry.contentInsets.top
+                return DocketTheme.BoardScrollNote.progress(for: offset)
+            },
+            action: { _, progress in
+                scrollNoteProgress = progress
+            }
+        )
+    }
+
+    @ViewBuilder
+    private var boardItems: some View {
+        if filteredItems.isEmpty {
+            EmptyBoardView(isFiltered: filter.isActive && !store.items.isEmpty)
+        } else {
+            MasonryLayout(columns: 2, spacing: 14) {
+                ForEach(filteredItems, id: \.id) { item in
+                    card(for: item)
+                }
+            }
+            // Breathing room so pins/tilts don't clip at the edges.
+            .padding(.top, 6)
+        }
     }
 
     private func card(for item: any SharedListItem) -> some View {
@@ -112,6 +142,7 @@ struct BoardView: View {
             subtitle: cardSubtitle(for: item),
             addedBy: store.displayName(for: item)
         )
+        .matchedTransitionSource(id: item.id, in: boardTransitionNamespace)
         .onTapGesture { detailTarget = DetailTarget(id: item.id) }
         .contextMenu {
             Button {
@@ -132,6 +163,10 @@ struct BoardView: View {
             await store.prepareShare()
             showingShare = store.activeShare != nil
         }
+    }
+
+    private func beginAdding() {
+        addTarget = AddTarget(id: store.newItemID(), dateAdded: .now)
     }
 
     @ToolbarContentBuilder private var topToolbarItems: some ToolbarContent {
@@ -171,4 +206,9 @@ private struct EditTarget: Identifiable {
 
 private struct DetailTarget: Identifiable, Hashable {
     let id: CKRecord.ID
+}
+
+private struct AddTarget: Identifiable {
+    let id: CKRecord.ID
+    let dateAdded: Date
 }
