@@ -35,6 +35,8 @@ struct ItemFormView: View {
     @State private var releaseYear = ""
 
     @State private var isSaving = false
+    @State private var showingConflict = false
+    @State private var saveErrorMessage: String?
 
     init(editing item: (any SharedListItem)? = nil) {
         self.editingItem = item
@@ -92,6 +94,13 @@ struct ItemFormView: View {
                 }
 
                 categorySection
+
+                if let saveErrorMessage {
+                    Section {
+                        Text(saveErrorMessage)
+                            .foregroundStyle(.red)
+                    }
+                }
             }
             .navigationTitle(isEditing ? "Edit \(category.label)" : "Add to the Board")
             .navigationBarTitleDisplayMode(.inline)
@@ -103,6 +112,15 @@ struct ItemFormView: View {
                     Button(isEditing ? "Save" : "Add") { Task { await save() } }
                         .disabled(!canSave)
                 }
+            }
+            .alert("This item changed", isPresented: $showingConflict) {
+                Button("Keep Editing", role: .cancel) {}
+                Button("Reload Their Version") {
+                    dismiss()
+                    Task { await store.refresh() }
+                }
+            } message: {
+                Text("Someone else saved a newer version. Reload the board before editing it again.")
             }
         }
     }
@@ -145,6 +163,7 @@ struct ItemFormView: View {
 
     private func save() async {
         isSaving = true
+        saveErrorMessage = nil
         defer { isSaving = false }
 
         let item: (any SharedListItem)?
@@ -155,8 +174,15 @@ struct ItemFormView: View {
         }
         guard let item else { return }
 
-        await store.save(item)
-        dismiss()
+        let result = await store.save(item)
+        switch result {
+        case .saved:
+            dismiss()
+        case .conflict:
+            showingConflict = true
+        case .failed:
+            saveErrorMessage = store.errorMessage
+        }
     }
 
     /// Editing path: mutate the existing typed item so id / addedBy /

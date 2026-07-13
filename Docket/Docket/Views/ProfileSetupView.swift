@@ -30,7 +30,7 @@ struct ProfileSetupView: View {
                     Button {
                         Task {
                             isSaving = true
-                            await store.createProfile(
+                            _ = await store.createProfile(
                                 firstName: firstName.trimmed,
                                 lastName: lastName.trimmed
                             )

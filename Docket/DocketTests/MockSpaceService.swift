@@ -16,6 +16,7 @@ nonisolated final class MockSpaceService: SpaceDataService, @unchecked Sendable 
     var records: [CKRecord.ID: CKRecord] = [:]
     var loadError: Error?
     var saveError: Error?
+    var loadDelayNanoseconds: UInt64 = 0
 
     init(space: Space = .default) {
         self.space = space
@@ -26,6 +27,9 @@ nonisolated final class MockSpaceService: SpaceDataService, @unchecked Sendable 
     }
 
     func loadEverything() async throws -> (items: [any SharedListItem], profiles: [UserProfile]) {
+        if loadDelayNanoseconds > 0 {
+            try await Task.sleep(nanoseconds: loadDelayNanoseconds)
+        }
         if let loadError { throw loadError }
         return RecordDecoder.partition(Array(records.values))
     }

@@ -16,6 +16,7 @@ struct BoardView: View {
     @State private var showingAdd = false
     @State private var showingShare = false
     @State private var editTarget: EditTarget?
+    @State private var detailTarget: DetailTarget?
     @State private var filter = BoardFilter()
 
     private var filteredItems: [any SharedListItem] {
@@ -49,6 +50,9 @@ struct BoardView: View {
                 if let share = store.activeShare {
                     CloudSharingSheet(share: share, container: store.container)
                 }
+            }
+            .navigationDestination(item: $detailTarget) { target in
+                ItemDetailView(itemID: target.id)
             }
         }
     }
@@ -85,7 +89,7 @@ struct BoardView: View {
             subtitle: cardSubtitle(for: item),
             addedBy: store.displayName(for: item)
         )
-        .onTapGesture { editTarget = EditTarget(item: item) }
+        .onTapGesture { detailTarget = DetailTarget(id: item.id) }
         .contextMenu {
             Button {
                 editTarget = EditTarget(item: item)
@@ -152,4 +156,8 @@ struct BoardView: View {
 private struct EditTarget: Identifiable {
     let item: any SharedListItem
     var id: CKRecord.ID { item.id }
+}
+
+private struct DetailTarget: Identifiable, Hashable {
+    let id: CKRecord.ID
 }

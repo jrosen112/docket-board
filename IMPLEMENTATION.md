@@ -31,7 +31,7 @@ swappable layer on top. Don't bake presentation decisions into the data layer.
 2. **CKRecord conversion per category** — ✅ done (models + round-trip tests)
 3. **Masonry board view w/ filtering** — ✅ done (corkboard styling + category/status filters)
 4. **Add/edit form** — ✅ done (`ItemFormView`: add + tap-to-edit)
-5. **Category detail views** — 🔲 not started
+5. **Category detail views** — ✅ done (tap card → typed detail; edit from detail toolbar)
 6. **Map view for location categories** — 🔲 not started
 7. **Push sync + photo attachments + polish** — 🔲 not started
 
@@ -64,7 +64,8 @@ swappable layer on top. Don't bake presentation decisions into the data layer.
   `loadEverything` (via `CKFetchRecordZoneChangesOperation` — no schema indexes
   needed), `createZoneShare`. Share creation returns the EXISTING zone-wide
   share when one exists (CloudKit allows exactly one per zone; re-creating
-  throws a server error).
+  throws a server error). Zone-change reads propagate record-level and
+  zone-level failures instead of returning a silently partial board.
 - **Sharing acceptance** — `Info.plist` (partial, merged) sets
   `CKSharingSupported=<true/>`; `AppDelegate` receives
   `userDidAcceptCloudKitShareWith`, runs `CKAcceptSharesOperation`, and posts a
@@ -76,7 +77,10 @@ swappable layer on top. Don't bake presentation decisions into the data layer.
   (real-CloudKit defaults) so all store behavior is unit-tested. "Who am I" is
   stored per-space (`docket.currentProfileRecordName.<space.id>`), with a
   one-time migration from the old global key; joining another board never wipes
-  the owned board's identity.
+  the owned board's identity. Initial loading has explicit loading/loaded/failed
+  states so an iCloud outage cannot masquerade as first-time profile setup.
+  Refresh generations prevent an older request from overwriting a newly selected
+  board, and save/profile operations return testable outcomes to their views.
 - **UI — composable, one component per file (hard requirement from Jared:
   no screen-view state bloat; components are dumb, screens only compose):**
   - `Views/Theme/DocketTheme.swift` — ALL design tokens: palette (ink navy /
@@ -90,24 +94,25 @@ swappable layer on top. Don't bake presentation decisions into the data layer.
     `ErrorBanner` (CloudKit errors now surface on the board, dismissable),
     `ItemPresentation.swift` (category-specific subtitle line — presentation
     formatting kept OUT of model files).
-  - Screens: `ContentView` gate (themed loading → profile setup → board),
-    `BoardView` (composition only; state = 2 sheet flags + edit target +
-    filter), `ItemFormView` (add + edit), `ProfileSetupView`,
-    `CloudSharingSheet`. Card tap = edit; card long-press = Edit/Delete menu
-    (replaces the old list swipe-delete).
+  - Screens: `ContentView` gate (themed loading/retry → profile setup → board),
+    `BoardView` (composition only; state = sheet/navigation targets + filter),
+    `ItemFormView` (add + edit), `ProfileSetupView`,
+    `CloudSharingSheet`, and typed Restaurant/Bar/Movie detail views. Card tap =
+    detail; detail toolbar/context menu = edit; card long-press also offers Delete.
+    Failed saves keep the form open, and concurrent-edit conflicts offer a reload.
 - **Debug seeding** (`Support/SampleData.swift` + BoardStore debug section +
   ⋯ toolbar menu; all `#if DEBUG`, compiled out of TestFlight) — "Seed sample
   data" pins 9 varied items (all categories/statuses, mixed note lengths for
   masonry variance, staggered dates); "Delete sample data" removes ONLY records
   with the `sample-` recordName prefix, never real items.
-- **Tests** — 37 offline tests, all passing: `ModelConversionTests` (8, incl.
+- **Tests** — 42 offline tests, all passing: `ModelConversionTests` (8, incl.
   system-fields/edit round-trips), `RecordDecoderTests` (3), `SpaceTests` (3),
-  `BoardStoreTests` (12, via `MockSpaceService`), `BoardFilterTests` (5),
+  `BoardStoreTests` (16, via `MockSpaceService`), `CloudKitFetchAccumulatorTests`
+  (2), `BoardFilterTests` (5),
   `DocketThemeTests` (3, rotation determinism/range), `SampleDataTests` (2).
-  Full app builds clean for the iOS 26 simulator with no warnings.
+  Placeholder unit/UI tests were removed. Full app builds clean for iOS.
 
 ## Next up
-- [ ] Category-specific detail views (build order step 5).
 - [ ] Map view for location-based categories (step 6) — will want the
       MKLocalSearch location upgrade around the same time.
 - [ ] Push sync (`CKDatabaseSubscription` + silent push) + photo attachments +

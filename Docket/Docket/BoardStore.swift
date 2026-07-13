@@ -13,6 +13,18 @@
 import CloudKit
 import Observation
 
+nonisolated enum BoardLoadState: Equatable {
+    case loading
+    case loaded
+    case failed(message: String)
+}
+
+nonisolated enum StoreSaveResult: Equatable {
+    case saved
+    case conflict
+    case failed
+}
+
 @MainActor
 @Observable
 final class BoardStore {
@@ -35,9 +47,14 @@ final class BoardStore {
 
     var isLoading = false
     var errorMessage: String?
-    /// False until the first load finishes, so the UI doesn't flash the profile
-    /// setup screen before we've checked CloudKit for an existing profile.
-    var hasLoadedOnce = false
+    /// Initial loading is distinct from onboarding. A failed CloudKit read must
+    /// never look like a brand-new user with no profile.
+    var loadState: BoardLoadState = .loading
+
+    /// Monotonically increasing token for refreshes. Main-actor methods can be
+    /// re-entered while awaiting CloudKit, so only the newest request may
+    /// publish results.
+    @ObservationIgnored private var refreshGeneration = 0
 
     /// The container, exposed for UICloudSharingController.
     var container: CKContainer { service.container }
@@ -78,36 +95,69 @@ final class BoardStore {
 
     /// Re-resolves `currentProfile` from the locally-remembered record name.
     private func reconcileCurrentProfile() {
-        guard let name = defaults.string(forKey: profileKey) else { return }
-        if let match = profiles.first(where: { $0.id.recordName == name }) {
-            currentProfile = match
+        guard let name = defaults.string(forKey: profileKey) else {
+            currentProfile = nil
+            return
         }
+        currentProfile = profiles.first(where: { $0.id.recordName == name })
     }
 
     // MARK: - Lifecycle
 
     func bootstrap() async {
-        await refresh()
-        hasLoadedOnce = true
+        await loadForPresentation()
+    }
+
+    private func loadForPresentation() async {
+        loadState = .loading
+        switch await performRefresh() {
+        case .loaded:
+            loadState = .loaded
+        case .failed(let message):
+            loadState = .failed(message: message)
+        case .superseded:
+            break
+        }
     }
 
     func refresh() async {
+        _ = await performRefresh()
+    }
+
+    private enum RefreshResult {
+        case loaded
+        case failed(String)
+        case superseded
+    }
+
+    private func performRefresh() async -> RefreshResult {
+        refreshGeneration += 1
+        let generation = refreshGeneration
+        let requestedService = service
         isLoading = true
-        defer { isLoading = false }
         do {
-            let loaded = try await service.loadEverything()
+            let loaded = try await requestedService.loadEverything()
+            guard generation == refreshGeneration else { return .superseded }
             items = loaded.items.sorted { $0.dateAdded > $1.dateAdded }
             profiles = loaded.profiles
             reconcileCurrentProfile()
             errorMessage = nil
+            isLoading = false
+            return .loaded
         } catch {
-            errorMessage = error.localizedDescription
+            guard generation == refreshGeneration else { return .superseded }
+            let message = Self.message(for: error)
+            errorMessage = message
+            isLoading = false
+            return .failed(message)
         }
     }
 
     // MARK: - Profile
 
-    func createProfile(firstName: String, lastName: String) async {
+    @discardableResult
+    func createProfile(firstName: String, lastName: String) async -> Bool {
+        errorMessage = nil
         let profile = UserProfile(
             id: service.newRecordID(),
             firstName: firstName,
@@ -118,8 +168,10 @@ final class BoardStore {
             defaults.set(profile.id.recordName, forKey: profileKey)
             currentProfile = profile
             await refresh()
+            return true
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = Self.message(for: error)
+            return false
         }
     }
 
@@ -131,12 +183,19 @@ final class BoardStore {
     /// Saves a new or edited item. Edited items carry their CloudKit change
     /// tag (systemFields), so concurrent-edit conflicts surface as errors
     /// rather than silently clobbering the other person's change.
-    func save(_ item: any SharedListItem) async {
+    @discardableResult
+    func save(_ item: any SharedListItem) async -> StoreSaveResult {
+        errorMessage = nil
         do {
             try await service.save(item.toRecord())
             await refresh()
+            return .saved
         } catch {
-            errorMessage = error.localizedDescription
+            let isConflict = Self.isConflict(error)
+            errorMessage = isConflict
+                ? "Someone else edited this item. Reload the board to see their version, then try your edit again."
+                : Self.message(for: error)
+            return isConflict ? .conflict : .failed
         }
     }
 
@@ -145,7 +204,7 @@ final class BoardStore {
             try await service.delete(item.id)
             items.removeAll { $0.id == item.id }
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = Self.message(for: error)
         }
     }
 
@@ -160,7 +219,7 @@ final class BoardStore {
         do {
             activeShare = try await service.createZoneShare()
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = Self.message(for: error)
         }
     }
 
@@ -177,7 +236,7 @@ final class BoardStore {
             }
             await refresh()
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = Self.message(for: error)
         }
     }
 
@@ -190,7 +249,7 @@ final class BoardStore {
             }
             await refresh()
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = Self.message(for: error)
         }
     }
     #endif
@@ -200,6 +259,8 @@ final class BoardStore {
     /// previous board stays intact for when multi-board switching arrives.
     func switchTo(space newSpace: Space) async {
         guard newSpace != space else { return }
+        // Invalidate any in-flight read before changing services.
+        refreshGeneration += 1
         SpaceStore.save(newSpace, in: defaults)
         space = newSpace
         service = makeService(newSpace)
@@ -207,6 +268,21 @@ final class BoardStore {
         profiles = []
         currentProfile = nil
         activeShare = nil
-        await refresh()
+        await loadForPresentation()
+    }
+
+    // MARK: - Error presentation
+
+    private static func isConflict(_ error: Error) -> Bool {
+        guard let cloudError = error as? CKError else { return false }
+        if cloudError.code == .serverRecordChanged { return true }
+        guard cloudError.code == .partialFailure,
+              let partial = cloudError.partialErrorsByItemID
+        else { return false }
+        return partial.values.contains { isConflict($0) }
+    }
+
+    private static func message(for error: Error) -> String {
+        error.localizedDescription
     }
 }

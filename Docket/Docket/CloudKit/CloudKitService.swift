@@ -80,18 +80,34 @@ actor CloudKitService: SpaceDataService {
     private func fetchAllRecords() async throws -> [CKRecord] {
         try await ensureZone()
         return try await withCheckedThrowingContinuation { continuation in
-            var records: [CKRecord] = []
+            let accumulator = CloudKitFetchAccumulator()
             let config = CKFetchRecordZoneChangesOperation.ZoneConfiguration()
             let operation = CKFetchRecordZoneChangesOperation(
                 recordZoneIDs: [zoneID],
                 configurationsByRecordZoneID: [zoneID: config]
             )
             operation.recordWasChangedBlock = { _, result in
-                if case .success(let record) = result { records.append(record) }
+                switch result {
+                case .success(let record):
+                    accumulator.append(record)
+                case .failure(let error):
+                    accumulator.record(error)
+                }
+            }
+            operation.recordZoneFetchResultBlock = { _, result in
+                if case .failure(let error) = result {
+                    accumulator.record(error)
+                }
             }
             operation.fetchRecordZoneChangesResultBlock = { result in
                 switch result {
-                case .success: continuation.resume(returning: records)
+                case .success:
+                    let snapshot = accumulator.snapshot()
+                    if let error = snapshot.error {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume(returning: snapshot.records)
+                    }
                 case .failure(let error): continuation.resume(throwing: error)
                 }
             }
@@ -126,6 +142,29 @@ actor CloudKitService: SpaceDataService {
         case .success(let saved): return (saved as? CKShare) ?? share
         case .failure(let error): throw error
         }
+    }
+}
+
+/// CloudKit operation callbacks are not actor-isolated and may arrive on
+/// different queues. This keeps partial records/errors synchronized until the
+/// operation-level completion fires.
+nonisolated final class CloudKitFetchAccumulator: @unchecked Sendable {
+    private let lock = NSLock()
+    private var records: [CKRecord] = []
+    private var firstError: Error?
+
+    func append(_ record: CKRecord) {
+        lock.withLock { records.append(record) }
+    }
+
+    func record(_ error: Error) {
+        lock.withLock {
+            if firstError == nil { firstError = error }
+        }
+    }
+
+    func snapshot() -> (records: [CKRecord], error: Error?) {
+        lock.withLock { (records, firstError) }
     }
 }
 

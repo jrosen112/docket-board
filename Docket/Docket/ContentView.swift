@@ -16,12 +16,17 @@ struct ContentView: View {
 
     var body: some View {
         Group {
-            if !store.hasLoadedOnce {
+            switch store.loadState {
+            case .loading:
                 loadingView
-            } else if store.currentProfile == nil {
-                ProfileSetupView()
-            } else {
-                BoardView()
+            case .failed(let message):
+                loadFailureView(message: message)
+            case .loaded:
+                if store.currentProfile == nil {
+                    ProfileSetupView()
+                } else {
+                    BoardView()
+                }
             }
         }
         .tint(DocketTheme.brass)
@@ -42,6 +47,31 @@ struct ContentView: View {
                 ProgressView()
                     .tint(DocketTheme.cream)
             }
+        }
+    }
+
+    private func loadFailureView(message: String) -> some View {
+        ZStack {
+            Rectangle()
+                .fill(DocketTheme.boardBackground)
+                .ignoresSafeArea()
+            VStack(spacing: 16) {
+                Image(systemName: "icloud.slash")
+                    .font(.system(size: 32))
+                    .foregroundStyle(DocketTheme.brass)
+                Text("Couldn't load your board")
+                    .font(DocketTheme.display(22))
+                    .foregroundStyle(DocketTheme.cream)
+                Text(message)
+                    .font(.footnote)
+                    .foregroundStyle(DocketTheme.cream.opacity(0.75))
+                    .multilineTextAlignment(.center)
+                Button("Try Again") {
+                    Task { await store.bootstrap() }
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding(28)
         }
     }
 }

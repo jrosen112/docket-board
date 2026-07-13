@@ -25,22 +25,24 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         let operation = CKAcceptSharesOperation(shareMetadatas: [cloudKitShareMetadata])
 
         operation.acceptSharesResultBlock = { result in
-            switch result {
-            case .success:
-                // For a zone-wide share, the share record lives in the owner's
-                // shared zone — exactly the zone the participant should target.
-                let zoneID = cloudKitShareMetadata.share.recordID.zoneID
-                NotificationCenter.default.post(
-                    name: .docketDidAcceptShare,
-                    object: nil,
-                    userInfo: ["zoneID": zoneID]
-                )
-            case .failure(let error):
-                NotificationCenter.default.post(
-                    name: .docketShareAcceptFailed,
-                    object: nil,
-                    userInfo: ["error": error.localizedDescription]
-                )
+            Task { @MainActor in
+                switch result {
+                case .success:
+                    // For a zone-wide share, the share record lives in the owner's
+                    // shared zone — exactly the zone the participant should target.
+                    let zoneID = cloudKitShareMetadata.share.recordID.zoneID
+                    NotificationCenter.default.post(
+                        name: .docketDidAcceptShare,
+                        object: nil,
+                        userInfo: ["zoneID": zoneID]
+                    )
+                case .failure(let error):
+                    NotificationCenter.default.post(
+                        name: .docketShareAcceptFailed,
+                        object: nil,
+                        userInfo: ["error": error.localizedDescription]
+                    )
+                }
             }
         }
 

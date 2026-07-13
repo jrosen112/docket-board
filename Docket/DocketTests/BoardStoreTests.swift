@@ -68,7 +68,7 @@ final class BoardStoreTests: XCTestCase {
 
         await store.bootstrap()
 
-        XCTAssertTrue(store.hasLoadedOnce)
+        XCTAssertEqual(store.loadState, .loaded)
         XCTAssertEqual(store.items.count, 1)
         XCTAssertEqual(store.profiles.count, 1)
         XCTAssertNil(store.errorMessage)
@@ -84,13 +84,15 @@ final class BoardStoreTests: XCTestCase {
         XCTAssertEqual(store.items.map(\.title), ["Newer", "Older"])
     }
 
-    func testLoadErrorSurfacesAndStillFinishesBootstrap() async {
+    func testLoadErrorShowsRetryStateInsteadOfOnboarding() async {
         mock.loadError = CKError(.networkFailure)
 
         await store.bootstrap()
 
-        // The gate must not hang on the loading screen even when CloudKit fails.
-        XCTAssertTrue(store.hasLoadedOnce)
+        guard case .failed = store.loadState else {
+            return XCTFail("A failed initial read must show a retry state")
+        }
+        XCTAssertNil(store.currentProfile)
         XCTAssertNotNil(store.errorMessage)
     }
 
@@ -114,6 +116,30 @@ final class BoardStoreTests: XCTestCase {
         let relaunched = makeStore()
         await relaunched.bootstrap()
         XCTAssertEqual(relaunched.currentProfile?.firstName, "Jared")
+    }
+
+    func testCreateProfileFailureDoesNotPersistIdentity() async {
+        mock.saveError = CKError(.networkFailure)
+
+        let created = await store.createProfile(firstName: "Jared", lastName: "R")
+
+        XCTAssertFalse(created)
+        XCTAssertNil(store.currentProfile)
+        XCTAssertTrue(mock.records.isEmpty)
+        XCTAssertNotNil(store.errorMessage)
+    }
+
+    func testCreateProfileCanRetryAfterFailure() async {
+        mock.saveError = CKError(.networkFailure)
+        let firstAttempt = await store.createProfile(firstName: "Jared", lastName: "R")
+        XCTAssertFalse(firstAttempt)
+
+        mock.saveError = nil
+        let created = await store.createProfile(firstName: "Jared", lastName: "R")
+
+        XCTAssertTrue(created)
+        XCTAssertEqual(store.currentProfile?.firstName, "Jared")
+        XCTAssertNil(store.errorMessage)
     }
 
     func testDisplayNameResolvesThroughProfiles() async {
@@ -147,7 +173,8 @@ final class BoardStoreTests: XCTestCase {
             addedBy: store.currentProfile!.reference
         )
 
-        await store.save(movie)
+        let addResult = await store.save(movie)
+        XCTAssertEqual(addResult, .saved)
         XCTAssertEqual(store.items.map(\.title), ["Past Lives"])
 
         await store.delete(store.items[0])
@@ -161,7 +188,8 @@ final class BoardStoreTests: XCTestCase {
             title: "Old Title",
             addedBy: store.currentProfile!.reference
         )
-        await store.save(movie)
+        let addResult = await store.save(movie)
+        XCTAssertEqual(addResult, .saved)
 
         // Edit what came back from the "server" (has systemFields), the way
         // the edit form does.
@@ -169,11 +197,43 @@ final class BoardStoreTests: XCTestCase {
         XCTAssertNotNil(loaded.systemFields)
         loaded.title = "New Title"
         loaded.status = .completed
-        await store.save(loaded)
+        let editResult = await store.save(loaded)
+        XCTAssertEqual(editResult, .saved)
 
         XCTAssertEqual(store.items.count, 1, "editing must not create a second record")
         XCTAssertEqual(store.items[0].title, "New Title")
         XCTAssertEqual(store.items[0].status, .completed)
+    }
+
+    func testSaveFailureReturnsFailureAndLeavesBoardUnchanged() async {
+        await store.createProfile(firstName: "Jared", lastName: "R")
+        mock.saveError = CKError(.networkFailure)
+        let movie = Movie(
+            id: store.newItemID(),
+            title: "Past Lives",
+            addedBy: store.currentProfile!.reference
+        )
+
+        let result = await store.save(movie)
+
+        XCTAssertEqual(result, .failed)
+        XCTAssertTrue(store.items.isEmpty)
+        XCTAssertNotNil(store.errorMessage)
+    }
+
+    func testConflictReturnsDistinctResult() async {
+        await store.createProfile(firstName: "Jared", lastName: "R")
+        mock.saveError = CKError(.serverRecordChanged)
+        let movie = Movie(
+            id: store.newItemID(),
+            title: "Past Lives",
+            addedBy: store.currentProfile!.reference
+        )
+
+        let result = await store.save(movie)
+
+        XCTAssertEqual(result, .conflict)
+        XCTAssertTrue(store.errorMessage?.contains("Someone else edited") == true)
     }
 
     // MARK: - Space switching
@@ -209,5 +269,43 @@ final class BoardStoreTests: XCTestCase {
         // Coming back to the owned board finds the same identity — nothing was
         // wiped by joining someone else's board.
         XCTAssertEqual(store.currentProfile?.firstName, "Jared")
+    }
+
+    func testInFlightRefreshCannotOverwriteNewlySelectedSpace() async {
+        let ownedProfile = seedProfile(name: "Owner")
+        seedMovie("Old board item", addedBy: ownedProfile, dateAdded: .now)
+        mock.loadDelayNanoseconds = 100_000_000
+
+        let joined = Space(
+            zoneID: CKRecordZone.ID(zoneName: Schema.zoneName, ownerName: "_friendOwner"),
+            access: .joined
+        )
+        let joinedService = MockSpaceService(space: joined)
+        let joinedProfile = UserProfile(
+            id: CKRecord.ID(recordName: "profile-friend", zoneID: joined.zoneID),
+            firstName: "Friend",
+            lastName: ""
+        )
+        joinedService.records[joinedProfile.id] = joinedProfile.toRecord()
+        let joinedMovie = Movie(
+            id: CKRecord.ID(recordName: "joined-movie", zoneID: joined.zoneID),
+            title: "New board item",
+            addedBy: joinedProfile.reference
+        )
+        joinedService.records[joinedMovie.id] = joinedMovie.toRecord()
+
+        let ownedService = mock!
+        let switchingStore = BoardStore(defaults: defaults) { space in
+            space == ownedService.space ? ownedService : joinedService
+        }
+        let oldRefresh = Task { await switchingStore.refresh() }
+        try? await Task.sleep(nanoseconds: 10_000_000)
+
+        await switchingStore.switchTo(space: joined)
+        await oldRefresh.value
+
+        XCTAssertEqual(switchingStore.space, joined)
+        XCTAssertEqual(switchingStore.items.map(\.title), ["New board item"])
+        XCTAssertEqual(switchingStore.loadState, .loaded)
     }
 }
