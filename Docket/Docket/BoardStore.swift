@@ -56,6 +56,9 @@ final class BoardStore {
     }
 
     var isLoading = false
+    /// True only while replacing the current board with another space. Views
+    /// use this to keep their chrome mounted and skeletonize the card region.
+    private(set) var isSwitchingBoard = false
     var errorMessage: String?
     /// Initial loading is distinct from onboarding. A failed CloudKit read must
     /// never look like a brand-new user with no profile.
@@ -336,15 +339,51 @@ final class BoardStore {
             space = selectedSpace
             return
         }
+
+        let previousSpace = space
+        let previousService = service
+        let previousItems = items
+        let previousProfiles = profiles
+        let previousProfile = currentProfile
+        let previousShare = activeShare
+        let previousLoadState = loadState
+
         // Invalidate any in-flight read before changing services.
         refreshGeneration += 1
+        isSwitchingBoard = true
         space = selectedSpace
         service = makeService(selectedSpace)
         items = []
         profiles = []
         currentProfile = nil
         activeShare = nil
-        await loadForPresentation()
+
+        let result = await performRefresh()
+        // A newer switch owns the presentation state if the selected space
+        // changed while this CloudKit request was suspended.
+        guard space == selectedSpace else { return }
+        isSwitchingBoard = false
+
+        switch result {
+        case .loaded:
+            loadState = .loaded
+        case .failed:
+            // A failed switch must not strand the app with the new service and
+            // the old board's profile. Restore the fully-consistent board that
+            // was visible before the request; the failed board stays cataloged
+            // so the user can retry it later.
+            space = previousSpace
+            service = previousService
+            items = previousItems
+            profiles = previousProfiles
+            currentProfile = previousProfile
+            activeShare = previousShare
+            loadState = previousLoadState
+            SpaceStore.save(previousSpace, in: defaults)
+            spaces = SpaceStore.loadAll(from: defaults)
+        case .superseded:
+            break
+        }
     }
 
     // MARK: - Remote board changes

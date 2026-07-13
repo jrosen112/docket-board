@@ -10,6 +10,18 @@ import XCTest
 
 final class DocketThemeTests: XCTestCase {
 
+    func testSkeletonShimmerProgressRepeatsWithinUnitRange() {
+        let quarterCycle = Date(
+            timeIntervalSinceReferenceDate: DocketTheme.BoardSkeleton.shimmerDuration * 2.25
+        )
+
+        XCTAssertEqual(
+            DocketTheme.BoardSkeleton.shimmerProgress(at: quarterCycle),
+            0.25,
+            accuracy: 0.0001
+        )
+    }
+
     func testRotationIsDeterministicForSameKey() {
         // hashValue is process-seeded; this must NOT be — a card's tilt should
         // survive refreshes and relaunches.

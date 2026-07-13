@@ -34,7 +34,7 @@ struct BoardView: View {
                     .fill(DocketTheme.boardBackground)
                     .ignoresSafeArea()
                 BoardScrollNote(
-                    progress: scrollNoteProgress,
+                    progress: store.isSwitchingBoard ? 0 : scrollNoteProgress,
                     createdCount: store.currentUserItemCount,
                     totalCount: store.items.count
                 )
@@ -48,6 +48,7 @@ struct BoardView: View {
                 topToolbarItems
                 BoardBottomToolbar(
                     isOwner: store.isOwner,
+                    isEnabled: !store.isSwitchingBoard,
                     transitionNamespace: toolbarTransitionNamespace,
                     onShare: prepareShare,
                     onAdd: beginAdding
@@ -125,8 +126,24 @@ struct BoardView: View {
         )
     }
 
-    @ViewBuilder
     private var boardItems: some View {
+        ZStack(alignment: .top) {
+            if store.isSwitchingBoard {
+                BoardSkeletonView()
+                    .transition(.opacity)
+            } else {
+                loadedBoardItems
+                    .transition(.opacity)
+            }
+        }
+        .animation(
+            .easeInOut(duration: DocketTheme.BoardSkeleton.contentTransitionDuration),
+            value: store.isSwitchingBoard
+        )
+    }
+
+    @ViewBuilder
+    private var loadedBoardItems: some View {
         if filteredItems.isEmpty {
             EmptyBoardView(isFiltered: filter.isActive && !store.items.isEmpty)
         } else {
@@ -177,7 +194,8 @@ struct BoardView: View {
         ToolbarItem(placement: .principal) {
             BoardSwitcher(
                 currentSpace: store.space,
-                spaces: store.spaces
+                spaces: store.spaces,
+                isEnabled: !store.isSwitchingBoard
             ) { space in
                 Task { await store.switchTo(space: space) }
             } onCreate: {

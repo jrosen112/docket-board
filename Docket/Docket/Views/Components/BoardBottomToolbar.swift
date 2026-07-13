@@ -7,6 +7,7 @@ enum BoardToolbarTransitionID: Hashable {
 
 struct BoardBottomToolbar: ToolbarContent {
     let isOwner: Bool
+    let isEnabled: Bool
     let transitionNamespace: Namespace.ID
     let onShare: () -> Void
     let onAdd: () -> Void
@@ -21,6 +22,7 @@ struct BoardBottomToolbar: ToolbarContent {
                         : "person.2"
                 )
             }
+            .disabled(!isEnabled)
         }
         .matchedTransitionSource(
             id: BoardToolbarTransitionID.share,
@@ -34,6 +36,7 @@ struct BoardBottomToolbar: ToolbarContent {
                 Label("Add", systemImage: "plus")
             }
             .docketPrimaryActionStyle()
+            .disabled(!isEnabled)
         }
         .matchedTransitionSource(
             id: BoardToolbarTransitionID.add,

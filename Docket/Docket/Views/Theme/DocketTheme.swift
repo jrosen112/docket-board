@@ -83,6 +83,61 @@ nonisolated enum DocketTheme {
         static let chevronColor = DocketTheme.brass.opacity(0.8)
     }
 
+    enum BoardSkeleton {
+        static let cardCount = 10
+        static let columns = 2
+        static let cardSpacing: CGFloat = 14
+        static let cardHeights: [CGFloat] = [174, 208, 192, 156, 220, 182]
+        static let cardCornerRadius: CGFloat = 5
+        static let cardPadding: CGFloat = 14
+        static let contentSpacing: CGFloat = 10
+        static let stripeWidth: CGFloat = 3
+        static let stripeVerticalPadding: CGFloat = 12
+        static let stripeLeadingPadding: CGFloat = 5
+        static let pinSize: CGFloat = 11
+        static let pinOffsetY: CGFloat = -5
+        static let categoryLineHeight: CGFloat = 7
+        static let titleLineHeight: CGFloat = 15
+        static let detailLineHeight: CGFloat = 9
+        static let statusWidth: CGFloat = 70
+        static let statusHeight: CGFloat = 19
+        static let authorLineHeight: CGFloat = 7
+        static let categoryTrailingInset: CGFloat = 70
+        static let titleTrailingInsets: [CGFloat] = [20, 42, 8, 56]
+        static let detailTrailingInsets: [CGFloat] = [34, 12, 52]
+        static let authorTrailingInset: CGFloat = 46
+        static let cardFill = DocketTheme.cream.opacity(0.13)
+        static let lineFill = DocketTheme.cream.opacity(0.19)
+        static let stripeFill = DocketTheme.cream.opacity(0.2)
+        static let pinFill = DocketTheme.brass.opacity(0.28)
+        static let shimmerColor = DocketTheme.cream.opacity(0.3)
+        static let shimmerWidth: CGFloat = 110
+        static let shimmerAngle: Angle = .degrees(16)
+        static let shimmerHeightMultiplier: CGFloat = 1.35
+        static let shimmerVerticalOffsetMultiplier: CGFloat = -0.18
+        static let shimmerDuration: TimeInterval = 1.35
+        static let shimmerFrameInterval: TimeInterval = 1.0 / 30.0
+        static let contentTransitionDuration: TimeInterval = 0.22
+
+        static func cardHeight(for index: Int) -> CGFloat {
+            cardHeights[index % cardHeights.count]
+        }
+
+        static func titleTrailingInset(for index: Int) -> CGFloat {
+            titleTrailingInsets[index % titleTrailingInsets.count]
+        }
+
+        static func detailTrailingInset(for index: Int) -> CGFloat {
+            detailTrailingInsets[index % detailTrailingInsets.count]
+        }
+
+        static func shimmerProgress(at date: Date) -> CGFloat {
+            let elapsed = date.timeIntervalSinceReferenceDate
+                .truncatingRemainder(dividingBy: shimmerDuration)
+            return CGFloat(elapsed / shimmerDuration)
+        }
+    }
+
     enum CreateBoard {
         static let contentSpacing: CGFloat = 14
         static let horizontalPadding: CGFloat = 22

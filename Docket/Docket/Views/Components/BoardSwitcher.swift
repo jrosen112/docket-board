@@ -3,6 +3,7 @@ import SwiftUI
 struct BoardSwitcher: View {
     let currentSpace: Space
     let spaces: [Space]
+    let isEnabled: Bool
     let onSelect: (Space) -> Void
     let onCreate: () -> Void
 
@@ -19,11 +20,13 @@ struct BoardSwitcher: View {
                             : (space.isOwned ? "person.crop.circle" : "person.2")
                     )
                 }
+                .disabled(!isEnabled)
             }
             Divider()
             Button(action: onCreate) {
                 Label("New Board", systemImage: "plus")
             }
+            .disabled(!isEnabled)
         } label: {
             HStack(spacing: DocketTheme.BoardSwitcher.labelSpacing) {
                 Text(currentSpace.title)

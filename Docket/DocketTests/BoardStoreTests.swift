@@ -337,6 +337,72 @@ final class BoardStoreTests: XCTestCase {
         XCTAssertEqual(store.currentProfile?.firstName, "Jared")
     }
 
+    func testSwitchKeepsBoardPresentationLoadedWhileNewSpaceLoads() async {
+        await store.createProfile(firstName: "Jared", lastName: "R")
+        let joined = Space(
+            zoneID: CKRecordZone.ID(zoneName: "SlowSharedSpace", ownerName: "_friendOwner"),
+            access: .joined,
+            title: "Slow Board"
+        )
+        let joinedService = MockSpaceService(space: joined)
+        joinedService.loadDelayNanoseconds = 100_000_000
+        let ownedService = mock!
+        let switchingStore = BoardStore(
+            defaults: defaults,
+            makeService: { space in
+                space == ownedService.space ? ownedService : joinedService
+            },
+            notificationService: notificationMock
+        )
+        await switchingStore.bootstrap()
+
+        let switchTask = Task { await switchingStore.switchTo(space: joined) }
+        try? await Task.sleep(nanoseconds: 10_000_000)
+
+        XCTAssertTrue(switchingStore.isSwitchingBoard)
+        XCTAssertEqual(switchingStore.loadState, .loaded)
+        XCTAssertEqual(switchingStore.space, joined)
+
+        await switchTask.value
+        XCTAssertFalse(switchingStore.isSwitchingBoard)
+        XCTAssertEqual(switchingStore.loadState, .loaded)
+    }
+
+    func testFailedSwitchRestoresPreviousBoardAndItsContent() async {
+        await store.createProfile(firstName: "Jared", lastName: "R")
+        let currentProfile = store.currentProfile!
+        seedMovie("Keep Me", addedBy: currentProfile, dateAdded: .now)
+        await store.refresh()
+
+        let joined = Space(
+            zoneID: CKRecordZone.ID(zoneName: "UnavailableSpace", ownerName: "_friendOwner"),
+            access: .joined,
+            title: "Unavailable Board"
+        )
+        let joinedService = MockSpaceService(space: joined)
+        joinedService.loadError = CKError(.networkFailure)
+        let ownedService = mock!
+        let switchingStore = BoardStore(
+            defaults: defaults,
+            makeService: { space in
+                space == ownedService.space ? ownedService : joinedService
+            },
+            notificationService: notificationMock
+        )
+        await switchingStore.bootstrap()
+        let originalSpace = switchingStore.space
+
+        await switchingStore.switchTo(space: joined)
+
+        XCTAssertFalse(switchingStore.isSwitchingBoard)
+        XCTAssertEqual(switchingStore.space, originalSpace)
+        XCTAssertEqual(switchingStore.items.map(\.title), ["Keep Me"])
+        XCTAssertEqual(switchingStore.currentProfile?.id, currentProfile.id)
+        XCTAssertTrue(switchingStore.spaces.contains(joined))
+        XCTAssertEqual(SpaceStore.load(from: defaults), originalSpace)
+        XCTAssertNotNil(switchingStore.errorMessage)
+    }
+
     func testInFlightRefreshCannotOverwriteNewlySelectedSpace() async {
         let ownedProfile = seedProfile(name: "Owner")
         seedMovie("Old board item", addedBy: ownedProfile, dateAdded: .now)

@@ -22,7 +22,7 @@ struct ContentView: View {
             case .failed(let message):
                 loadFailureView(message: message)
             case .loaded:
-                if store.currentProfile == nil {
+                if store.currentProfile == nil && !store.isSwitchingBoard {
                     ProfileSetupView()
                 } else {
                     BoardView()
