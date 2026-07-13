@@ -84,4 +84,19 @@ nonisolated enum DocketDetailTheme {
         static let font: Font = .subheadline.italic()
         static let color = DocketTheme.ink.opacity(0.55)
     }
+
+    enum Edit {
+        static let fieldSpacing: CGFloat = 3
+        static let fieldVerticalPadding: CGFloat = 3
+        static let titleUnderlineOpacity = 0.24
+        static let errorColor = Color.red.opacity(0.82)
+
+        static let labelFont: Font = .caption
+        static let inputFont: Font = .body.weight(.semibold)
+        static let labelColor = DocketTheme.ink.opacity(0.5)
+        static let inputColor = DocketTheme.ink
+        static let placeholderColor = DocketTheme.ink.opacity(0.42)
+        static let modeAnimation = Animation.snappy(duration: 0.28)
+        static let focusDelay: Duration = .milliseconds(180)
+    }
 }

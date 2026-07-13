@@ -17,22 +17,7 @@ struct ItemFormView: View {
     /// nil → adding a new item.
     private let editingItem: (any SharedListItem)?
 
-    @State private var category: ItemCategory = .restaurant
-    @State private var title = ""
-    @State private var notes = ""
-    @State private var status: ItemStatus = .wantToGo
-
-    // Location-based categories
-    @State private var location = ""
-    // Restaurant
-    @State private var cuisine = ""
-    @State private var priceRange: PriceRange?
-    // Bar
-    @State private var barType: BarType?
-    // Movie
-    @State private var runtime = ""
-    @State private var streamingService = ""
-    @State private var releaseYear = ""
+    @State private var draft: ItemDraft
 
     @State private var isSaving = false
     @State private var showingConflict = false
@@ -40,34 +25,13 @@ struct ItemFormView: View {
 
     init(editing item: (any SharedListItem)? = nil) {
         self.editingItem = item
-        guard let item else { return }
-
-        _category = State(initialValue: item.category)
-        _title = State(initialValue: item.title)
-        _notes = State(initialValue: item.notes ?? "")
-        _status = State(initialValue: item.status)
-
-        switch item {
-        case let restaurant as Restaurant:
-            _location = State(initialValue: restaurant.location ?? "")
-            _cuisine = State(initialValue: restaurant.cuisine ?? "")
-            _priceRange = State(initialValue: restaurant.priceRange)
-        case let bar as Bar:
-            _location = State(initialValue: bar.location ?? "")
-            _barType = State(initialValue: bar.barType)
-        case let movie as Movie:
-            _runtime = State(initialValue: movie.runtimeMinutes.map(String.init) ?? "")
-            _streamingService = State(initialValue: movie.streamingService ?? "")
-            _releaseYear = State(initialValue: movie.releaseYear.map(String.init) ?? "")
-        default:
-            break
-        }
+        _draft = State(initialValue: item.map { ItemDraft(item: $0) } ?? ItemDraft())
     }
 
     private var isEditing: Bool { editingItem != nil }
 
     private var canSave: Bool {
-        !title.trimmed.isEmpty && !isSaving && (isEditing || store.currentProfile != nil)
+        draft.isValid && !isSaving && (isEditing || store.currentProfile != nil)
     }
 
     var body: some View {
@@ -75,7 +39,7 @@ struct ItemFormView: View {
             Form {
                 if !isEditing {
                     Section {
-                        Picker("Category", selection: $category) {
+                        Picker("Category", selection: $draft.category) {
                             ForEach(ItemCategory.supported, id: \.self) { category in
                                 Text(category.label).tag(category)
                             }
@@ -84,9 +48,9 @@ struct ItemFormView: View {
                 }
 
                 Section("Details") {
-                    TextField("Title", text: $title)
-                    TextField("Notes", text: $notes, axis: .vertical)
-                    Picker("Status", selection: $status) {
+                    TextField("Title", text: $draft.title)
+                    TextField("Notes", text: $draft.notes, axis: .vertical)
+                    Picker("Status", selection: $draft.status) {
                         ForEach(ItemStatus.allCases, id: \.self) { status in
                             Text(status.label).tag(status)
                         }
@@ -102,7 +66,7 @@ struct ItemFormView: View {
                     }
                 }
             }
-            .navigationTitle(isEditing ? "Edit \(category.label)" : "Add to the Board")
+            .navigationTitle(isEditing ? "Edit \(draft.category.label)" : "Add to the Board")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -126,12 +90,12 @@ struct ItemFormView: View {
     }
 
     @ViewBuilder private var categorySection: some View {
-        switch category {
+        switch draft.category {
         case .restaurant:
             Section("Restaurant") {
-                TextField("Location", text: $location)
-                TextField("Cuisine", text: $cuisine)
-                Picker("Price", selection: $priceRange) {
+                TextField("Location", text: $draft.location)
+                TextField("Cuisine", text: $draft.cuisine)
+                Picker("Price", selection: $draft.priceRange) {
                     Text("—").tag(PriceRange?.none)
                     ForEach(PriceRange.allCases, id: \.self) { price in
                         Text(price.rawValue).tag(Optional(price))
@@ -140,8 +104,8 @@ struct ItemFormView: View {
             }
         case .bar:
             Section("Bar") {
-                TextField("Location", text: $location)
-                Picker("Type", selection: $barType) {
+                TextField("Location", text: $draft.location)
+                Picker("Type", selection: $draft.barType) {
                     Text("—").tag(BarType?.none)
                     ForEach(BarType.allCases, id: \.self) { type in
                         Text(type.rawValue.capitalized).tag(Optional(type))
@@ -150,10 +114,10 @@ struct ItemFormView: View {
             }
         case .movie:
             Section("Movie") {
-                TextField("Runtime (min)", text: $runtime)
+                TextField("Runtime (min)", text: $draft.runtime)
                     .keyboardType(.numberPad)
-                TextField("Streaming service", text: $streamingService)
-                TextField("Release year", text: $releaseYear)
+                TextField("Streaming service", text: $draft.streamingService)
+                TextField("Release year", text: $draft.releaseYear)
                     .keyboardType(.numberPad)
             }
         default:
@@ -168,7 +132,7 @@ struct ItemFormView: View {
 
         let item: (any SharedListItem)?
         if let editingItem {
-            item = applyingFields(to: editingItem)
+            item = draft.applying(to: editingItem)
         } else {
             item = newItem()
         }
@@ -185,65 +149,8 @@ struct ItemFormView: View {
         }
     }
 
-    /// Editing path: mutate the existing typed item so id / addedBy /
-    /// dateAdded / systemFields all carry through untouched.
-    private func applyingFields(to existing: any SharedListItem) -> (any SharedListItem)? {
-        switch existing {
-        case var restaurant as Restaurant:
-            restaurant.title = title.trimmed
-            restaurant.notes = notes.orNil
-            restaurant.status = status
-            restaurant.location = location.orNil
-            restaurant.cuisine = cuisine.orNil
-            restaurant.priceRange = priceRange
-            return restaurant
-        case var bar as Bar:
-            bar.title = title.trimmed
-            bar.notes = notes.orNil
-            bar.status = status
-            bar.location = location.orNil
-            bar.barType = barType
-            return bar
-        case var movie as Movie:
-            movie.title = title.trimmed
-            movie.notes = notes.orNil
-            movie.status = status
-            movie.runtimeMinutes = Int(runtime)
-            movie.streamingService = streamingService.orNil
-            movie.releaseYear = Int(releaseYear)
-            return movie
-        default:
-            return nil
-        }
-    }
-
     private func newItem() -> (any SharedListItem)? {
         guard let me = store.currentProfile else { return nil }
-        let id = store.newItemID()
-        let addedBy = me.reference
-        let trimmedTitle = title.trimmed
-        let trimmedNotes = notes.orNil
-
-        switch category {
-        case .restaurant:
-            return Restaurant(
-                id: id, title: trimmedTitle, notes: trimmedNotes, status: status,
-                addedBy: addedBy, location: location.orNil,
-                cuisine: cuisine.orNil, priceRange: priceRange
-            )
-        case .bar:
-            return Bar(
-                id: id, title: trimmedTitle, notes: trimmedNotes, status: status,
-                addedBy: addedBy, location: location.orNil, barType: barType
-            )
-        case .movie:
-            return Movie(
-                id: id, title: trimmedTitle, notes: trimmedNotes, status: status,
-                addedBy: addedBy, runtimeMinutes: Int(runtime),
-                streamingService: streamingService.orNil, releaseYear: Int(releaseYear)
-            )
-        default:
-            return nil
-        }
+        return draft.makeNew(id: store.newItemID(), addedBy: me.reference)
     }
 }

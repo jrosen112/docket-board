@@ -5,6 +5,8 @@ struct DetailFactRow: View {
     let label: String
     let value: String
     let accent: Color
+    var isPlaceholder = false
+    let onTap: () -> Void
 
     var body: some View {
         HStack(spacing: DocketDetailTheme.Fact.rowSpacing) {
@@ -21,9 +23,16 @@ struct DetailFactRow: View {
 
             Text(value)
                 .font(DocketDetailTheme.Fact.valueFont)
-                .foregroundStyle(DocketDetailTheme.Fact.valueColor)
+                .foregroundStyle(
+                    isPlaceholder
+                        ? DocketDetailTheme.Edit.placeholderColor
+                        : DocketDetailTheme.Fact.valueColor
+                )
                 .multilineTextAlignment(.trailing)
         }
         .padding(.vertical, DocketDetailTheme.Fact.verticalPadding)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onTap)
+        .accessibilityAddTraits(.isButton)
     }
 }

@@ -3,38 +3,105 @@ import SwiftUI
 struct RestaurantDetailView: View {
     let restaurant: Restaurant
     let addedBy: String
+    let isEditing: Bool
+    let saveErrorMessage: String?
+    @Binding var draft: ItemDraft
+    let focusedField: FocusState<ItemDraftField?>.Binding
+    let onEdit: (ItemDraftField) -> Void
 
     var body: some View {
-        DetailPage(item: restaurant, addedBy: addedBy, symbol: "fork.knife") {
-            if let location = restaurant.location {
-                DetailFactRow(
-                    symbol: "mappin.and.ellipse",
-                    label: "Location",
-                    value: location,
-                    accent: restaurant.category.accent
-                )
-            }
-            if let cuisine = restaurant.cuisine {
-                DetailFactRow(
-                    symbol: "takeoutbag.and.cup.and.straw.fill",
-                    label: "Cuisine",
-                    value: cuisine,
-                    accent: restaurant.category.accent
-                )
-            }
-            if let price = restaurant.priceRange {
-                DetailFactRow(
-                    symbol: "creditcard.fill",
-                    label: "Price",
-                    value: price.rawValue,
-                    accent: restaurant.category.accent
-                )
-            }
-            if restaurant.location == nil,
-               restaurant.cuisine == nil,
-               restaurant.priceRange == nil {
-                DetailEmptyFacts()
+        DetailPage(
+            item: restaurant,
+            addedBy: addedBy,
+            symbol: "fork.knife",
+            isEditing: isEditing,
+            saveErrorMessage: saveErrorMessage,
+            draft: $draft,
+            focusedField: focusedField,
+            onEdit: onEdit
+        ) {
+            if isEditing {
+                editingFields
+            } else {
+                displayFields
             }
         }
+    }
+
+    private var editingFields: some View {
+        Group {
+            DetailEditField(
+                symbol: "mappin.and.ellipse",
+                label: "Location",
+                placeholder: "Add a location",
+                field: .location,
+                accent: restaurant.category.accent,
+                text: $draft.location,
+                focusedField: focusedField
+            )
+            DetailEditField(
+                symbol: "takeoutbag.and.cup.and.straw.fill",
+                label: "Cuisine",
+                placeholder: "Add a cuisine",
+                field: .cuisine,
+                accent: restaurant.category.accent,
+                text: $draft.cuisine,
+                focusedField: focusedField
+            )
+            DetailEditPickerRow(
+                symbol: "creditcard.fill",
+                label: "Price",
+                accent: restaurant.category.accent,
+                selection: $draft.priceRange
+            ) {
+                Text("Not set").tag(PriceRange?.none)
+                ForEach(PriceRange.allCases, id: \.self) { price in
+                    Text(price.rawValue).tag(Optional(price))
+                }
+            }
+        }
+    }
+
+    private var displayFields: some View {
+        Group {
+            fact(
+                symbol: "mappin.and.ellipse",
+                label: "Location",
+                value: restaurant.location,
+                placeholder: "Add location",
+                field: .location
+            )
+            fact(
+                symbol: "takeoutbag.and.cup.and.straw.fill",
+                label: "Cuisine",
+                value: restaurant.cuisine,
+                placeholder: "Add cuisine",
+                field: .cuisine
+            )
+            fact(
+                symbol: "creditcard.fill",
+                label: "Price",
+                value: restaurant.priceRange?.rawValue,
+                placeholder: "Set price",
+                field: .priceRange
+            )
+        }
+    }
+
+    private func fact(
+        symbol: String,
+        label: String,
+        value: String?,
+        placeholder: String,
+        field: ItemDraftField
+    ) -> some View {
+        DetailFactRow(
+            symbol: symbol,
+            label: label,
+            value: value ?? placeholder,
+            accent: restaurant.category.accent,
+            isPlaceholder: value == nil,
+            onTap: { onEdit(field) }
+        )
     }
 }

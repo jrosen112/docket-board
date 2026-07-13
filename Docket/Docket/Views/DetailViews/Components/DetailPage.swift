@@ -5,6 +5,11 @@ struct DetailPage<Details: View>: View {
     let item: any SharedListItem
     let addedBy: String
     let symbol: String
+    let isEditing: Bool
+    let saveErrorMessage: String?
+    @Binding var draft: ItemDraft
+    let focusedField: FocusState<ItemDraftField?>.Binding
+    let onEdit: (ItemDraftField) -> Void
     @ViewBuilder let details: Details
 
     private var accent: Color { item.category.accent }
@@ -27,17 +32,45 @@ struct DetailPage<Details: View>: View {
                         details
                     }
 
-                    if let notes = item.notes, !notes.isEmpty {
-                        DetailSectionCard(
-                            title: "A note for later",
-                            symbol: "text.quote",
-                            accent: accent
-                        ) {
+                    DetailSectionCard(
+                        title: "A note for later",
+                        symbol: "text.quote",
+                        accent: accent
+                    ) {
+                        if isEditing {
+                            TextField("Add a note…", text: $draft.notes, axis: .vertical)
+                                .font(DocketDetailTheme.Notes.font)
+                                .foregroundStyle(DocketDetailTheme.Notes.color)
+                                .lineSpacing(DocketDetailTheme.Notes.lineSpacing)
+                                .lineLimit(3...8)
+                                .textFieldStyle(.plain)
+                                .focused(focusedField, equals: .notes)
+                        } else if let notes = item.notes, !notes.isEmpty {
                             Text(notes)
                                 .font(DocketDetailTheme.Notes.font)
                                 .foregroundStyle(DocketDetailTheme.Notes.color)
                                 .lineSpacing(DocketDetailTheme.Notes.lineSpacing)
-                                .textSelection(.enabled)
+                        } else {
+                            Text("Tap to add a note…")
+                                .font(DocketDetailTheme.Empty.font)
+                                .foregroundStyle(DocketDetailTheme.Empty.color)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        if !isEditing { onEdit(.notes) }
+                    }
+                    .accessibilityAddTraits(isEditing ? [] : .isButton)
+
+                    if let saveErrorMessage {
+                        DetailSectionCard(
+                            title: "Couldn't save",
+                            symbol: "exclamationmark.triangle.fill",
+                            accent: DocketDetailTheme.Edit.errorColor
+                        ) {
+                            Text(saveErrorMessage)
+                                .font(DocketDetailTheme.Fact.labelFont)
+                                .foregroundStyle(DocketDetailTheme.Edit.errorColor)
                         }
                     }
                 }
@@ -66,13 +99,37 @@ struct DetailPage<Details: View>: View {
                     .foregroundStyle(accent)
 
                 Spacer()
-                StatusChip(status: item.status)
+                if isEditing {
+                    Picker("Status", selection: $draft.status) {
+                        ForEach(ItemStatus.allCases, id: \.self) { status in
+                            Text(status.label).tag(status)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .tint(draft.status.chipColor)
+                } else {
+                    StatusChip(status: item.status)
+                        .contentShape(Rectangle())
+                        .onTapGesture { onEdit(.status) }
+                }
             }
 
-            Text(item.title)
-                .font(DocketDetailTheme.Hero.titleFont)
-                .foregroundStyle(DocketDetailTheme.Hero.titleColor)
-                .fixedSize(horizontal: false, vertical: true)
+            if isEditing {
+                TextField("Title", text: $draft.title, axis: .vertical)
+                    .font(DocketDetailTheme.Hero.titleFont)
+                    .foregroundStyle(DocketDetailTheme.Hero.titleColor)
+                    .textFieldStyle(.plain)
+                    .focused(focusedField, equals: .title)
+            } else {
+                Text(item.title)
+                    .font(DocketDetailTheme.Hero.titleFont)
+                    .foregroundStyle(DocketDetailTheme.Hero.titleColor)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .contentShape(Rectangle())
+                    .onTapGesture { onEdit(.title) }
+                    .accessibilityAddTraits(.isButton)
+            }
 
             HStack(spacing: DocketDetailTheme.Hero.metadataSpacing) {
                 Label(addedBy, systemImage: "person.crop.circle.fill")
