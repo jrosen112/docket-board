@@ -22,6 +22,7 @@ struct BoardView: View {
     @State private var detailTarget: DetailTarget?
     @State private var filter = BoardFilter()
     @State private var scrollNoteProgress: CGFloat = 0
+    @State private var refreshNotice: BoardRefreshNotice?
 
     private var filteredItems: [any SharedListItem] {
         filter.apply(to: store.items)
@@ -54,12 +55,7 @@ struct BoardView: View {
                     onAdd: beginAdding
                 )
             }
-            .overlay(alignment: .bottom) {
-                if let message = store.errorMessage {
-                    ErrorBanner(message: message) { store.errorMessage = nil }
-                        .padding(.bottom, 8)
-                }
-            }
+            .overlay(alignment: .bottom) { boardOverlay }
             .sheet(item: $addTarget) { target in
                 NewItemView(itemID: target.id, dateAdded: target.dateAdded)
                     .navigationTransition(
@@ -113,7 +109,7 @@ struct BoardView: View {
             }
             .padding(.horizontal, 16)
         }
-        .refreshable { await store.refresh() }
+        .refreshable { await refreshBoard() }
         .onScrollGeometryChange(
             for: CGFloat.self,
             of: { geometry in
@@ -190,6 +186,53 @@ struct BoardView: View {
         addTarget = AddTarget(id: store.newItemID(), dateAdded: .now)
     }
 
+    private func refreshBoard() async {
+        guard let summary = await store.refresh() else { return }
+        withAnimation(
+            .spring(
+                response: DocketTheme.RefreshPill.insertionResponse,
+                dampingFraction: DocketTheme.RefreshPill.insertionDamping
+            )
+        ) {
+            refreshNotice = BoardRefreshNotice(summary: summary)
+        }
+    }
+
+    private func dismissRefreshNotice() {
+        withAnimation(
+            .easeIn(duration: DocketTheme.RefreshPill.removalDuration)
+        ) {
+            refreshNotice = nil
+        }
+    }
+
+    @ViewBuilder
+    private var boardOverlay: some View {
+        VStack(spacing: DocketTheme.RefreshPill.overlaySpacing) {
+            if let message = store.errorMessage {
+                ErrorBanner(message: message) { store.errorMessage = nil }
+            }
+
+            if let notice = refreshNotice {
+                BoardRefreshPill(
+                    summary: notice.summary,
+                    onDismiss: dismissRefreshNotice
+                )
+                .id(notice.id)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .task(id: notice.id) {
+                    do {
+                        try await Task.sleep(for: DocketTheme.RefreshPill.visibleDuration)
+                    } catch {
+                        return
+                    }
+                    dismissRefreshNotice()
+                }
+            }
+        }
+        .padding(.bottom, DocketTheme.RefreshPill.bottomPadding)
+    }
+
     @ToolbarContentBuilder private var topToolbarItems: some ToolbarContent {
         ToolbarItem(placement: .principal) {
             BoardSwitcher(
@@ -238,4 +281,9 @@ private struct DetailTarget: Identifiable, Hashable {
 private struct AddTarget: Identifiable {
     let id: CKRecord.ID
     let dateAdded: Date
+}
+
+private struct BoardRefreshNotice: Identifiable {
+    let id = UUID()
+    let summary: BoardRefreshSummary
 }

@@ -25,6 +25,18 @@ nonisolated enum StoreSaveResult: Equatable {
     case failed
 }
 
+nonisolated struct BoardRefreshSummary: Equatable, Sendable {
+    let addedItemCount: Int
+
+    var message: String {
+        switch addedItemCount {
+        case 0: "No new items"
+        case 1: "1 item added"
+        default: "\(addedItemCount) items added"
+        }
+    }
+}
+
 @MainActor
 @Observable
 final class BoardStore {
@@ -32,6 +44,7 @@ final class BoardStore {
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let makeService: @Sendable (Space) -> any SpaceDataService
     @ObservationIgnored private let notificationService: any BoardNotificationService
+    @ObservationIgnored private let networkAvailability: any NetworkAvailabilityProviding
     private var service: any SpaceDataService
 
     /// The board (space) this store is currently pointed at.
@@ -77,12 +90,14 @@ final class BoardStore {
     init(
         defaults: UserDefaults = .standard,
         makeService: @escaping @Sendable (Space) -> any SpaceDataService = { CloudKitService(space: $0) },
-        notificationService: any BoardNotificationService = CloudKitBoardNotificationService()
+        notificationService: any BoardNotificationService = CloudKitBoardNotificationService(),
+        networkAvailability: any NetworkAvailabilityProviding = SystemNetworkAvailability.shared
     ) {
         let space = SpaceStore.load(from: defaults)
         self.defaults = defaults
         self.makeService = makeService
         self.notificationService = notificationService
+        self.networkAvailability = networkAvailability
         self.space = space
         self.spaces = SpaceStore.loadAll(from: defaults)
         self.service = makeService(space)
@@ -141,8 +156,16 @@ final class BoardStore {
         }
     }
 
-    func refresh() async {
-        _ = await performRefresh()
+    @discardableResult
+    func refresh() async -> BoardRefreshSummary? {
+        let previousIDs = Set(items.map(\.id))
+        switch await performRefresh() {
+        case .loaded:
+            let addedItemCount = items.count { !previousIDs.contains($0.id) }
+            return BoardRefreshSummary(addedItemCount: addedItemCount)
+        case .failed, .superseded:
+            return nil
+        }
     }
 
     private enum RefreshResult {
@@ -157,6 +180,7 @@ final class BoardStore {
         let requestedService = service
         isLoading = true
         do {
+            try await requireNetwork()
             let loaded = try await requestedService.loadEverything()
             guard generation == refreshGeneration else { return .superseded }
             items = loaded.items.sorted { $0.dateAdded > $1.dateAdded }
@@ -186,6 +210,7 @@ final class BoardStore {
             lastName: lastName
         )
         do {
+            try await requireNetwork()
             try await service.save(profile.toRecord())
             defaults.set(profile.id.recordName, forKey: profileKey)
             currentProfile = profile
@@ -209,6 +234,7 @@ final class BoardStore {
     func save(_ item: any SharedListItem) async -> StoreSaveResult {
         errorMessage = nil
         do {
+            try await requireNetwork()
             try await service.save(item.toRecord())
             await refresh()
             return .saved
@@ -223,6 +249,7 @@ final class BoardStore {
 
     func delete(_ item: any SharedListItem) async {
         do {
+            try await requireNetwork()
             try await service.delete(item.id)
             items.removeAll { $0.id == item.id }
         } catch {
@@ -239,6 +266,7 @@ final class BoardStore {
 
     func prepareShare() async {
         do {
+            try await requireNetwork()
             activeShare = try await service.loadShare()
         } catch {
             errorMessage = Self.message(for: error)
@@ -269,6 +297,7 @@ final class BoardStore {
         )
 
         do {
+            try await requireNetwork()
             // The first load creates the custom zone. Saving the copied profile
             // then makes the board immediately usable when it becomes current.
             _ = try await newService.loadEverything()
@@ -305,6 +334,7 @@ final class BoardStore {
     func seedSampleData() async {
         guard let me = currentProfile else { return }
         do {
+            try await requireNetwork()
             for item in SampleData.items(addedBy: me.reference, in: service.space.zoneID) {
                 try await service.save(item.toRecord())
             }
@@ -318,6 +348,7 @@ final class BoardStore {
     func deleteSampleData() async {
         let samples = items.filter { SampleData.isSample($0.id) }
         do {
+            try await requireNetwork()
             for item in samples {
                 try await service.delete(item.id)
             }
@@ -438,7 +469,7 @@ final class BoardStore {
                 }
             } catch {
                 if candidate == space {
-                    errorMessage = Self.message(for: error)
+                    errorMessage = UserFacingError.message(for: error)
                 }
             }
         }
@@ -496,6 +527,12 @@ final class BoardStore {
 
     // MARK: - Error presentation
 
+    private func requireNetwork() async throws {
+        if await networkAvailability.availability() == .unavailable {
+            throw BoardConnectivityError.offline
+        }
+    }
+
     private static func isConflict(_ error: Error) -> Bool {
         guard let cloudError = error as? CKError else { return false }
         if cloudError.code == .serverRecordChanged { return true }
@@ -506,6 +543,6 @@ final class BoardStore {
     }
 
     private static func message(for error: Error) -> String {
-        error.localizedDescription
+        UserFacingError.message(for: error)
     }
 }

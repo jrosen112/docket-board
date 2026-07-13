@@ -138,6 +138,30 @@ nonisolated enum DocketTheme {
         }
     }
 
+    enum RefreshPill {
+        static let contentSpacing: CGFloat = 8
+        static let horizontalPadding: CGFloat = 16
+        static let verticalPadding: CGFloat = 10
+        static let overlaySpacing: CGFloat = 8
+        static let bottomPadding: CGFloat = 10
+        static let borderWidth: CGFloat = 1
+        static let shadowRadius: CGFloat = 8
+        static let shadowY: CGFloat = 4
+        static let iconFont: Font = .footnote.weight(.bold)
+        static let messageFont: Font = .footnote.weight(.semibold)
+        static let messageColor = DocketTheme.cream
+        static let iconColor = DocketTheme.brass
+        static let glassTint = DocketTheme.inkLight.opacity(0.78)
+        static let borderColor = DocketTheme.cream.opacity(0.12)
+        static let shadowColor = Color.black.opacity(0.3)
+        static let swipeThreshold: CGFloat = 42
+        static let dragReturnDuration: TimeInterval = 0.22
+        static let insertionResponse: TimeInterval = 0.38
+        static let insertionDamping: CGFloat = 0.82
+        static let removalDuration: TimeInterval = 0.18
+        static let visibleDuration: Duration = .seconds(2.8)
+    }
+
     enum CreateBoard {
         static let contentSpacing: CGFloat = 14
         static let horizontalPadding: CGFloat = 22

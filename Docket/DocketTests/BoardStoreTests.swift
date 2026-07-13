@@ -16,6 +16,7 @@ final class BoardStoreTests: XCTestCase {
     private var defaults: UserDefaults!
     private var mock: MockSpaceService!
     private var notificationMock: MockBoardNotificationService!
+    private var networkMock: MockNetworkAvailability!
     private var store: BoardStore!
     private let suiteName = "BoardStoreTestsSuite"
 
@@ -25,6 +26,7 @@ final class BoardStoreTests: XCTestCase {
         defaults.removePersistentDomain(forName: suiteName)
         mock = MockSpaceService()
         notificationMock = MockBoardNotificationService()
+        networkMock = MockNetworkAvailability()
         store = makeStore()
     }
 
@@ -42,7 +44,8 @@ final class BoardStoreTests: XCTestCase {
             makeService: { space in
                 space == mock.space ? mock : MockSpaceService(space: space)
             },
-            notificationService: notificationMock
+            notificationService: notificationMock,
+            networkAvailability: networkMock
         )
     }
 
@@ -112,6 +115,58 @@ final class BoardStoreTests: XCTestCase {
         mock.loadError = nil
         await store.refresh()
         XCTAssertNil(store.errorMessage)
+    }
+
+    func testRefreshSummaryReportsNewItemCount() async {
+        let alice = seedProfile()
+        seedMovie("Already Here", addedBy: alice, dateAdded: .now)
+        await store.bootstrap()
+        seedMovie("Just Added", addedBy: alice, dateAdded: .now)
+
+        let summary = await store.refresh()
+
+        XCTAssertEqual(summary, BoardRefreshSummary(addedItemCount: 1))
+        XCTAssertEqual(summary?.message, "1 item added")
+    }
+
+    func testRefreshSummaryReportsNoNewItems() async {
+        let alice = seedProfile()
+        seedMovie("Already Here", addedBy: alice, dateAdded: .now)
+        await store.bootstrap()
+
+        let summary = await store.refresh()
+
+        XCTAssertEqual(summary, BoardRefreshSummary(addedItemCount: 0))
+        XCTAssertEqual(summary?.message, "No new items")
+    }
+
+    func testFailedRefreshDoesNotProduceSuccessSummary() async {
+        mock.loadError = CKError(.networkFailure)
+
+        let summary = await store.refresh()
+
+        XCTAssertNil(summary)
+    }
+
+    func testOfflineRefreshFinishesWithFriendlyError() async {
+        await store.createProfile(firstName: "Jared", lastName: "R")
+        await networkMock.set(.unavailable)
+
+        let summary = await store.refresh()
+
+        XCTAssertNil(summary)
+        XCTAssertFalse(store.isLoading)
+        XCTAssertEqual(
+            store.errorMessage,
+            "You're offline. Reconnect and try again."
+        )
+    }
+
+    func testRefreshSummaryPluralizesMultipleItems() {
+        XCTAssertEqual(
+            BoardRefreshSummary(addedItemCount: 2).message,
+            "2 items added"
+        )
     }
 
     // MARK: - Profile identity
@@ -287,7 +342,8 @@ final class BoardStoreTests: XCTestCase {
                 }
                 return ownedService
             },
-            notificationService: notificationMock
+            notificationService: notificationMock,
+            networkAvailability: networkMock
         )
         await failingStore.createProfile(firstName: "Jared", lastName: "R")
         let originalSpace = failingStore.space
@@ -352,7 +408,8 @@ final class BoardStoreTests: XCTestCase {
             makeService: { space in
                 space == ownedService.space ? ownedService : joinedService
             },
-            notificationService: notificationMock
+            notificationService: notificationMock,
+            networkAvailability: networkMock
         )
         await switchingStore.bootstrap()
 
@@ -387,7 +444,8 @@ final class BoardStoreTests: XCTestCase {
             makeService: { space in
                 space == ownedService.space ? ownedService : joinedService
             },
-            notificationService: notificationMock
+            notificationService: notificationMock,
+            networkAvailability: networkMock
         )
         await switchingStore.bootstrap()
         let originalSpace = switchingStore.space
@@ -401,6 +459,27 @@ final class BoardStoreTests: XCTestCase {
         XCTAssertTrue(switchingStore.spaces.contains(joined))
         XCTAssertEqual(SpaceStore.load(from: defaults), originalSpace)
         XCTAssertNotNil(switchingStore.errorMessage)
+    }
+
+    func testOfflineSwitchImmediatelyRestoresPreviousBoard() async {
+        await store.createProfile(firstName: "Jared", lastName: "R")
+        let originalSpace = store.space
+        let joined = Space(
+            zoneID: CKRecordZone.ID(zoneName: "OfflineSpace", ownerName: "_friendOwner"),
+            access: .joined,
+            title: "Offline Board"
+        )
+        await networkMock.set(.unavailable)
+
+        await store.switchTo(space: joined)
+
+        XCTAssertFalse(store.isSwitchingBoard)
+        XCTAssertEqual(store.space, originalSpace)
+        XCTAssertEqual(SpaceStore.load(from: defaults), originalSpace)
+        XCTAssertEqual(
+            store.errorMessage,
+            "You're offline. Reconnect and try again."
+        )
     }
 
     func testInFlightRefreshCannotOverwriteNewlySelectedSpace() async {
@@ -432,7 +511,8 @@ final class BoardStoreTests: XCTestCase {
             makeService: { space in
                 space == ownedService.space ? ownedService : joinedService
             },
-            notificationService: notificationMock
+            notificationService: notificationMock,
+            networkAvailability: networkMock
         )
         let oldRefresh = Task { await switchingStore.refresh() }
         try? await Task.sleep(nanoseconds: 10_000_000)

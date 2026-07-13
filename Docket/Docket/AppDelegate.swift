@@ -63,7 +63,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                     NotificationCenter.default.post(
                         name: .docketShareAcceptFailed,
                         object: nil,
-                        userInfo: ["error": error.localizedDescription]
+                        userInfo: ["error": UserFacingError.message(for: error)]
                     )
                 }
             }

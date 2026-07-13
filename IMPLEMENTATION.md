@@ -1,174 +1,255 @@
-# Docket — Implementation Progress
+# Docket — Implementation
 
-Living status doc so any session can pick up where the last left off. See
-[CLAUDE.md](CLAUDE.md) for the product spec and hard constraints.
+_Current as of 2026-07-13._
 
-_Last updated: 2026-07-12_
+This document describes the app as it exists now. [CLAUDE.md](CLAUDE.md)
+contains the original product brief and working agreement; where its old
+phase-oriented notes disagree with this file, this file is authoritative for
+the current implementation.
 
-## Guiding principle
-Build the **data/CloudKit engine correctly first**; the SwiftUI UI is a thin,
-swappable layer on top. Don't bake presentation decisions into the data layer.
+## Current product
 
-## Kickoff decisions (2026-07-12)
-- **Identity:** first-class, extensible `UserProfile` record (firstName,
-  lastName, profile picture later; room for interests/favorites). Every item's
-  `addedBy` is a `CKRecord.Reference` to a profile. Profiles live in the shared
-  zone so both participants see each other's.
-- **Category scope:** start with a **subset — Restaurant, Bar, Movie** — to
-  prove the protocol + board + form pattern (2 location-based + 1 text-only).
-  HappyHour / Landmark / Hike / Activity come after.
-- **Location:** plain text field for now; MKLocalSearch autocomplete +
-  coordinates later.
-- **Board card sizing / photos / "show detail on board" toggle:** future work,
-  layered on once the data model is solid.
-- **Project facts:** iOS 26.4 deployment target, bundle `jared.rosen.Docket`,
-  CloudKit container `iCloud.jaredrosen.docket`, Xcode file-system-synchronized
-  groups (drop `.swift` files in the folder → auto-added to target, no pbxproj
-  editing).
+Docket is a SwiftUI iOS 26 app for shared boards of places and experiences.
+It uses raw CloudKit—no custom account system, backend server, Core Data, or
+SwiftData.
 
-## Build order (from CLAUDE.md) & status
-1. **CloudKit container/zone/share setup** — ✅ owner zone + share send + invitee acceptance (owner/participant scopes)
-2. **CKRecord conversion per category** — ✅ done (models + round-trip tests)
-3. **Masonry board view w/ filtering** — ✅ done (corkboard styling + category/status filters)
-4. **Add/edit form** — ✅ done (detail-style add flow; shared `ItemDraft` conversion)
-5. **Category detail views** — ✅ done (tap card → typed detail; tap any field → inline edit)
-6. **Map view for location categories** — 🔲 not started
-7. **Push sync + photo attachments + polish** — 🔲 not started
+The current app supports:
 
-## Done so far
-- **Model layer** (`Docket/Docket/Models/`) — `SharedListItem` protocol +
-  `ItemStatus`/`ItemCategory` enums + shared encode/decode helpers; `UserProfile`;
-  `Restaurant`/`Bar`/`Movie` with round-trip CKRecord conversion. All marked
-  `nonisolated` so the background service actor can build them (project uses
-  Xcode 26 default-MainActor isolation). Every decoded model carries a
-  `systemFields: Data?` archive (`CKRecord+SystemFields.swift`) so edits keep
-  the server change tag — saving a from-scratch CKRecord over an existing one
-  fails with `serverRecordChanged`, and the change tag also gives real
-  conflict detection between the two participants.
-- **CloudKit schema constants** (`CloudKit/CloudKitSchema.swift`) — namespaced
-  `Schema.RecordType` / `Schema.Field` / `Schema.zoneName` to dodge both the
-  case-sensitivity duplicate-field trap and CloudKit's own `CKRecord.RecordType`
-  / `CKRecord.FieldKey` names.
-- **Space model** (`CloudKit/Space.swift`) — a board = `Space(zoneID, access)`
-  where access is `.owned` (private DB) or `.joined` (shared DB). This is the
-  multi-board foundation: girlfriend board / brother board / a friend's board
-  you joined are all just distinct Spaces; Phase 1 persists one current Space
-  (`SpaceStore`), multi-board later = a list + selection. Per-space local state
-  is keyed by `Space.id`.
-- **SpaceDataService protocol** (`CloudKit/SpaceDataService.swift`) — the seam
-  between BoardStore and CloudKit; tests substitute `MockSpaceService`.
-- **RecordDecoder** (`CloudKit/RecordDecoder.swift`) — record→model dispatch +
-  item/profile partition, extracted from the service and unit-tested.
-- **CloudKitService** (`CloudKit/CloudKitService.swift`) — `actor` implementing
-  `SpaceDataService` for one Space. `ensureZone`, `save`, `delete`,
-  `loadEverything` (via `CKFetchRecordZoneChangesOperation` — no schema indexes
-  needed), `createZoneShare`. Share creation returns the EXISTING zone-wide
-  share when one exists (CloudKit allows exactly one per zone; re-creating
-  throws a server error). Zone-change reads propagate record-level and
-  zone-level failures instead of returning a silently partial board.
-- **Sharing acceptance** — `Info.plist` (partial, merged) sets
-  `CKSharingSupported=<true/>`; `AppDelegate` receives
-  `userDidAcceptCloudKitShareWith`, runs `CKAcceptSharesOperation`, and posts a
-  notification; `DocketApp` routes it to `BoardStore.switchToParticipant`, which
-  persists the participant scope and reloads. Share button hidden for participants.
-- **BoardStore** (`BoardStore.swift`) — `@MainActor @Observable`; holds items /
-  profiles / currentProfile; bootstrap, refresh, createProfile, add, delete,
-  prepareShare, `switchTo(space:)`. Service factory + UserDefaults are injected
-  (real-CloudKit defaults) so all store behavior is unit-tested. "Who am I" is
-  stored per-space (`docket.currentProfileRecordName.<space.id>`), with a
-  one-time migration from the old global key; joining another board never wipes
-  the owned board's identity. Initial loading has explicit loading/loaded/failed
-  states so an iCloud outage cannot masquerade as first-time profile setup.
-  Refresh generations prevent an older request from overwriting a newly selected
-  board, and save/profile operations return testable outcomes to their views.
-- **UI — composable, one component per file (hard requirement from Jared:
-  no screen-view state bloat; components are dumb, screens only compose):**
-  - `Views/Theme/DocketTheme.swift` — ALL design tokens: palette (ink navy /
-    cream / brass per CLAUDE.md), Georgia display fonts, per-category accents,
-    per-status chip colors, deterministic card rotation (keyed by record name,
-    NOT hashValue which is process-seeded). Restyling = edit this file only.
-  - `Support/BoardFilter.swift` — pure category/status filter logic (tested).
-  - `Views/Components/` — `MasonryLayout` (custom Layout, shortest-column
-    packing), `BoardCard` (cream stock, brass pin, accent stripe, tilt),
-    `StatusChip`, `FilterChip`, `BoardFilterBar`, `EmptyBoardView`,
-    `ErrorBanner` (CloudKit errors now surface on the board, dismissable),
-    `ItemPresentation.swift` (category-specific subtitle line — presentation
-    formatting kept OUT of model files).
-  - Screens: `ContentView` gate (themed loading/retry → profile setup → board),
-    `BoardView` (composition only; state = sheet/navigation targets + filter),
-    `ItemFormView` (add + edit), `ProfileSetupView`,
-    `CloudSharingSheet`, and typed Restaurant/Bar/Movie detail views. Card tap =
-    detail; tapping a title, status, fact, placeholder, or notes edits it in place;
-    card long-press also offers Edit/Delete. `ItemDraft` is the single tested
-    conversion path used by both the add form and inline editor. Failed saves
-    keep the editor open, and concurrent-edit conflicts offer a reload.
-  - Board filters are a pinned section header beneath the native navigation bar,
-    leaving filters continuously usable without scroll-driven layout changes.
-    The Add toolbar action opens the same card-based editing experience as details.
-- **Debug seeding** (`Support/SampleData.swift` + BoardStore debug section +
-  ⋯ toolbar menu; all `#if DEBUG`, compiled out of TestFlight) — "Seed sample
-  data" pins 9 varied items (all categories/statuses, mixed note lengths for
-  masonry variance, staggered dates); "Delete sample data" removes ONLY records
-  with the `sample-` recordName prefix, never real items.
-- **Tests** — 49 offline tests, all passing: `ModelConversionTests` (8, incl.
-  system-fields/edit round-trips), `RecordDecoderTests` (3), `SpaceTests` (3),
-  `BoardStoreTests` (17, via `MockSpaceService`), `CloudKitFetchAccumulatorTests`
-  (2), `BoardFilterTests` (5),
-  `DocketThemeTests` (6, rotation and scroll-note fade behavior),
-  `SampleDataTests` (2), and
-  `ItemDraftTests` (3, including CloudKit metadata preservation).
-  Placeholder unit/UI tests were removed. Full app builds clean for iOS.
+- Creating multiple named boards, each backed by its own CloudKit record zone.
+- Inviting people to an owned board with Apple's native CloudKit sharing UI.
+- Joining, switching between, and leaving shared boards.
+- Owner-only membership management; participants collaborate on board content.
+- Restaurant, Bar, and Movie items with category-specific fields.
+- Add, inline detail editing, deletion, conflict detection, and attribution.
+- Category/status filtering over a two-column masonry board.
+- Silent CloudKit change notifications and local notifications for items added
+  by another participant.
+- Pull-to-refresh feedback showing the number of newly added items.
+- Offline detection, bounded CloudKit reads, and short user-facing errors.
 
-## Next up
-- [ ] Map view for location-based categories (step 6) — will want the
-      MKLocalSearch location upgrade around the same time.
-- [ ] Push sync (`CKDatabaseSubscription` + silent push) + photo attachments +
-      remaining categories (HappyHour/Landmark/Hike/Activity) (step 7).
-- [ ] Owner smoke test of the new board UI (see verification notes).
+## CloudKit and board architecture
 
-Notes for later:
-- `INFOPLIST_KEY_CKSharingSupported=YES` build setting is **silently dropped**
-  (Xcode only honors `INFOPLIST_KEY_` for known keys) — that's why there's a real
-  `Docket/Info.plist`. Verified in the generated bundle plist.
-- Participant onboarding: accepting a share switches the current Space to the
-  joined board and the invitee onboards fresh there. Any profile on their own
-  owned board is preserved (per-space keys) for when multi-board switching
-  arrives.
-- Multi-board later: persist a `[Space]` list + current selection in
-  `SpaceStore`, add a board switcher UI. Engine already takes a `Space` per
-  service instance, so no data-layer rework is expected.
+### Container and databases
 
-## Verification notes
-- **Do not run the app** (CLAUDE.md working agreement) — build + tests only; Jared
-  runs it in Xcode.
-- Model conversion is covered by offline unit tests (no iCloud account needed).
-- **Manual smoke test (owner, solo) — run in Xcode on a device/sim signed into
-  iCloud:**
-  1. Launch → profile setup appears → enter a name → Get started.
-  2. Board shows empty state → tap **+** → add a Restaurant/Bar/Movie → it
-     appears in the list, attributed to your name.
-  3. Force-quit and relaunch → profile is remembered, item still there (proves
-     the CloudKit round-trip, not just local state).
-  4. Swipe-delete an item → it's gone after a refresh.
-  5. ~~Tap an item → edit → persists after relaunch~~ ✅ verified on-device
-     2026-07-12 (add + edit both survive force-quit; change-tag path works).
-  6. **Board UI pass (new):** cards pack into two tilted columns with brass
-     pins; category chips filter (tap again to clear); status chips filter;
-     card tap opens edit; card long-press shows Edit/Delete; empty + filtered
-     empty states render; kill network → refresh → error banner appears at the
-     bottom and X dismisses it.
-  - If any CloudKit call errors, the message surfaces on-screen (profile screen)
-    or is stored in `store.errorMessage`. Tell me the exact text.
-- **Sharing smoke test (needs two iCloud accounts + two real devices — CloudKit
-  sharing does not work in the simulator):**
-  1. On device A (owner), add a couple items, then tap the **+person** button →
-     native share sheet appears → send the invite (Messages to yourself/other
-     account is fine).
-  2. On device B (second iCloud account), tap the invite link → app launches →
-     it should switch to participant mode and show device A's items.
-  3. On device B, add an item; on device A pull-to-refresh → it appears (and
-     vice-versa). This is the core "sync works between two accounts" check.
-  4. Confirm device B has **no** +person share button (participants can't invite).
-  - Known limitation: the app currently only refreshes on launch / pull-to-refresh
-    (no live push yet — that's step 7), so use pull-to-refresh to see the other
-    person's changes.
+The app uses container `iCloud.jaredrosen.docket`. The identifier belongs to
+the app; it does not mean data is routed through one person's iCloud account.
+Each iCloud user has their own private database.
+
+An owned board's custom zone lives in its creator's private database. Once the
+zone is shared, invited participants access that same zone through their shared
+database.
+
+### Spaces and persistence
+
+`CloudKit/Space.swift` models one board membership:
+
+- `zoneID`: the board's unique custom record zone.
+- `access`: `.owned` or `.joined`.
+- `title`: the local board-switcher title.
+
+`Space.newOwned(title:)` generates a distinct zone for every new board.
+`SpaceStore` persists the full board catalog and selected board, deduplicates
+memberships by stable space ID, and migrates the original single-space keys.
+
+Local state that belongs to one board is keyed by `Space.id`, including the
+current profile record and remembered item IDs. Switching boards never destroys
+another board's local identity.
+
+### Sharing and roles
+
+Each zone has at most one zone-wide `CKShare`. `CloudKitService.loadShare()`
+loads the existing share or creates it for an unshared owned board.
+
+`UICloudSharingController` supplies the membership UI:
+
+- Owners can invite/remove people, change sharing settings, or stop sharing.
+- Participants can inspect the people list or leave the share.
+
+Shares are private and read/write. CloudKit exposes read-only and read/write
+participant permissions, but no secure add-only role. Membership management is
+owner-only; read/write participants can add, edit, and delete board content.
+
+Share acceptance is handled by `AppDelegate`, which runs
+`CKAcceptSharesOperation` and routes the accepted zone into `BoardStore`.
+`CKSharingSupported` is declared in the real `Docket/Info.plist`; using an
+`INFOPLIST_KEY_` build setting for this key does not survive into the bundle.
+
+## Data and sync architecture
+
+### Models
+
+`Models/SharedListItem.swift` defines the common board surface. Restaurant,
+Bar, and Movie are separate CloudKit record types with their own fields rather
+than variants of one generic record.
+
+Every item stores `addedBy` as a `CKRecord.Reference` to a `UserProfile` in the
+same shared zone. Profiles are first-class records and the current device's
+profile identity is remembered per board.
+
+Decoded models archive CloudKit system fields. Edits rebuild records from that
+archive so change tags survive round-trips and concurrent writes produce a real
+`serverRecordChanged` conflict instead of silently overwriting newer data.
+
+`Support/ItemDraft.swift` is the shared, tested conversion path for both new
+items and inline edits.
+
+### Service layer
+
+`SpaceDataService` is the test seam for board-scoped data access.
+`CloudKitService` is an actor bound to one `Space` and selects the private or
+shared database from that space's access mode.
+
+Reads use `CKFetchRecordZoneChangesOperation`, avoiding query-index setup and
+capturing record-level and zone-level failures. Fetches have request/resource
+timeouts so a lost connection cannot leave refresh UI running indefinitely.
+
+`RecordDecoder` owns record dispatch and partitions fetched records into items
+and profiles. `CloudKitFetchAccumulator` safely collects operation callbacks
+that may arrive on different queues.
+
+### BoardStore
+
+`BoardStore` is `@MainActor`, `@Observable`, and dependency-injected. It owns:
+
+- The selected space and complete space catalog.
+- Loaded items, profiles, and the current per-space profile.
+- Loading, switching, sharing, error, and refresh-result state.
+- Profile creation and item save/delete workflows.
+- Board creation and atomic board switching.
+- Remote change reconciliation and notification decisions.
+
+Refresh generations prevent older requests from publishing into a newly
+selected board. Board switches keep the board screen mounted while loading; a
+failed switch restores the complete previous board state and selected-space
+persistence.
+
+### Notifications
+
+`CloudKitBoardNotificationService` installs silent database subscriptions for
+the private and shared databases. A push is treated as a change hint, not as
+the data itself: `BoardStore` reloads matching spaces and compares persisted
+record IDs.
+
+Only newly discovered items added by a different local profile produce a local
+notification. Tapping that notification routes the app to the relevant board.
+
+### Connectivity and errors
+
+`SystemNetworkAvailability` wraps `NWPathMonitor`. User actions preflight known
+offline state before beginning CloudKit work. If the monitor has not published
+its first path yet, the app allows CloudKit to try rather than falsely blocking
+an online launch.
+
+`UserFacingError` is the only CloudKit/network error-to-copy translator. Raw
+CloudKit descriptions are never intentionally shown in the board UI. It maps
+offline, iCloud availability, authentication, quota, permission, and missing
+board errors to concise messages.
+
+## UI architecture
+
+Screens compose small components; CloudKit and conversion logic stay out of
+views.
+
+- `ContentView` handles initial loading, retry, profile setup, and entry into
+  the persistent board screen.
+- `BoardView` composes the board background, pinned filters, masonry cards,
+  native navigation/toolbars, sheets, navigation, and transient overlays.
+- `BoardSwitcher` selects any owned or joined board and starts board creation.
+- `CreateBoardView` creates a named board using the same visual language as the
+  detail editors.
+- `BoardSkeletonView` replaces only the card area during board switches. The
+  navigation bar, filters, background, and bottom toolbar remain mounted.
+- `BoardRefreshPill` reports “No new items,” “1 item added,” or a plural count,
+  auto-dismisses, and tracks a downward swipe for early dismissal.
+- `DetailViews/` contains the typed Restaurant, Bar, and Movie detail screens,
+  the new-item screen, and their shared inline-editing components.
+- `ItemDetailView` resolves a record ID against live store data so edits update
+  the visible detail without replacing the navigation destination.
+- The bottom toolbars use native iOS glass styling and matched transitions.
+
+All reusable visual constants belong under `Views/Theme/`:
+
+- `DocketTheme.swift`: board palette, cards, filters, skeletons, refresh pill,
+  switcher, creation flow, and other board tokens.
+- `DocketDetailTheme.swift`: detail and inline-edit presentation.
+- `DocketControlStyles.swift`: shared control/button styles.
+
+## Reliability behavior
+
+- Initial CloudKit failure cannot masquerade as first-time onboarding.
+- Saving a new profile persists its local identity only after CloudKit succeeds.
+- Failed item saves keep editing UI open.
+- Concurrent edits show a specific reload-and-retry message.
+- Pull-to-refresh returns an exact new-record count only after a successful read.
+- Airplane-mode refresh ends promptly with a short offline message.
+- Airplane-mode board switching restores the previous board.
+- CloudKit fetches are bounded if connectivity disappears after preflight.
+- Unsupported or unexpected CloudKit errors fall back to generic user copy,
+  never a raw `CKError` dump.
+
+## Debug support
+
+`Support/SampleData.swift` and the debug toolbar menu can seed a varied board
+covering every currently supported category and status. Sample records use a
+`sample-` record-name prefix, and deletion targets only that prefix. Debug
+seeding is compiled out of release/TestFlight builds.
+
+## Tests and verification
+
+The signed iPhone 17 Pro simulator suite currently has **67 passing tests**:
+
+- `BoardStoreTests`: 30
+- `ModelConversionTests`: 8
+- `DocketThemeTests`: 7
+- `BoardFilterTests`: 5
+- `SpaceTests`: 4
+- `ItemDraftTests`: 3
+- `RecordDecoderTests`: 3
+- `UserFacingErrorTests`: 3
+- `CloudKitFetchAccumulatorTests`: 2
+- `SampleDataTests`: 2
+
+Coverage includes model/system-field round-trips, conflict behavior, profile
+identity, multi-board persistence and switching, board-creation rollback,
+remote-add notification decisions, offline refresh/switch handling, error-copy
+sanitization, filters, skeleton timing, refresh counts, and sample-data safety.
+
+Build and test commands are allowed, but automated sessions should not launch
+the app. Live CloudKit sharing and notification behavior require Jared's manual
+testing on signed-in devices, ideally with two iCloud accounts.
+
+Important manual checks:
+
+1. Create two owned boards and switch repeatedly; board chrome should remain
+   fixed while skeleton cards crossfade into content.
+2. Invite a second iCloud account. Confirm both devices can add/edit content,
+   only the owner manages membership, and the participant can leave.
+3. Add an item on device B. Confirm device A receives a notification and that
+   tapping it selects the correct board.
+4. Pull to refresh and verify the new-item pill count, auto-dismissal, and
+   swipe-down dismissal.
+5. Enable airplane mode. Refresh should finish promptly, board switching should
+   return to the previous board, and no technical CloudKit text should appear.
+
+## Remaining work
+
+- Implement MapKit search/autocomplete, coordinates, and a map view for
+  location-based categories.
+- Add HappyHour, Landmark, Hike, and Activity models/forms/detail views.
+- Add item photos and profile-picture `CKAsset` support.
+- Add first-class board rename/delete management and reconcile local catalogs
+  after a participant leaves or an owner stops sharing.
+- Continue real-device testing for CloudKit sharing, push delivery, revoked
+  access, notification permissions, and poor-network edge cases.
+- Prepare production CloudKit schema/deployment and TestFlight release work
+  when the feature set is ready.
+
+## Decisions to preserve
+
+- Keep raw CloudKit; do not introduce a second auth system or backend casually.
+- Keep one custom zone per board and one zone-wide share per zone.
+- Keep category records typed rather than collapsing them into a generic item.
+- Keep CloudKit system fields on decoded models for safe edits.
+- Keep data services injectable and store behavior testable without iCloud.
+- Keep presentation constants in `Views/Theme/` and screen views compositional.
+- Preserve unrelated workspace changes and do not add tool/author attribution.

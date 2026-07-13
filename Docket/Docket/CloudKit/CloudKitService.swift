@@ -19,6 +19,9 @@ import CloudKit
 
 actor CloudKitService: SpaceDataService {
 
+    private static let requestTimeout: TimeInterval = 8
+    private static let resourceTimeout: TimeInterval = 12
+
     nonisolated let container: CKContainer
     nonisolated let space: Space
     /// Owned → private database; joined → shared database.
@@ -86,6 +89,10 @@ actor CloudKitService: SpaceDataService {
                 recordZoneIDs: [zoneID],
                 configurationsByRecordZoneID: [zoneID: config]
             )
+            let operationConfiguration = CKOperation.Configuration()
+            operationConfiguration.timeoutIntervalForRequest = Self.requestTimeout
+            operationConfiguration.timeoutIntervalForResource = Self.resourceTimeout
+            operation.configuration = operationConfiguration
             operation.recordWasChangedBlock = { _, result in
                 switch result {
                 case .success(let record):

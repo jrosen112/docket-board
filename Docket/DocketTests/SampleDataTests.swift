@@ -39,7 +39,11 @@ final class SampleDataTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let mock = MockSpaceService()
-        let store = BoardStore(defaults: defaults) { _ in mock }
+        let store = BoardStore(
+            defaults: defaults,
+            makeService: { _ in mock },
+            networkAvailability: MockNetworkAvailability()
+        )
 
         await store.createProfile(firstName: "Jared", lastName: "R")
         let real = Movie(
