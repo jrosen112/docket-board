@@ -136,8 +136,22 @@ that may arrive on different queues.
 - The selected space and complete space catalog.
 - Loaded items, profiles, and the current per-space profile.
 - Loading, switching, sharing, error, and refresh-result state.
-- Profile creation and item save/delete workflows.
+- Profile creation, cross-board profile updates/stats, and item save/delete
+  workflows.
 - Board creation and atomic board switching.
+
+Profile name edits save the matching `UserProfile` in every known board. Item
+records are deliberately not rewritten: their existing `addedBy` references
+continue to resolve through the same profile record IDs, so the new display
+name propagates to every attributed item and arrives on other devices through
+the existing silent database-change reconciliation. Partial multi-board saves
+retain successful updates and identify the boards that should be retried.
+
+Profile stats are calculated on demand across the local board catalog. Counts
+include only items whose `addedBy` reference matches the current user's profile
+for that board, and expose total pins, status counts, favorite category, and a
+per-board contribution breakdown. An unavailable board produces partial stats
+rather than discarding the boards that loaded successfully.
 - Remote change reconciliation and notification decisions.
 
 Refresh generations prevent older requests from publishing into a newly

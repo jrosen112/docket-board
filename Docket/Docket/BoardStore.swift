@@ -31,6 +31,36 @@ nonisolated enum ICloudRestoreResult: Equatable {
     case failed(message: String)
 }
 
+nonisolated struct BoardProfileStats: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let itemCount: Int
+}
+
+nonisolated struct ProfileStats: Equatable {
+    let boardCount: Int
+    let loadedBoardCount: Int
+    let itemCount: Int
+    let wantToGoCount: Int
+    let plannedCount: Int
+    let completedCount: Int
+    let favoriteCategory: ItemCategory?
+    let boards: [BoardProfileStats]
+
+    var unavailableBoardCount: Int { boardCount - loadedBoardCount }
+}
+
+nonisolated enum ProfileStatsLoadResult: Equatable {
+    case loaded(ProfileStats)
+    case failed(message: String)
+}
+
+nonisolated enum ProfileNameUpdateResult: Equatable {
+    case updated(boardCount: Int)
+    case partiallyUpdated(updatedBoardCount: Int, failedBoardTitles: [String])
+    case failed(message: String)
+}
+
 nonisolated struct BoardRefreshSummary: Equatable, Sendable {
     let addedItemCount: Int
 
@@ -311,6 +341,171 @@ final class BoardStore {
         guard let creator = profile.creatorUserRecordName else { return false }
         if creator == userRecordName { return true }
         return space.isOwned && creator == CKCurrentUserDefaultName
+    }
+
+    /// Aggregates only items whose `addedBy` reference points at this user's
+    /// profile on that board. No records are mutated while calculating stats.
+    func loadProfileStats() async -> ProfileStatsLoadResult {
+        do {
+            try await requireNetwork()
+            let userRecordName = (try await service.accountUserRecordID()).recordName
+            var loadedBoardCount = 0
+            var itemCount = 0
+            var wantToGoCount = 0
+            var plannedCount = 0
+            var completedCount = 0
+            var categoryCounts: [ItemCategory: Int] = [:]
+            var boardStats: [BoardProfileStats] = []
+
+            for candidate in spaces {
+                do {
+                    let loaded = try await makeService(candidate).loadEverything()
+                    guard let profile = profileForCurrentAccount(
+                        in: loaded.profiles,
+                        space: candidate,
+                        userRecordName: userRecordName
+                    ) else { continue }
+
+                    loadedBoardCount += 1
+                    let authoredItems = loaded.items.filter {
+                        $0.addedBy.recordID == profile.id
+                    }
+                    itemCount += authoredItems.count
+                    for item in authoredItems {
+                        switch item.status {
+                        case .wantToGo: wantToGoCount += 1
+                        case .planned: plannedCount += 1
+                        case .completed: completedCount += 1
+                        }
+                        categoryCounts[item.category, default: 0] += 1
+                    }
+                    boardStats.append(
+                        BoardProfileStats(
+                            id: candidate.id,
+                            title: candidate.title,
+                            itemCount: authoredItems.count
+                        )
+                    )
+                } catch {
+                    // Keep useful partial stats when one board is temporarily
+                    // unavailable. The page calls this out explicitly.
+                }
+            }
+
+            let favoriteCategory = ItemCategory.supported.max { lhs, rhs in
+                let lhsCount = categoryCounts[lhs, default: 0]
+                let rhsCount = categoryCounts[rhs, default: 0]
+                if lhsCount == rhsCount {
+                    return ItemCategory.supported.firstIndex(of: lhs)!
+                        > ItemCategory.supported.firstIndex(of: rhs)!
+                }
+                return lhsCount < rhsCount
+            }.flatMap { categoryCounts[$0, default: 0] > 0 ? $0 : nil }
+
+            return .loaded(
+                ProfileStats(
+                    boardCount: spaces.count,
+                    loadedBoardCount: loadedBoardCount,
+                    itemCount: itemCount,
+                    wantToGoCount: wantToGoCount,
+                    plannedCount: plannedCount,
+                    completedCount: completedCount,
+                    favoriteCategory: favoriteCategory,
+                    boards: boardStats.sorted {
+                        if $0.itemCount == $1.itemCount { return $0.title < $1.title }
+                        return $0.itemCount > $1.itemCount
+                    }
+                )
+            )
+        } catch {
+            return .failed(message: Self.message(for: error))
+        }
+    }
+
+    /// Updates the profile record in every known board. Item records are left
+    /// untouched: their `addedBy` references continue pointing at the same
+    /// profile IDs and resolve to the new display name automatically.
+    func updateCurrentUserName(
+        firstName: String,
+        lastName: String
+    ) async -> ProfileNameUpdateResult {
+        let cleanedFirstName = firstName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanedLastName = lastName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanedFirstName.isEmpty else {
+            return .failed(message: "Enter a first name.")
+        }
+
+        do {
+            try await requireNetwork()
+            let userRecordName = (try await service.accountUserRecordID()).recordName
+            var updatedBoardCount = 0
+            var failedBoardTitles: [String] = []
+
+            for candidate in spaces {
+                let candidateService = makeService(candidate)
+                do {
+                    let loaded = try await candidateService.loadEverything()
+                    guard var profile = profileForCurrentAccount(
+                        in: loaded.profiles,
+                        space: candidate,
+                        userRecordName: userRecordName
+                    ) else {
+                        failedBoardTitles.append(candidate.title)
+                        continue
+                    }
+
+                    profile.firstName = cleanedFirstName
+                    profile.lastName = cleanedLastName
+                    let savedRecord = try await candidateService.save(profile.toRecord())
+                    let savedProfile = UserProfile(record: savedRecord) ?? profile
+                    defaults.set(
+                        savedProfile.id.recordName,
+                        forKey: profileKey(for: candidate)
+                    )
+                    updatedBoardCount += 1
+
+                    if candidate == space {
+                        if let index = profiles.firstIndex(where: { $0.id == savedProfile.id }) {
+                            profiles[index] = savedProfile
+                        }
+                        currentProfile = savedProfile
+                    }
+                } catch {
+                    failedBoardTitles.append(candidate.title)
+                }
+            }
+
+            if failedBoardTitles.isEmpty {
+                return .updated(boardCount: updatedBoardCount)
+            }
+            if updatedBoardCount > 0 {
+                return .partiallyUpdated(
+                    updatedBoardCount: updatedBoardCount,
+                    failedBoardTitles: failedBoardTitles
+                )
+            }
+            return .failed(message: "Your name couldn’t be updated. Please try again.")
+        } catch {
+            return .failed(message: Self.message(for: error))
+        }
+    }
+
+    private func profileForCurrentAccount(
+        in candidates: [UserProfile],
+        space: Space,
+        userRecordName: String
+    ) -> UserProfile? {
+        if let rememberedID = defaults.string(forKey: profileKey(for: space)),
+           let remembered = candidates.first(where: { $0.id.recordName == rememberedID }) {
+            return remembered
+        }
+        return candidates.first {
+            Self.profileBelongsToCurrentAccount(
+                $0,
+                in: space,
+                userRecordName: userRecordName
+            )
+        }
     }
 
     @discardableResult

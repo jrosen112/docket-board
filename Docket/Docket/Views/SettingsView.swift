@@ -3,12 +3,36 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.docketSurfacePalette) private var palette
+    @Environment(BoardStore.self) private var store
     @AppStorage(AppPreferences.darkerThemeKey) private var darkerThemeEnabled =
         AppPreferences.defaultDarkerThemeEnabled
 
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    NavigationLink {
+                        ProfileSettingsView()
+                    } label: {
+                        Label {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(store.currentProfile?.displayName ?? "Your Profile")
+                                    .foregroundStyle(palette.primaryText)
+                                Text("Profile, name, and stats")
+                                    .font(.caption)
+                                    .foregroundStyle(palette.secondaryText)
+                            }
+                        } icon: {
+                            Image(systemName: "person.crop.circle.fill")
+                                .foregroundStyle(DocketTheme.brass)
+                        }
+                    }
+                    .listRowBackground(palette.raisedPaper)
+                } header: {
+                    Text("You")
+                        .foregroundStyle(DocketTheme.cream.opacity(0.62))
+                }
+
                 Section {
                     Toggle(isOn: $darkerThemeEnabled) {
                         Label {

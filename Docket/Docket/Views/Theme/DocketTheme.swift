@@ -268,6 +268,32 @@ nonisolated enum DocketTheme {
         static let errorColor = Color(hex: 0xE29A89)
     }
 
+    enum ProfileSettings {
+        static let maxContentWidth: CGFloat = 620
+        static let horizontalPadding: CGFloat = 18
+        static let verticalPadding: CGFloat = 20
+        static let sectionSpacing: CGFloat = 18
+        static let cardPadding: CGFloat = 20
+        static let cardCornerRadius: CGFloat = 12
+        static let cardSpacing: CGFloat = 14
+        static let avatarSize: CGFloat = 62
+        static let avatarFont: Font = DocketTheme.display(22)
+        static let nameFont: Font = DocketTheme.display(24)
+        static let headingFont: Font = DocketTheme.display(20)
+        static let statValueFont: Font = DocketTheme.display(27)
+        static let statLabelFont: Font = .caption.weight(.semibold)
+        static let supportingFont: Font = .caption
+        static let gridSpacing: CGFloat = 12
+        static let tilePadding: CGFloat = 16
+        static let tileCornerRadius: CGFloat = 10
+        static let pinSize: CGFloat = 12
+        static let pinOffsetY: CGFloat = -6
+        static let shadowColor = Color.black.opacity(0.24)
+        static let shadowRadius: CGFloat = 7
+        static let shadowY: CGFloat = 4
+        static let warningColor = Color(hex: 0xE8B36A)
+    }
+
     enum DetailToolbar {
         /// Keeps keyboard actions visually separate from the keys beneath them.
         static let keyboardBottomPadding: CGFloat = 8

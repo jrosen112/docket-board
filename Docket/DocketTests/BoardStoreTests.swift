@@ -241,6 +241,137 @@ final class BoardStoreTests: XCTestCase {
         XCTAssertEqual(restoringStore.currentProfile?.id, joinedProfile.id)
     }
 
+    func testNameUpdatePropagatesProfilesAcrossBoardsWithoutRewritingItems() async throws {
+        let defaultProfile = seedProfile()
+        seedMovie("Default Pin", addedBy: defaultProfile, dateAdded: .now)
+        let defaultMovieID = try XCTUnwrap(
+            mock.records.values.first { $0.recordType == Schema.RecordType.movie }?.recordID
+        )
+        let originalDefaultMovie = try XCTUnwrap(mock.records[defaultMovieID])
+        let originalDefaultReference = try XCTUnwrap(
+            originalDefaultMovie[Schema.Field.addedBy] as? CKRecord.Reference
+        )
+
+        let joined = Space(
+            zoneID: CKRecordZone.ID(zoneName: "DocketBoard-rename", ownerName: "partner"),
+            access: .joined,
+            title: "Together"
+        )
+        let joinedService = MockSpaceService(space: joined)
+        joinedService.accountUserID = mock.accountUserID
+        let joinedProfile = UserProfile(
+            id: CKRecord.ID(recordName: "profile-me-rename", zoneID: joined.zoneID),
+            firstName: "Alice",
+            lastName: "Nguyen"
+        )
+        joinedService.records[joinedProfile.id] = joinedProfile.toRecord()
+        joinedService.profileCreatorRecordNames[joinedProfile.id] = mock.accountUserID.recordName
+        let joinedMovie = Movie(
+            id: CKRecord.ID(recordName: "joined-pin", zoneID: joined.zoneID),
+            title: "Joined Pin",
+            addedBy: joinedProfile.reference
+        )
+        joinedService.records[joinedMovie.id] = joinedMovie.toRecord()
+        mock.discoveredSpaces = [.default, joined]
+        let defaultService = mock!
+        let renamingStore = BoardStore(
+            defaults: defaults,
+            makeService: { space in
+                space == joined ? joinedService : defaultService
+            },
+            notificationService: notificationMock,
+            networkAvailability: networkMock
+        )
+        await renamingStore.bootstrap()
+        _ = await renamingStore.restoreFromICloud()
+        let recordCounts = (mock.records.count, joinedService.records.count)
+
+        let result = await renamingStore.updateCurrentUserName(
+            firstName: "Alicia",
+            lastName: "Stone"
+        )
+
+        XCTAssertEqual(result, .updated(boardCount: 2))
+        XCTAssertEqual(UserProfile(record: try XCTUnwrap(mock.records[defaultProfile.id]))?.displayName, "Alicia Stone")
+        XCTAssertEqual(UserProfile(record: try XCTUnwrap(joinedService.records[joinedProfile.id]))?.displayName, "Alicia Stone")
+        XCTAssertEqual(mock.records.count, recordCounts.0)
+        XCTAssertEqual(joinedService.records.count, recordCounts.1)
+        let updatedDefaultMovie = try XCTUnwrap(mock.records[defaultMovieID])
+        let updatedDefaultReference = try XCTUnwrap(
+            updatedDefaultMovie[Schema.Field.addedBy] as? CKRecord.Reference
+        )
+        XCTAssertEqual(updatedDefaultReference.recordID, originalDefaultReference.recordID)
+    }
+
+    func testProfileStatsAggregateOnlyCurrentUsersItemsAcrossBoards() async {
+        let defaultProfile = seedProfile()
+        let defaultMovieOne = Movie(
+            id: CKRecord.ID(recordName: "mine-1", zoneID: mock.space.zoneID),
+            title: "Mine One",
+            status: .planned,
+            addedBy: defaultProfile.reference
+        )
+        let defaultMovieTwo = Movie(
+            id: CKRecord.ID(recordName: "mine-2", zoneID: mock.space.zoneID),
+            title: "Mine Two",
+            status: .wantToGo,
+            addedBy: defaultProfile.reference
+        )
+        mock.records[defaultMovieOne.id] = defaultMovieOne.toRecord()
+        mock.records[defaultMovieTwo.id] = defaultMovieTwo.toRecord()
+        let otherProfile = seedProfile(name: "Other")
+        mock.profileCreatorRecordNames[otherProfile.id] = "someone-else"
+        seedMovie("Not Mine", addedBy: otherProfile, dateAdded: .now)
+
+        let joined = Space(
+            zoneID: CKRecordZone.ID(zoneName: "DocketBoard-stats", ownerName: "partner"),
+            access: .joined,
+            title: "Date Nights"
+        )
+        let joinedService = MockSpaceService(space: joined)
+        joinedService.accountUserID = mock.accountUserID
+        let joinedProfile = UserProfile(
+            id: CKRecord.ID(recordName: "profile-me-stats", zoneID: joined.zoneID),
+            firstName: "Alice",
+            lastName: "Nguyen"
+        )
+        joinedService.records[joinedProfile.id] = joinedProfile.toRecord()
+        joinedService.profileCreatorRecordNames[joinedProfile.id] = mock.accountUserID.recordName
+        let joinedRestaurant = Restaurant(
+            id: CKRecord.ID(recordName: "mine-restaurant", zoneID: joined.zoneID),
+            title: "Dinner",
+            status: .completed,
+            addedBy: joinedProfile.reference
+        )
+        joinedService.records[joinedRestaurant.id] = joinedRestaurant.toRecord()
+        mock.discoveredSpaces = [.default, joined]
+        let defaultService = mock!
+        let statsStore = BoardStore(
+            defaults: defaults,
+            makeService: { space in
+                space == joined ? joinedService : defaultService
+            },
+            notificationService: notificationMock,
+            networkAvailability: networkMock
+        )
+        await statsStore.bootstrap()
+        _ = await statsStore.restoreFromICloud()
+
+        let result = await statsStore.loadProfileStats()
+
+        guard case .loaded(let stats) = result else {
+            return XCTFail("Expected profile stats")
+        }
+        XCTAssertEqual(stats.boardCount, 2)
+        XCTAssertEqual(stats.loadedBoardCount, 2)
+        XCTAssertEqual(stats.itemCount, 3)
+        XCTAssertEqual(stats.wantToGoCount, 1)
+        XCTAssertEqual(stats.plannedCount, 1)
+        XCTAssertEqual(stats.completedCount, 1)
+        XCTAssertEqual(stats.favoriteCategory, .movie)
+        XCTAssertEqual(stats.boards.map(\.itemCount).reduce(0, +), 3)
+    }
+
     func testCreateProfilePersistsIdentityAcrossRelaunch() async {
         await store.createProfile(firstName: "Jared", lastName: "R")
         XCTAssertEqual(store.currentProfile?.firstName, "Jared")
@@ -659,5 +790,20 @@ final class BoardStoreTests: XCTestCase {
         let notices = await notificationMock.capturedNotices()
         XCTAssertTrue(notices.isEmpty)
         XCTAssertEqual(store.items.map(\.title), ["Edited"])
+    }
+
+    func testRemoteProfileRenameRefreshesAttributionWithoutPostingNotification() async {
+        await store.createProfile(firstName: "Alice", lastName: "Nguyen")
+        var renamed = store.currentProfile!
+        renamed.firstName = "Alicia"
+        renamed.lastName = "Stone"
+        mock.records[renamed.id] = renamed.toRecord()
+
+        let receivedData = await store.handleRemoteDatabaseChange(scope: .private)
+
+        XCTAssertTrue(receivedData)
+        XCTAssertEqual(store.currentProfile?.displayName, "Alicia Stone")
+        let notices = await notificationMock.capturedNotices()
+        XCTAssertTrue(notices.isEmpty)
     }
 }
