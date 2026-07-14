@@ -164,6 +164,10 @@ views.
   the persistent board screen.
 - `BoardView` composes the board background, pinned filters, masonry cards,
   native navigation/toolbars, sheets, navigation, and transient overlays.
+- The native toolbar search capsule occupies the center of the bottom bar,
+  between the sharing and Add controls. It matches across card titles, notes,
+  category/status labels, and category-specific card details. Search terms are
+  ANDed together and compose with the existing category/status filters.
 - `BoardFilterHeader` is a stable one-line pinned surface. Its main area opens
   the editor, reads “No Filters” when inactive or “Filters (N)” when active,
   and keeps a separate brass `CLEAR` action on the trailing edge.

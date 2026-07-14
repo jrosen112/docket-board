@@ -12,6 +12,7 @@ import CloudKit
 
 struct BoardView: View {
     @Environment(BoardStore.self) private var store
+    @Environment(\.dismissSearch) private var dismissSearch
     @Namespace private var toolbarTransitionNamespace
     @Namespace private var boardTransitionNamespace
 
@@ -20,6 +21,7 @@ struct BoardView: View {
     @State private var showingCreateBoard = false
     @State private var detailTarget: DetailTarget?
     @State private var filter = BoardFilter()
+    @State private var searchQuery = ""
     @State private var scrollNoteProgress: CGFloat = 0
     @State private var boardNotice: BoardNotice?
     @State private var pendingAddedItemID: CKRecord.ID?
@@ -27,7 +29,13 @@ struct BoardView: View {
     @State private var isAddedItemRevealed = true
 
     private var filteredItems: [any SharedListItem] {
-        filter.apply(to: store.items)
+        filter.apply(to: store.items).filter {
+            itemMatchesBoardSearch($0, query: searchQuery)
+        }
+    }
+
+    private var isSearching: Bool {
+        !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private var filteredItemIDs: [CKRecord.ID] {
@@ -60,6 +68,15 @@ struct BoardView: View {
                     onShare: prepareShare,
                     onAdd: beginAdding
                 )
+            }
+            .searchable(
+                text: $searchQuery,
+                placement: .toolbar,
+                prompt: "Search board"
+            )
+            .onSubmit(of: .search) {
+                guard !isSearching else { return }
+                dismissSearch()
             }
             .overlay(alignment: .bottom) { boardOverlay }
             .sheet(item: $addTarget, onDismiss: presentAddedNoticeIfNeeded) { target in
@@ -151,7 +168,10 @@ struct BoardView: View {
     @ViewBuilder
     private var loadedBoardItems: some View {
         if filteredItems.isEmpty {
-            EmptyBoardView(isFiltered: filter.isActive && !store.items.isEmpty)
+            EmptyBoardView(
+                isFiltered: (filter.isActive || isSearching) && !store.items.isEmpty,
+                isSearching: isSearching && !store.items.isEmpty
+            )
         } else {
             MasonryLayout(
                 columns: 2,

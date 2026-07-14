@@ -29,7 +29,11 @@ struct BoardBottomToolbar: ToolbarContent {
             in: transitionNamespace
         )
 
-        ToolbarSpacer(.flexible, placement: .bottomBar)
+        ToolbarSpacer(.fixed, placement: .bottomBar)
+
+        DefaultToolbarItem(kind: .search, placement: .bottomBar)
+
+        ToolbarSpacer(.fixed, placement: .bottomBar)
 
         ToolbarItem(id: "docket.board.add", placement: .bottomBar) {
             Button(action: onAdd) {

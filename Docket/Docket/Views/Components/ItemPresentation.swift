@@ -38,6 +38,29 @@ nonisolated func cardSubtitle(for item: any SharedListItem) -> String? {
     return joined.isEmpty ? nil : joined
 }
 
+/// Matches every word in a board query across the content visible on a card
+/// plus its notes, category, and status. Empty/whitespace-only queries match
+/// everything so search composes cleanly with the board's structured filters.
+nonisolated func itemMatchesBoardSearch(
+    _ item: any SharedListItem,
+    query: String
+) -> Bool {
+    let terms = query.split(whereSeparator: \Character.isWhitespace).map(String.init)
+    guard !terms.isEmpty else { return true }
+
+    let searchableText = [
+        item.title,
+        item.notes,
+        item.category.label,
+        item.status.label,
+        cardSubtitle(for: item),
+    ]
+    .compactMap(\.self)
+    .joined(separator: " ")
+
+    return terms.allSatisfy(searchableText.localizedStandardContains)
+}
+
 /// Labeled category-specific facts for the long-press quick look. Empty fields
 /// are omitted so the preview stays useful rather than showing placeholders.
 nonisolated func quickLookFacts(for item: any SharedListItem) -> [ItemQuickLookFact] {

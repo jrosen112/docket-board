@@ -97,4 +97,30 @@ final class BoardFilterTests: XCTestCase {
         filter.toggle(ItemStatus.planned)
         XCTAssertFalse(filter.isActive)
     }
+
+    func testBoardSearchMatchesVisibleAndSupportingItemContent() {
+        let restaurant = Restaurant(
+            id: CKRecord.ID(recordName: "search-r1"),
+            title: "Little Goat Diner",
+            notes: "Order the pancakes",
+            status: .planned,
+            addedBy: addedBy,
+            location: "West Loop",
+            cuisine: "American",
+            priceRange: .moderate
+        )
+
+        XCTAssertTrue(itemMatchesBoardSearch(restaurant, query: "goat"))
+        XCTAssertTrue(itemMatchesBoardSearch(restaurant, query: "pancakes"))
+        XCTAssertTrue(itemMatchesBoardSearch(restaurant, query: "restaurant planned"))
+        XCTAssertTrue(itemMatchesBoardSearch(restaurant, query: "american loop"))
+        XCTAssertFalse(itemMatchesBoardSearch(restaurant, query: "movie"))
+    }
+
+    func testBoardSearchIsCaseInsensitiveAndIgnoresEmptyQuery() {
+        let movie = items[2]
+
+        XCTAssertTrue(itemMatchesBoardSearch(movie, query: "hEaT"))
+        XCTAssertTrue(itemMatchesBoardSearch(movie, query: "  \n  "))
+    }
 }
