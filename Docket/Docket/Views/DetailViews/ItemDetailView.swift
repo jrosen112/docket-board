@@ -3,15 +3,14 @@ import SwiftUI
 
 struct ItemDetailView: View {
     @Environment(BoardStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
     @FocusState private var focusedField: ItemDraftField?
 
     let itemID: CKRecord.ID
+    let onSave: (any SharedListItem) -> Void
     var startsEditing = false
     @State private var isEditing = false
-    @State private var isSaving = false
-    @State private var showingConflict = false
     @State private var draft = ItemDraft()
-    @State private var saveErrorMessage: String?
     @State private var editBase: DetailEditBase?
     @State private var isToolbarVisible = true
     @State private var appliedInitialEditMode = false
@@ -35,21 +34,11 @@ struct ItemDetailView: View {
                             isVisible: isToolbarVisible,
                             isEditing: isEditing,
                             hasKeyboardFocus: focusedField != nil,
-                            isSaving: isSaving,
                             canSave: draft.isValid,
                             onEdit: { beginEditing(item, field: .title) },
                             onCancel: cancelEditing,
-                            onSave: { Task { await save() } }
+                            onSave: submitSave
                         )
-                    }
-                    .alert("This item changed", isPresented: $showingConflict) {
-                        Button("Keep Editing", role: .cancel) {}
-                        Button("Reload Their Version") {
-                            cancelEditing()
-                            Task { await store.refresh() }
-                        }
-                    } message: {
-                        Text("Someone else saved a newer version. Reload before editing it again.")
                     }
                     .onAppear {
                         isToolbarVisible = true
@@ -88,7 +77,7 @@ struct ItemDetailView: View {
                 addedBy: addedBy,
                 isEditing: isEditing,
                 allowsCategorySelection: false,
-                saveErrorMessage: saveErrorMessage,
+                saveErrorMessage: nil,
                 draft: $draft,
                 focusedField: $focusedField,
                 onEdit: edit
@@ -99,7 +88,7 @@ struct ItemDetailView: View {
                 addedBy: addedBy,
                 isEditing: isEditing,
                 allowsCategorySelection: false,
-                saveErrorMessage: saveErrorMessage,
+                saveErrorMessage: nil,
                 draft: $draft,
                 focusedField: $focusedField,
                 onEdit: edit
@@ -110,7 +99,7 @@ struct ItemDetailView: View {
                 addedBy: addedBy,
                 isEditing: isEditing,
                 allowsCategorySelection: false,
-                saveErrorMessage: saveErrorMessage,
+                saveErrorMessage: nil,
                 draft: $draft,
                 focusedField: $focusedField,
                 onEdit: edit
@@ -123,7 +112,6 @@ struct ItemDetailView: View {
     private func beginEditing(_ item: any SharedListItem, field: ItemDraftField) {
         editBase = DetailEditBase(item: item)
         draft = ItemDraft(item: item)
-        saveErrorMessage = nil
         withAnimation(DocketDetailTheme.Edit.modeAnimation) {
             isEditing = true
         }
@@ -131,7 +119,6 @@ struct ItemDetailView: View {
     }
 
     private func cancelEditing() {
-        saveErrorMessage = nil
         editBase = nil
         focusedField = nil
         withAnimation(DocketDetailTheme.Edit.modeAnimation) {
@@ -139,28 +126,15 @@ struct ItemDetailView: View {
         }
     }
 
-    private func save() async {
+    private func submitSave() {
         // Always apply to the record fetched when editing began. Its CloudKit
         // change tag is what lets the server detect a participant's newer edit.
         guard let base = editBase?.item,
               let edited = draft.applying(to: base)
         else { return }
-        isSaving = true
-        saveErrorMessage = nil
-        defer { isSaving = false }
-
-        switch await store.save(edited) {
-        case .saved:
-            editBase = nil
-            focusedField = nil
-            withAnimation(DocketDetailTheme.Edit.modeAnimation) {
-                isEditing = false
-            }
-        case .conflict:
-            showingConflict = true
-        case .failed(let message):
-            saveErrorMessage = message
-        }
+        focusedField = nil
+        onSave(edited)
+        dismiss()
     }
 
     private func focus(_ field: ItemDraftField) {
@@ -170,7 +144,7 @@ struct ItemDetailView: View {
             switch field {
             case .title, .location, .cuisine, .runtime, .streamingService, .releaseYear, .notes:
                 focusedField = field
-            case .status, .priceRange, .barType:
+            case .status, .priceRange, .barType, .photo, .showsPhotoOnBoard:
                 focusedField = nil
             }
         }

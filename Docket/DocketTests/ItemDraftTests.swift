@@ -22,6 +22,8 @@ final class ItemDraftTests: XCTestCase {
         draft.location = "New location"
         draft.cuisine = "Thai"
         draft.priceRange = .moderate
+        draft.photoData = Data([0xCA, 0xFE])
+        draft.showsPhotoOnBoard = true
 
         let edited = try XCTUnwrap(draft.applying(to: fetched) as? Restaurant)
 
@@ -33,6 +35,8 @@ final class ItemDraftTests: XCTestCase {
         XCTAssertEqual(edited.location, "New location")
         XCTAssertEqual(edited.cuisine, "Thai")
         XCTAssertEqual(edited.priceRange, .moderate)
+        XCTAssertEqual(edited.photoData, draft.photoData)
+        XCTAssertTrue(edited.showsPhotoOnBoard)
     }
 
     func testDraftCanFillPreviouslyMissingMovieFields() throws {
@@ -73,5 +77,27 @@ final class ItemDraftTests: XCTestCase {
         XCTAssertEqual(bar.title, "Trick Dog")
         XCTAssertEqual(bar.location, "Mission")
         XCTAssertEqual(bar.barType, .cocktail)
+    }
+
+    func testDraftCanStartWithAPreselectedCategory() {
+        let draft = ItemDraft(category: .movie)
+
+        XCTAssertEqual(draft.category, .movie)
+    }
+
+    func testDraftCarriesExistingPhotoSettings() {
+        let photoData = Data([0xBA, 0x5E])
+        let movie = Movie(
+            id: CKRecord.ID(recordName: "movie-photo"),
+            title: "Paris, Texas",
+            addedBy: addedBy,
+            photoData: photoData,
+            showsPhotoOnBoard: true
+        )
+
+        let draft = ItemDraft(item: movie)
+
+        XCTAssertEqual(draft.photoData, photoData)
+        XCTAssertTrue(draft.showsPhotoOnBoard)
     }
 }

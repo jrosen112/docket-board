@@ -21,6 +21,8 @@ nonisolated struct Restaurant: SharedListItem {
     var title: String
     var notes: String?
     var status: ItemStatus
+    var photoData: Data?
+    var showsPhotoOnBoard: Bool
     let addedBy: CKRecord.Reference
     let dateAdded: Date
     var category: ItemCategory { .restaurant }
@@ -39,6 +41,8 @@ nonisolated struct Restaurant: SharedListItem {
         status: ItemStatus = .wantToGo,
         addedBy: CKRecord.Reference,
         dateAdded: Date = .now,
+        photoData: Data? = nil,
+        showsPhotoOnBoard: Bool = false,
         location: String? = nil,
         cuisine: String? = nil,
         priceRange: PriceRange? = nil
@@ -49,6 +53,8 @@ nonisolated struct Restaurant: SharedListItem {
         self.status = status
         self.addedBy = addedBy
         self.dateAdded = dateAdded
+        self.photoData = photoData
+        self.showsPhotoOnBoard = showsPhotoOnBoard
         self.location = location
         self.cuisine = cuisine
         self.priceRange = priceRange
@@ -66,6 +72,8 @@ nonisolated struct Restaurant: SharedListItem {
         self.status = shared.status
         self.addedBy = shared.addedBy
         self.dateAdded = shared.dateAdded
+        self.photoData = shared.photoData
+        self.showsPhotoOnBoard = shared.showsPhotoOnBoard
         self.systemFields = shared.systemFields
         self.location = record[Schema.Field.location] as? String
         self.cuisine = record[Schema.Field.cuisine] as? String
@@ -78,7 +86,8 @@ nonisolated struct Restaurant: SharedListItem {
         let record = CKRecord.base(type: Schema.RecordType.restaurant, id: id, systemFields: systemFields)
         record.applySharedFields(
             title: title, notes: notes, status: status,
-            addedBy: addedBy, dateAdded: dateAdded
+            addedBy: addedBy, dateAdded: dateAdded,
+            photoData: photoData, showsPhotoOnBoard: showsPhotoOnBoard
         )
         record[Schema.Field.location] = location
         record[Schema.Field.cuisine] = cuisine

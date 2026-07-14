@@ -81,6 +81,27 @@ nonisolated enum DocketDetailTheme {
         static let lineSpacing: CGFloat = 4
     }
 
+    enum Photo {
+        static let editorMaximumHeight: CGFloat = 310
+        static let detailMaximumHeight: CGFloat = 380
+        static let emptyHeight: CGFloat = 132
+        static let emptySpacing: CGFloat = 8
+        static let controlSpacing: CGFloat = 10
+        static let cornerRadius: CGFloat = 9
+        static let borderWidth: CGFloat = 1.5
+        static let borderDash: [CGFloat] = [7, 5]
+        static let buttonHeight: CGFloat = 42
+        static let buttonHorizontalPadding: CGFloat = 12
+        static let buttonCornerRadius: CGFloat = 9
+        static let removeButtonSize: CGFloat = 42
+        static let toggleTextSpacing: CGFloat = 3
+
+        static let emptySymbolFont: Font = .system(size: 36, weight: .semibold)
+        static let emptyTitleFont: Font = .title3.weight(.semibold)
+        static let buttonFont: Font = .subheadline.weight(.semibold)
+        static let supportingFont: Font = .caption
+    }
+
     enum Empty {
         static let font: Font = .subheadline.italic()
         static let color = DocketTheme.ink.opacity(0.55)
@@ -139,5 +160,7 @@ nonisolated enum DocketDetailTheme {
         static let placeholderColor = DocketTheme.ink.opacity(0.42)
         static let modeAnimation = Animation.snappy(duration: 0.28)
         static let focusDelay: Duration = .milliseconds(180)
+        static let visibilityDelay: Duration = .milliseconds(260)
+        static let visibilityAnimation = Animation.easeInOut(duration: 0.24)
     }
 }

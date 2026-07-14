@@ -168,6 +168,8 @@ views.
   between the Settings and Add controls. It matches across card titles, notes,
   category/status labels, and category-specific card details. Search terms are
   ANDed together and compose with the existing category/status filters.
+- Tapping Add keeps the fast Restaurant-first flow. Long-pressing it opens a
+  native category menu for starting directly with Restaurant, Bar, or Movie.
 - Board sharing lives in the top navigation bar. The bottom Settings control
   opens app preferences, including a persisted Darker Theme toggle. This is a
   Docket-specific palette that darkens board cards, quick looks, detail cards,

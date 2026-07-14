@@ -17,6 +17,15 @@ private struct DocketSecondaryActionModifier: ViewModifier {
     }
 }
 
+private struct DocketPrimaryMenuModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .menuStyle(.button)
+            .buttonStyle(.borderedProminent)
+            .tint(DocketTheme.brass)
+    }
+}
+
 extension View {
     func docketPrimaryActionStyle() -> some View {
         modifier(DocketPrimaryActionModifier())
@@ -24,5 +33,9 @@ extension View {
 
     func docketSecondaryActionStyle() -> some View {
         modifier(DocketSecondaryActionModifier())
+    }
+
+    func docketPrimaryMenuStyle() -> some View {
+        modifier(DocketPrimaryMenuModifier())
     }
 }

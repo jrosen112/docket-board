@@ -70,6 +70,8 @@ nonisolated protocol SharedListItem: Identifiable {
     var title: String { get set }
     var notes: String? { get set }
     var status: ItemStatus { get set }
+    var photoData: Data? { get set }
+    var showsPhotoOnBoard: Bool { get set }
     /// Reference to the UserProfile of whoever added the item.
     var addedBy: CKRecord.Reference { get }
     var dateAdded: Date { get }
@@ -88,13 +90,17 @@ extension CKRecord {
         notes: String?,
         status: ItemStatus,
         addedBy: CKRecord.Reference,
-        dateAdded: Date
+        dateAdded: Date,
+        photoData: Data?,
+        showsPhotoOnBoard: Bool
     ) {
         self[Schema.Field.title] = title
         self[Schema.Field.notes] = notes
         self[Schema.Field.status] = status.rawValue
         self[Schema.Field.addedBy] = addedBy
         self[Schema.Field.dateAdded] = dateAdded
+        self[Schema.Field.itemPhoto] = ItemPhotoAsset.make(from: photoData)
+        self[Schema.Field.showsPhotoOnBoard] = photoData != nil && showsPhotoOnBoard
     }
 }
 
@@ -106,6 +112,8 @@ nonisolated struct SharedFields {
     let status: ItemStatus
     let addedBy: CKRecord.Reference
     let dateAdded: Date
+    let photoData: Data?
+    let showsPhotoOnBoard: Bool
     /// System-fields archive of the source record, so edits carry the change tag.
     let systemFields: Data
 
@@ -123,6 +131,41 @@ nonisolated struct SharedFields {
         self.status = status
         self.addedBy = addedBy
         self.dateAdded = dateAdded
+        let photoData = ItemPhotoAsset.data(from: record[Schema.Field.itemPhoto] as? CKAsset)
+        self.photoData = photoData
+        self.showsPhotoOnBoard = photoData != nil
+            && (record[Schema.Field.showsPhotoOnBoard] as? Bool ?? false)
         self.systemFields = record.systemFieldsData
+    }
+}
+
+/// Bridges in-memory image bytes to CloudKit's file-backed asset type.
+/// The system temporary directory is appropriate here: CloudKit only needs
+/// the file for the duration of the upload, while fetched assets are copied
+/// back into the model as `Data` immediately during decoding.
+private nonisolated enum ItemPhotoAsset {
+    static func make(from data: Data?) -> CKAsset? {
+        guard let data else { return nil }
+
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DocketItemAssets", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(
+                at: directory,
+                withIntermediateDirectories: true
+            )
+            let fileURL = directory
+                .appendingPathComponent(UUID().uuidString)
+                .appendingPathExtension("jpg")
+            try data.write(to: fileURL, options: .atomic)
+            return CKAsset(fileURL: fileURL)
+        } catch {
+            return nil
+        }
+    }
+
+    static func data(from asset: CKAsset?) -> Data? {
+        guard let fileURL = asset?.fileURL else { return nil }
+        return try? Data(contentsOf: fileURL)
     }
 }

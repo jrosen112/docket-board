@@ -13,6 +13,8 @@ nonisolated struct Movie: SharedListItem {
     var title: String
     var notes: String?
     var status: ItemStatus
+    var photoData: Data?
+    var showsPhotoOnBoard: Bool
     let addedBy: CKRecord.Reference
     let dateAdded: Date
     var category: ItemCategory { .movie }
@@ -31,6 +33,8 @@ nonisolated struct Movie: SharedListItem {
         status: ItemStatus = .wantToGo,
         addedBy: CKRecord.Reference,
         dateAdded: Date = .now,
+        photoData: Data? = nil,
+        showsPhotoOnBoard: Bool = false,
         runtimeMinutes: Int? = nil,
         streamingService: String? = nil,
         releaseYear: Int? = nil
@@ -41,6 +45,8 @@ nonisolated struct Movie: SharedListItem {
         self.status = status
         self.addedBy = addedBy
         self.dateAdded = dateAdded
+        self.photoData = photoData
+        self.showsPhotoOnBoard = showsPhotoOnBoard
         self.runtimeMinutes = runtimeMinutes
         self.streamingService = streamingService
         self.releaseYear = releaseYear
@@ -58,6 +64,8 @@ nonisolated struct Movie: SharedListItem {
         self.status = shared.status
         self.addedBy = shared.addedBy
         self.dateAdded = shared.dateAdded
+        self.photoData = shared.photoData
+        self.showsPhotoOnBoard = shared.showsPhotoOnBoard
         self.systemFields = shared.systemFields
         self.runtimeMinutes = record[Schema.Field.runtimeMinutes] as? Int
         self.streamingService = record[Schema.Field.streamingService] as? String
@@ -68,7 +76,8 @@ nonisolated struct Movie: SharedListItem {
         let record = CKRecord.base(type: Schema.RecordType.movie, id: id, systemFields: systemFields)
         record.applySharedFields(
             title: title, notes: notes, status: status,
-            addedBy: addedBy, dateAdded: dateAdded
+            addedBy: addedBy, dateAdded: dateAdded,
+            photoData: photoData, showsPhotoOnBoard: showsPhotoOnBoard
         )
         record[Schema.Field.runtimeMinutes] = runtimeMinutes
         record[Schema.Field.streamingService] = streamingService

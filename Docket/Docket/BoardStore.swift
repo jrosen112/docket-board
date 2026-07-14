@@ -236,9 +236,9 @@ final class BoardStore {
     /// tag (systemFields), so concurrent-edit conflicts surface as errors
     /// rather than silently clobbering the other person's change.
     ///
-    /// Failures ride back in the result rather than `errorMessage`: every
-    /// edit surface presents its own inline error, and the shared board
-    /// banner must not linger after the sheet is dismissed.
+    /// Failures ride back in the result rather than `errorMessage` so the
+    /// board-level save pill can morph into a retry action without also
+    /// leaving a second, unrelated error banner behind.
     @discardableResult
     func save(_ item: any SharedListItem) async -> StoreSaveResult {
         do {

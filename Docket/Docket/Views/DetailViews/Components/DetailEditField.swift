@@ -34,5 +34,6 @@ struct DetailEditField: View {
             }
         }
         .padding(.vertical, DocketDetailTheme.Edit.fieldVerticalPadding)
+        .id(field)
     }
 }

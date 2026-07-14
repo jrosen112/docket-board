@@ -27,6 +27,25 @@ struct BoardCard: View {
                 .foregroundStyle(accent)
                 .lineLimit(1)
 
+            if item.showsPhotoOnBoard, let photoData = item.photoData {
+                GeometryReader { geometry in
+                    ItemPhotoImage(data: photoData, contentMode: .fill)
+                        .frame(
+                            width: geometry.size.width,
+                            height: DocketTheme.BoardCard.photoHeight
+                        )
+                        .clipped()
+                }
+                .frame(height: DocketTheme.BoardCard.photoHeight)
+                .clipShape(
+                    RoundedRectangle(
+                        cornerRadius: DocketTheme.BoardCard.photoCornerRadius,
+                        style: .continuous
+                    )
+                )
+                .accessibilityHidden(true)
+            }
+
             Text(item.title)
                 .font(DocketTheme.display(17))
                 .foregroundStyle(palette.primaryText)

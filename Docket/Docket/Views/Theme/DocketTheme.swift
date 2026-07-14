@@ -60,6 +60,8 @@ nonisolated enum DocketTheme {
         /// Transparent breathing room included in transition and context-menu
         /// snapshots so the tilted paper, shadow, and pin are not clipped.
         static let transitionCaptureInset: CGFloat = 10
+        static let photoHeight: CGFloat = 104
+        static let photoCornerRadius: CGFloat = 4
     }
 
     enum StatusBadge {
@@ -201,6 +203,7 @@ nonisolated enum DocketTheme {
         static let shadowRadius: CGFloat = 8
         static let shadowY: CGFloat = 4
         static let iconFont: Font = .footnote.weight(.bold)
+        static let iconWidth: CGFloat = 15
         static let messageFont: Font = .footnote.weight(.semibold)
         static let messageColor = DocketTheme.cream
         static let iconColor = DocketTheme.brass
@@ -213,6 +216,7 @@ nonisolated enum DocketTheme {
         static let insertionDamping: CGFloat = 0.82
         static let removalDuration: TimeInterval = 0.18
         static let visibleDuration: Duration = .seconds(2.8)
+        static let minimumSaveDuration: Duration = .milliseconds(700)
     }
 
     enum CreateBoard {

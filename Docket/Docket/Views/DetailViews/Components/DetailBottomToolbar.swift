@@ -4,7 +4,6 @@ struct DetailBottomToolbar: ToolbarContent {
     let isVisible: Bool
     let isEditing: Bool
     let hasKeyboardFocus: Bool
-    let isSaving: Bool
     let canSave: Bool
     let onEdit: () -> Void
     let onCancel: () -> Void
@@ -45,23 +44,14 @@ struct DetailBottomToolbar: ToolbarContent {
 
     private var cancelButton: some View {
         Button("Cancel", action: onCancel)
-            .disabled(isSaving)
     }
 
     private var saveButton: some View {
         Button(action: onSave) {
-            if isSaving {
-                HStack(spacing: 7) {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text("Saving…")
-                }
-            } else {
-                Label("Save", systemImage: "checkmark")
-            }
+            Label("Save", systemImage: "checkmark")
         }
         .docketPrimaryActionStyle()
-        .disabled(!canSave || isSaving)
-        .accessibilityLabel(isSaving ? "Saving" : "Save")
+        .disabled(!canSave)
+        .accessibilityLabel("Save")
     }
 }

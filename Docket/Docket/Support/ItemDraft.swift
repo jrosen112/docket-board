@@ -11,6 +11,8 @@ nonisolated enum ItemDraftField: Hashable {
     case streamingService
     case releaseYear
     case notes
+    case photo
+    case showsPhotoOnBoard
 }
 
 nonisolated struct ItemDraft {
@@ -18,6 +20,8 @@ nonisolated struct ItemDraft {
     var title = ""
     var notes = ""
     var status: ItemStatus = .wantToGo
+    var photoData: Data?
+    var showsPhotoOnBoard = false
 
     var location = ""
     var cuisine = ""
@@ -29,13 +33,17 @@ nonisolated struct ItemDraft {
 
     var isValid: Bool { !title.trimmed.isEmpty }
 
-    init() {}
+    init(category: ItemCategory = .restaurant) {
+        self.category = category
+    }
 
     init(item: any SharedListItem) {
         category = item.category
         title = item.title
         notes = item.notes ?? ""
         status = item.status
+        photoData = item.photoData
+        showsPhotoOnBoard = item.showsPhotoOnBoard
 
         switch item {
         case let restaurant as Restaurant:
@@ -62,6 +70,8 @@ nonisolated struct ItemDraft {
             restaurant.title = title.trimmed
             restaurant.notes = notes.orNil
             restaurant.status = status
+            restaurant.photoData = photoData
+            restaurant.showsPhotoOnBoard = showsPhotoOnBoard
             restaurant.location = location.orNil
             restaurant.cuisine = cuisine.orNil
             restaurant.priceRange = priceRange
@@ -70,6 +80,8 @@ nonisolated struct ItemDraft {
             bar.title = title.trimmed
             bar.notes = notes.orNil
             bar.status = status
+            bar.photoData = photoData
+            bar.showsPhotoOnBoard = showsPhotoOnBoard
             bar.location = location.orNil
             bar.barType = barType
             return bar
@@ -77,6 +89,8 @@ nonisolated struct ItemDraft {
             movie.title = title.trimmed
             movie.notes = notes.orNil
             movie.status = status
+            movie.photoData = photoData
+            movie.showsPhotoOnBoard = showsPhotoOnBoard
             movie.runtimeMinutes = Int(runtime)
             movie.streamingService = streamingService.orNil
             movie.releaseYear = Int(releaseYear)
@@ -100,6 +114,8 @@ nonisolated struct ItemDraft {
                 status: status,
                 addedBy: addedBy,
                 dateAdded: dateAdded,
+                photoData: photoData,
+                showsPhotoOnBoard: showsPhotoOnBoard,
                 location: location.orNil,
                 cuisine: cuisine.orNil,
                 priceRange: priceRange
@@ -112,6 +128,8 @@ nonisolated struct ItemDraft {
                 status: status,
                 addedBy: addedBy,
                 dateAdded: dateAdded,
+                photoData: photoData,
+                showsPhotoOnBoard: showsPhotoOnBoard,
                 location: location.orNil,
                 barType: barType
             )
@@ -123,6 +141,8 @@ nonisolated struct ItemDraft {
                 status: status,
                 addedBy: addedBy,
                 dateAdded: dateAdded,
+                photoData: photoData,
+                showsPhotoOnBoard: showsPhotoOnBoard,
                 runtimeMinutes: Int(runtime),
                 streamingService: streamingService.orNil,
                 releaseYear: Int(releaseYear)

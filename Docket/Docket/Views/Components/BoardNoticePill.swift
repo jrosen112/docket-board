@@ -3,20 +3,34 @@ import SwiftUI
 struct BoardNoticePill: View {
     let message: String
     let systemImage: String
+    var isProgress = false
+    var isRetryable = false
+    let onRetry: () -> Void
     let onDismiss: () -> Void
 
     @State private var dragOffset: CGFloat = 0
 
     var body: some View {
         HStack(spacing: DocketTheme.RefreshPill.contentSpacing) {
-            Image(systemName: systemImage)
-                .font(DocketTheme.RefreshPill.iconFont)
-                .foregroundStyle(DocketTheme.RefreshPill.iconColor)
+            Group {
+                if isProgress {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(DocketTheme.RefreshPill.iconColor)
+                } else {
+                    Image(systemName: systemImage)
+                        .contentTransition(.symbolEffect(.replace))
+                }
+            }
+            .font(DocketTheme.RefreshPill.iconFont)
+            .foregroundStyle(DocketTheme.RefreshPill.iconColor)
+            .frame(width: DocketTheme.RefreshPill.iconWidth)
 
             Text(message)
                 .font(DocketTheme.RefreshPill.messageFont)
                 .foregroundStyle(DocketTheme.RefreshPill.messageColor)
                 .lineLimit(1)
+                .contentTransition(.opacity)
         }
         .padding(.horizontal, DocketTheme.RefreshPill.horizontalPadding)
         .padding(.vertical, DocketTheme.RefreshPill.verticalPadding)
@@ -37,8 +51,19 @@ struct BoardNoticePill: View {
             y: DocketTheme.RefreshPill.shadowY
         )
         .offset(y: max(dragOffset, 0))
+        .contentShape(Capsule())
+        .onTapGesture {
+            if isRetryable { onRetry() }
+        }
         .gesture(dismissGesture)
-        .accessibilityHint("Swipe down to dismiss")
+        .accessibilityHint(
+            isRetryable
+                ? "Double tap to retry, or swipe down to dismiss"
+                : "Swipe down to dismiss"
+        )
+        .accessibilityAction(named: "Retry") {
+            if isRetryable { onRetry() }
+        }
         .accessibilityAction(named: "Dismiss") { onDismiss() }
     }
 

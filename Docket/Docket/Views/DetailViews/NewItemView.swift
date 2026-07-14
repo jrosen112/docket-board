@@ -7,12 +7,22 @@ struct NewItemView: View {
 
     let itemID: CKRecord.ID
     let dateAdded: Date
-    let onSaved: () -> Void
+    let onSave: (any SharedListItem) -> Void
 
-    @State private var draft = ItemDraft()
-    @State private var isSaving = false
-    @State private var saveErrorMessage: String?
+    @State private var draft: ItemDraft
     @FocusState private var focusedField: ItemDraftField?
+
+    init(
+        itemID: CKRecord.ID,
+        dateAdded: Date,
+        initialCategory: ItemCategory = .restaurant,
+        onSave: @escaping (any SharedListItem) -> Void
+    ) {
+        self.itemID = itemID
+        self.dateAdded = dateAdded
+        self.onSave = onSave
+        _draft = State(initialValue: ItemDraft(category: initialCategory))
+    }
 
     private var previewItem: (any SharedListItem)? {
         guard let profile = store.currentProfile else { return nil }
@@ -45,15 +55,13 @@ struct NewItemView: View {
                     isVisible: true,
                     isEditing: true,
                     hasKeyboardFocus: focusedField != nil,
-                    isSaving: isSaving,
                     canSave: draft.isValid,
                     onEdit: {},
                     onCancel: { dismiss() },
-                    onSave: { Task { await save() } }
+                    onSave: submitSave
                 )
             }
         }
-        .interactiveDismissDisabled(isSaving)
         .task {
             try? await Task.sleep(for: DocketDetailTheme.Edit.focusDelay)
             guard !Task.isCancelled else { return }
@@ -70,7 +78,7 @@ struct NewItemView: View {
                 addedBy: addedBy,
                 isEditing: true,
                 allowsCategorySelection: true,
-                saveErrorMessage: saveErrorMessage,
+                saveErrorMessage: nil,
                 draft: $draft,
                 focusedField: $focusedField,
                 onEdit: { _ in }
@@ -81,7 +89,7 @@ struct NewItemView: View {
                 addedBy: addedBy,
                 isEditing: true,
                 allowsCategorySelection: true,
-                saveErrorMessage: saveErrorMessage,
+                saveErrorMessage: nil,
                 draft: $draft,
                 focusedField: $focusedField,
                 onEdit: { _ in }
@@ -92,7 +100,7 @@ struct NewItemView: View {
                 addedBy: addedBy,
                 isEditing: true,
                 allowsCategorySelection: true,
-                saveErrorMessage: saveErrorMessage,
+                saveErrorMessage: nil,
                 draft: $draft,
                 focusedField: $focusedField,
                 onEdit: { _ in }
@@ -102,8 +110,7 @@ struct NewItemView: View {
         }
     }
 
-    private func save() async {
-        guard !isSaving else { return }
+    private func submitSave() {
         guard let profile = store.currentProfile,
               let item = draft.makeNew(
                 id: itemID,
@@ -113,16 +120,7 @@ struct NewItemView: View {
         else { return }
 
         focusedField = nil
-        isSaving = true
-        saveErrorMessage = nil
-        defer { isSaving = false }
-
-        switch await store.save(item) {
-        case .saved:
-            onSaved()
-            dismiss()
-        case .conflict(let message), .failed(let message):
-            saveErrorMessage = message
-        }
+        onSave(item)
+        dismiss()
     }
 }

@@ -25,7 +25,7 @@ struct BoardView: View {
     @State private var searchQuery = ""
     @State private var scrollNoteProgress: CGFloat = 0
     @State private var boardNotice: BoardNotice?
-    @State private var pendingAddedItemID: CKRecord.ID?
+    @State private var pendingSave: PendingBoardSave?
     @State private var revealingAddedItemID: CKRecord.ID?
     @State private var isAddedItemRevealed = true
 
@@ -66,7 +66,7 @@ struct BoardView: View {
                     isAddEnabled: !store.isSwitchingBoard,
                     transitionNamespace: toolbarTransitionNamespace,
                     onSettings: { showingSettings = true },
-                    onAdd: beginAdding
+                    onAdd: beginAdding(category:)
                 )
             }
             .searchable(
@@ -79,11 +79,12 @@ struct BoardView: View {
                 dismissSearch()
             }
             .overlay(alignment: .bottom) { boardOverlay }
-            .sheet(item: $addTarget, onDismiss: presentAddedNoticeIfNeeded) { target in
+            .sheet(item: $addTarget) { target in
                 NewItemView(
                     itemID: target.id,
                     dateAdded: target.dateAdded,
-                    onSaved: { pendingAddedItemID = target.id }
+                    initialCategory: target.category,
+                    onSave: { beginSave($0, kind: .pinning) }
                 )
                     .navigationTransition(
                         .zoom(
@@ -118,6 +119,7 @@ struct BoardView: View {
             .navigationDestination(item: $detailTarget) { target in
                 ItemDetailView(
                     itemID: target.id,
+                    onSave: { beginSave($0, kind: .editing) },
                     startsEditing: target.startsEditing
                 )
                     .navigationTransition(
@@ -258,8 +260,12 @@ struct BoardView: View {
         }
     }
 
-    private func beginAdding() {
-        addTarget = AddTarget(id: store.newItemID(), dateAdded: .now)
+    private func beginAdding(category: ItemCategory) {
+        addTarget = AddTarget(
+            id: store.newItemID(),
+            dateAdded: .now,
+            category: category
+        )
     }
 
     private func refreshBoard() async {
@@ -272,16 +278,13 @@ struct BoardView: View {
         ) {
             boardNotice = BoardNotice(
                 message: summary.message,
-                systemImage: summary.addedItemCount == 0 ? "checkmark" : "plus"
+                systemImage: summary.addedItemCount == 0 ? "checkmark" : "plus",
+                dismissalID: UUID()
             )
         }
     }
 
-    private func presentAddedNoticeIfNeeded() {
-        guard let itemID = pendingAddedItemID else { return }
-        pendingAddedItemID = nil
-        presentNotice(message: "Added to board", systemImage: "pin.fill")
-
+    private func revealAddedItem(_ itemID: CKRecord.ID) {
         guard filteredItemIDs.contains(itemID) else { return }
         revealingAddedItemID = itemID
         isAddedItemRevealed = false
@@ -300,18 +303,109 @@ struct BoardView: View {
         }
     }
 
-    private func presentNotice(message: String, systemImage: String) {
-        withAnimation(
-            .spring(
-                response: DocketTheme.RefreshPill.insertionResponse,
-                dampingFraction: DocketTheme.RefreshPill.insertionDamping
+    private func beginSave(
+        _ item: any SharedListItem,
+        kind: BoardSaveKind
+    ) {
+        performSave(
+            PendingBoardSave(
+                id: UUID(),
+                item: item,
+                kind: kind,
+                requiresRebase: false
             )
-        ) {
-            boardNotice = BoardNotice(message: message, systemImage: systemImage)
+        )
+    }
+
+    private func retryPendingSave() {
+        guard let pendingSave else { return }
+        performSave(pendingSave)
+    }
+
+    private func performSave(_ initialSave: PendingBoardSave) {
+        pendingSave = initialSave
+        withAnimation(DocketDetailTheme.Edit.modeAnimation) {
+            boardNotice = BoardNotice(
+                id: initialSave.id,
+                message: initialSave.kind.progressMessage,
+                systemImage: "arrow.trianglehead.2.clockwise",
+                isProgress: true
+            )
+        }
+
+        Task { @MainActor in
+            var save = initialSave
+
+            if save.requiresRebase {
+                _ = await store.refresh()
+                guard let latest = store.items.first(where: { $0.id == save.item.id }),
+                      let rebased = ItemDraft(item: save.item).applying(to: latest)
+                else {
+                    presentSaveFailure(for: save, requiresRebase: true)
+                    return
+                }
+                save = PendingBoardSave(
+                    id: save.id,
+                    item: rebased,
+                    kind: save.kind,
+                    requiresRebase: false
+                )
+                pendingSave = save
+            }
+
+            let minimumDelay = Task {
+                try? await Task.sleep(for: DocketTheme.RefreshPill.minimumSaveDuration)
+            }
+            let result = await store.save(save.item)
+            await minimumDelay.value
+
+            guard pendingSave?.id == save.id else { return }
+            switch result {
+            case .saved:
+                pendingSave = nil
+                withAnimation(DocketDetailTheme.Edit.modeAnimation) {
+                    boardNotice = BoardNotice(
+                        id: save.id,
+                        message: save.kind.successMessage,
+                        systemImage: save.kind.successSymbol,
+                        dismissalID: UUID()
+                    )
+                }
+                if save.kind == .pinning {
+                    revealAddedItem(save.item.id)
+                }
+            case .conflict:
+                presentSaveFailure(for: save, requiresRebase: true)
+            case .failed:
+                presentSaveFailure(for: save, requiresRebase: false)
+            }
+        }
+    }
+
+    private func presentSaveFailure(
+        for save: PendingBoardSave,
+        requiresRebase: Bool
+    ) {
+        pendingSave = PendingBoardSave(
+            id: save.id,
+            item: save.item,
+            kind: save.kind,
+            requiresRebase: requiresRebase
+        )
+        withAnimation(DocketDetailTheme.Edit.modeAnimation) {
+            boardNotice = BoardNotice(
+                id: save.id,
+                message: save.kind.failureMessage,
+                systemImage: "arrow.clockwise",
+                isRetryable: true
+            )
         }
     }
 
     private func dismissBoardNotice() {
+        if boardNotice?.isRetryable == true {
+            pendingSave = nil
+        }
         withAnimation(
             .easeIn(duration: DocketTheme.RefreshPill.removalDuration)
         ) {
@@ -330,16 +424,21 @@ struct BoardView: View {
                 BoardNoticePill(
                     message: notice.message,
                     systemImage: notice.systemImage,
+                    isProgress: notice.isProgress,
+                    isRetryable: notice.isRetryable,
+                    onRetry: retryPendingSave,
                     onDismiss: dismissBoardNotice
                 )
                 .id(notice.id)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
-                .task(id: notice.id) {
+                .task(id: notice.dismissalID) {
+                    guard let dismissalID = notice.dismissalID else { return }
                     do {
                         try await Task.sleep(for: DocketTheme.RefreshPill.visibleDuration)
                     } catch {
                         return
                     }
+                    guard boardNotice?.dismissalID == dismissalID else { return }
                     dismissBoardNotice()
                 }
             }
@@ -405,10 +504,54 @@ private struct DetailTarget: Identifiable, Hashable {
 private struct AddTarget: Identifiable {
     let id: CKRecord.ID
     let dateAdded: Date
+    let category: ItemCategory
 }
 
 private struct BoardNotice: Identifiable {
-    let id = UUID()
+    var id = UUID()
     let message: String
     let systemImage: String
+    var isProgress = false
+    var isRetryable = false
+    var dismissalID: UUID?
+}
+
+private enum BoardSaveKind: Equatable {
+    case pinning
+    case editing
+
+    var progressMessage: String {
+        switch self {
+        case .pinning: "Pinning…"
+        case .editing: "Saving…"
+        }
+    }
+
+    var successMessage: String {
+        switch self {
+        case .pinning: "Pinned to board"
+        case .editing: "Saved"
+        }
+    }
+
+    var failureMessage: String {
+        switch self {
+        case .pinning: "Couldn't pin — tap to retry"
+        case .editing: "Couldn't save — tap to retry"
+        }
+    }
+
+    var successSymbol: String {
+        switch self {
+        case .pinning: "pin.fill"
+        case .editing: "checkmark"
+        }
+    }
+}
+
+private struct PendingBoardSave {
+    let id: UUID
+    let item: any SharedListItem
+    let kind: BoardSaveKind
+    let requiresRebase: Bool
 }

@@ -22,6 +22,7 @@ final class ModelConversionTests: XCTestCase {
     // MARK: Restaurant
 
     func testRestaurantRoundTrip() throws {
+        let photoData = Data([0x01, 0x23, 0x45, 0x67])
         let original = Restaurant(
             id: CKRecord.ID(recordName: "r1"),
             title: "Tartine",
@@ -29,6 +30,8 @@ final class ModelConversionTests: XCTestCase {
             status: .planned,
             addedBy: addedBy,
             dateAdded: fixedDate,
+            photoData: photoData,
+            showsPhotoOnBoard: true,
             location: "San Francisco",
             cuisine: "Bakery",
             priceRange: .moderate
@@ -44,6 +47,8 @@ final class ModelConversionTests: XCTestCase {
         XCTAssertEqual(decoded.status, original.status)
         XCTAssertEqual(decoded.addedBy.recordID, original.addedBy.recordID)
         XCTAssertEqual(decoded.dateAdded, original.dateAdded)
+        XCTAssertEqual(decoded.photoData, photoData)
+        XCTAssertTrue(decoded.showsPhotoOnBoard)
         XCTAssertEqual(decoded.location, original.location)
         XCTAssertEqual(decoded.cuisine, original.cuisine)
         XCTAssertEqual(decoded.priceRange, original.priceRange)
@@ -125,6 +130,22 @@ final class ModelConversionTests: XCTestCase {
             recordID: CKRecord.ID(recordName: "m2")
         )
         XCTAssertNil(Movie(record: empty))
+    }
+
+    func testLegacyItemWithoutPhotoFieldsUsesSafeDefaults() throws {
+        let record = Movie(
+            id: CKRecord.ID(recordName: "legacy-movie"),
+            title: "Heat",
+            addedBy: addedBy,
+            dateAdded: fixedDate
+        ).toRecord()
+        record[Schema.Field.itemPhoto] = nil
+        record[Schema.Field.showsPhotoOnBoard] = nil
+
+        let decoded = try XCTUnwrap(Movie(record: record))
+
+        XCTAssertNil(decoded.photoData)
+        XCTAssertFalse(decoded.showsPhotoOnBoard)
     }
 
     // MARK: System fields (edit support)

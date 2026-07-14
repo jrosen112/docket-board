@@ -32,6 +32,8 @@ nonisolated enum Schema {
         static let status = "status"
         static let addedBy = "addedBy"          // CKRecord.Reference -> UserProfile
         static let dateAdded = "dateAdded"
+        static let itemPhoto = "itemPhoto"      // CKAsset
+        static let showsPhotoOnBoard = "showsPhotoOnBoard"
 
         // MARK: Location-based categories
         static let location = "location"
