@@ -2,30 +2,24 @@ import SwiftUI
 
 enum BoardToolbarTransitionID: Hashable {
     case share
+    case settings
     case add
 }
 
 struct BoardBottomToolbar: ToolbarContent {
-    let isOwner: Bool
-    let isEnabled: Bool
+    let isAddEnabled: Bool
     let transitionNamespace: Namespace.ID
-    let onShare: () -> Void
+    let onSettings: () -> Void
     let onAdd: () -> Void
 
     var body: some ToolbarContent {
-        ToolbarItem(id: "docket.board.share", placement: .bottomBar) {
-            Button(action: onShare) {
-                Label(
-                    isOwner ? "Invite" : "People",
-                    systemImage: isOwner
-                        ? "person.crop.circle.badge.plus"
-                        : "person.2"
-                )
+        ToolbarItem(id: "docket.board.settings", placement: .bottomBar) {
+            Button(action: onSettings) {
+                Label("Settings", systemImage: "gearshape.fill")
             }
-            .disabled(!isEnabled)
         }
         .matchedTransitionSource(
-            id: BoardToolbarTransitionID.share,
+            id: BoardToolbarTransitionID.settings,
             in: transitionNamespace
         )
 
@@ -40,7 +34,7 @@ struct BoardBottomToolbar: ToolbarContent {
                 Label("Add", systemImage: "plus")
             }
             .docketPrimaryActionStyle()
-            .disabled(!isEnabled)
+            .disabled(!isAddEnabled)
         }
         .matchedTransitionSource(
             id: BoardToolbarTransitionID.add,

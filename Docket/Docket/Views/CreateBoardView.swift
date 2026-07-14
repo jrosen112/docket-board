@@ -3,6 +3,7 @@ import SwiftUI
 struct CreateBoardView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(BoardStore.self) private var store
+    @Environment(\.docketSurfacePalette) private var palette
 
     @State private var title = ""
     @State private var isCreating = false
@@ -30,14 +31,14 @@ struct CreateBoardView: View {
 
                     TextField("Weekend Plans", text: $title)
                         .font(DocketTheme.CreateBoard.inputFont)
-                        .foregroundStyle(DocketTheme.CreateBoard.inputColor)
+                        .foregroundStyle(palette.primaryText)
                         .textInputAutocapitalization(.words)
                         .submitLabel(.done)
                         .focused($isTitleFocused)
                         .onSubmit(create)
                         .padding(DocketTheme.CreateBoard.inputPadding)
                         .background(
-                            DocketTheme.CreateBoard.inputBackground,
+                            palette.raisedPaper,
                             in: RoundedRectangle(
                                 cornerRadius: DocketTheme.CreateBoard.inputCornerRadius,
                                 style: .continuous

@@ -18,6 +18,7 @@ struct BoardView: View {
 
     @State private var addTarget: AddTarget?
     @State private var showingShare = false
+    @State private var showingSettings = false
     @State private var showingCreateBoard = false
     @State private var detailTarget: DetailTarget?
     @State private var filter = BoardFilter()
@@ -62,10 +63,9 @@ struct BoardView: View {
             .toolbar {
                 topToolbarItems
                 BoardBottomToolbar(
-                    isOwner: store.isOwner,
-                    isEnabled: !store.isSwitchingBoard,
+                    isAddEnabled: !store.isSwitchingBoard,
                     transitionNamespace: toolbarTransitionNamespace,
-                    onShare: prepareShare,
+                    onSettings: { showingSettings = true },
                     onAdd: beginAdding
                 )
             }
@@ -102,6 +102,15 @@ struct BoardView: View {
                             )
                         )
                 }
+            }
+            .sheet(isPresented: $showingSettings) {
+                SettingsView()
+                    .navigationTransition(
+                        .zoom(
+                            sourceID: BoardToolbarTransitionID.settings,
+                            in: toolbarTransitionNamespace
+                        )
+                    )
             }
             .sheet(isPresented: $showingCreateBoard) {
                 CreateBoardView()
@@ -339,6 +348,22 @@ struct BoardView: View {
     }
 
     @ToolbarContentBuilder private var topToolbarItems: some ToolbarContent {
+        ToolbarItem(id: "docket.board.share", placement: .topBarLeading) {
+            Button(action: prepareShare) {
+                Image(
+                    systemName: store.isOwner
+                        ? "person.crop.circle.badge.plus"
+                        : "person.2"
+                )
+            }
+            .disabled(store.isSwitchingBoard)
+            .accessibilityLabel(store.isOwner ? "Invite people" : "View people")
+        }
+        .matchedTransitionSource(
+            id: BoardToolbarTransitionID.share,
+            in: toolbarTransitionNamespace
+        )
+
         ToolbarItem(placement: .principal) {
             BoardSwitcher(
                 currentSpace: store.space,

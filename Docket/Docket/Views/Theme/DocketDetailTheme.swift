@@ -47,6 +47,7 @@ nonisolated enum DocketDetailTheme {
         static let contentSpacing: CGFloat = 14
         static let padding: CGFloat = 18
         static let cornerRadius: CGFloat = 12
+        static let rotationScale = 0.45
         static let dividerOpacity = 0.35
         static let stripeWidth: CGFloat = 4
         static let stripeVerticalPadding: CGFloat = 14

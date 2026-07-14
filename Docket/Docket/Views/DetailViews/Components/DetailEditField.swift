@@ -2,6 +2,8 @@ import SwiftUI
 import UIKit
 
 struct DetailEditField: View {
+    @Environment(\.docketSurfacePalette) private var palette
+
     let symbol: String
     let label: String
     let placeholder: String
@@ -21,11 +23,11 @@ struct DetailEditField: View {
             VStack(alignment: .leading, spacing: DocketDetailTheme.Edit.fieldSpacing) {
                 Text(label)
                     .font(DocketDetailTheme.Edit.labelFont)
-                    .foregroundStyle(DocketDetailTheme.Edit.labelColor)
+                    .foregroundStyle(palette.mutedText)
 
                 TextField(placeholder, text: $text)
                     .font(DocketDetailTheme.Edit.inputFont)
-                    .foregroundStyle(DocketDetailTheme.Edit.inputColor)
+                    .foregroundStyle(palette.primaryText)
                     .textFieldStyle(.plain)
                     .keyboardType(keyboardType)
                     .focused(focusedField, equals: field)

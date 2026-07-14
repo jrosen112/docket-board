@@ -12,6 +12,8 @@ import CloudKit
 @MainActor
 struct DocketApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @AppStorage(AppPreferences.darkerThemeKey) private var darkerThemeEnabled =
+        AppPreferences.defaultDarkerThemeEnabled
     @State private var store: BoardStore
 
     init() {
@@ -26,6 +28,10 @@ struct DocketApp: App {
         WindowGroup {
             ContentView()
                 .environment(store)
+                .environment(
+                    \.docketSurfacePalette,
+                    darkerThemeEnabled ? .darker : .standard
+                )
                 .task { await store.bootstrap() }
                 .onReceive(NotificationCenter.default.publisher(for: .docketDidAcceptShare)) { note in
                     guard let zoneID = note.userInfo?["zoneID"] as? CKRecordZone.ID else { return }

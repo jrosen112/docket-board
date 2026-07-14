@@ -2,6 +2,8 @@ import SwiftUI
 
 /// Rich context-menu preview for scanning an item without opening its detail page.
 struct BoardItemQuickLookView: View {
+    @Environment(\.docketSurfacePalette) private var palette
+
     let item: any SharedListItem
     let addedBy: String
 
@@ -20,20 +22,20 @@ struct BoardItemQuickLookView: View {
 
             Text(item.title)
                 .font(DocketDetailTheme.QuickLook.titleFont)
-                .foregroundStyle(DocketDetailTheme.QuickLook.titleColor)
+                .foregroundStyle(palette.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .lineLimit(3)
 
             if !facts.isEmpty {
                 Divider()
-                    .overlay(DocketDetailTheme.QuickLook.dividerColor)
+                    .overlay(palette.divider)
 
                 factLayout
             }
 
             if let notes = item.notes?.orNil {
                 Divider()
-                    .overlay(DocketDetailTheme.QuickLook.dividerColor)
+                    .overlay(palette.divider)
 
                 HStack(alignment: .top, spacing: DocketDetailTheme.QuickLook.noteSpacing) {
                     Image(systemName: "text.quote")
@@ -42,7 +44,7 @@ struct BoardItemQuickLookView: View {
 
                     Text(notes)
                         .font(DocketDetailTheme.QuickLook.notesFont)
-                        .foregroundStyle(DocketDetailTheme.QuickLook.notesColor)
+                        .foregroundStyle(palette.bodyText)
                         .lineSpacing(DocketDetailTheme.QuickLook.noteLineSpacing)
                         .lineLimit(5)
                         .fixedSize(horizontal: false, vertical: true)
@@ -62,7 +64,7 @@ struct BoardItemQuickLookView: View {
                 cornerRadius: DocketDetailTheme.QuickLook.cornerRadius,
                 style: .continuous
             )
-            .fill(DocketDetailTheme.QuickLook.paper)
+            .fill(palette.raisedPaper)
         )
         .overlay(alignment: .leading) {
             Capsule()
@@ -115,13 +117,13 @@ struct BoardItemQuickLookView: View {
             Text(fact.label.uppercased())
                 .font(DocketDetailTheme.QuickLook.factLabelFont)
                 .tracking(DocketDetailTheme.QuickLook.factLabelTracking)
-                .foregroundStyle(DocketDetailTheme.QuickLook.factLabelColor)
+                .foregroundStyle(palette.mutedText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
 
             Text(fact.value)
                 .font(DocketDetailTheme.QuickLook.factValueFont)
-                .foregroundStyle(DocketDetailTheme.QuickLook.factValueColor)
+                .foregroundStyle(palette.primaryText)
                 .lineLimit(fact.prefersFullWidth ? nil : 2)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -136,7 +138,7 @@ struct BoardItemQuickLookView: View {
 
             if !fullWidthFacts.isEmpty && !compactFacts.isEmpty {
                 Divider()
-                    .overlay(DocketDetailTheme.QuickLook.dividerColor)
+                    .overlay(palette.divider)
             }
 
             if !compactFacts.isEmpty {
@@ -147,7 +149,7 @@ struct BoardItemQuickLookView: View {
                     ForEach(compactFacts.indices, id: \.self) { index in
                         if index > compactFacts.startIndex {
                             Divider()
-                                .overlay(DocketDetailTheme.QuickLook.dividerColor)
+                                .overlay(palette.divider)
                         }
                         factCell(compactFacts[index])
                     }
@@ -164,6 +166,6 @@ struct BoardItemQuickLookView: View {
             Text(item.dateAdded, format: .dateTime.month(.abbreviated).day().year())
         }
         .font(DocketDetailTheme.QuickLook.footerFont)
-        .foregroundStyle(DocketDetailTheme.QuickLook.footerColor)
+        .foregroundStyle(palette.mutedText)
     }
 }

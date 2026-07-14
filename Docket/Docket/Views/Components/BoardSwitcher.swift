@@ -39,6 +39,7 @@ struct BoardSwitcher: View {
             .foregroundStyle(DocketTheme.BoardSwitcher.titleColor)
             .contentShape(.rect)
         }
+        .buttonStyle(.plain)
         .accessibilityLabel("Switch board. Current board: \(currentSpace.title)")
     }
 }

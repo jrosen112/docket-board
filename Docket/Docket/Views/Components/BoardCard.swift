@@ -2,7 +2,7 @@
 //  BoardCard.swift
 //  Docket
 //
-//  One pinned card on the board: cream stock, brass pin, category accent
+//  One pinned card on the board: themed stock, brass pin, category accent
 //  stripe, serif title, deterministic slight tilt. Dumb component — everything
 //  it shows arrives via init; taps/menus are attached by the parent.
 //
@@ -11,6 +11,8 @@ import SwiftUI
 import CloudKit
 
 struct BoardCard: View {
+    @Environment(\.docketSurfacePalette) private var palette
+
     let item: any SharedListItem
     let subtitle: String?
     let addedBy: String
@@ -27,19 +29,19 @@ struct BoardCard: View {
 
             Text(item.title)
                 .font(DocketTheme.display(17))
-                .foregroundStyle(DocketTheme.ink)
+                .foregroundStyle(palette.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
 
             if let subtitle {
                 Text(subtitle)
                     .font(.caption)
-                    .foregroundStyle(DocketTheme.ink.opacity(0.65))
+                    .foregroundStyle(palette.secondaryText)
             }
 
             if let notes = item.notes, !notes.isEmpty {
                 Text(notes)
                     .font(.footnote)
-                    .foregroundStyle(DocketTheme.ink.opacity(0.8))
+                    .foregroundStyle(palette.bodyText)
                     .lineLimit(3)
             }
 
@@ -48,14 +50,14 @@ struct BoardCard: View {
 
             Text("— \(addedBy)")
                 .font(.caption2.italic())
-                .foregroundStyle(DocketTheme.ink.opacity(0.5))
+                .foregroundStyle(palette.mutedText)
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 5)
-                .fill(DocketTheme.cream)
-                .shadow(color: .black.opacity(0.35), radius: 4, x: 0, y: 3)
+                .fill(palette.paper)
+                .shadow(color: palette.shadow, radius: 4, x: 0, y: 3)
         )
         .overlay(alignment: .leading) {
             // Category accent stripe along the card's left edge.

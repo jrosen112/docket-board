@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct DetailEditPickerRow<Selection: Hashable, Options: View>: View {
+    @Environment(\.docketSurfacePalette) private var palette
+
     let symbol: String
     let label: String
     let accent: Color
@@ -16,7 +18,7 @@ struct DetailEditPickerRow<Selection: Hashable, Options: View>: View {
 
             Text(label)
                 .font(DocketDetailTheme.Fact.labelFont)
-                .foregroundStyle(DocketDetailTheme.Fact.labelColor)
+                .foregroundStyle(palette.secondaryText)
 
             Spacer(minLength: DocketDetailTheme.Fact.valueMinimumSpacing)
 

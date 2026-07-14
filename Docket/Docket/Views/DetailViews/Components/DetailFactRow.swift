@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct DetailFactRow: View {
+    @Environment(\.docketSurfacePalette) private var palette
+
     let symbol: String
     let label: String
     let value: String
@@ -17,7 +19,7 @@ struct DetailFactRow: View {
 
             Text(label)
                 .font(DocketDetailTheme.Fact.labelFont)
-                .foregroundStyle(DocketDetailTheme.Fact.labelColor)
+                .foregroundStyle(palette.secondaryText)
 
             Spacer(minLength: DocketDetailTheme.Fact.valueMinimumSpacing)
 
@@ -25,8 +27,8 @@ struct DetailFactRow: View {
                 .font(DocketDetailTheme.Fact.valueFont)
                 .foregroundStyle(
                     isPlaceholder
-                        ? DocketDetailTheme.Edit.placeholderColor
-                        : DocketDetailTheme.Fact.valueColor
+                        ? palette.mutedText
+                        : palette.primaryText
                 )
                 .multilineTextAlignment(.trailing)
         }

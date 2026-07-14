@@ -165,9 +165,13 @@ views.
 - `BoardView` composes the board background, pinned filters, masonry cards,
   native navigation/toolbars, sheets, navigation, and transient overlays.
 - The native toolbar search capsule occupies the center of the bottom bar,
-  between the sharing and Add controls. It matches across card titles, notes,
+  between the Settings and Add controls. It matches across card titles, notes,
   category/status labels, and category-specific card details. Search terms are
   ANDed together and compose with the existing category/status filters.
+- Board sharing lives in the top navigation bar. The bottom Settings control
+  opens app preferences, including a persisted Darker Theme toggle. This is a
+  Docket-specific palette that darkens board cards, quick looks, detail cards,
+  and editing surfaces without changing the system light/dark appearance.
 - `BoardFilterHeader` is a stable one-line pinned surface. Its main area opens
   the editor, reads “No Filters” when inactive or “Filters (N)” when active,
   and keeps a separate brass `CLEAR` action on the trailing edge.
@@ -197,7 +201,9 @@ views.
 - Stable item IDs plus asymmetric transitions animate filtered/deleted cards
   out, visible/new cards in, and remaining cards into new masonry positions.
   A newly created card is revealed after its add sheet finishes dismissing.
-- The bottom toolbars use native iOS glass styling and matched transitions.
+- Board toolbar actions use their native single-layer glass containers. Add is
+  the sole brass-prominent action, while the board switcher remains text-only.
+  Bottom toolbar sheets retain matched transitions.
 
 All reusable visual constants belong under `Views/Theme/`:
 

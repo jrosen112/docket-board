@@ -2,6 +2,8 @@ import CloudKit
 import SwiftUI
 
 struct DetailPage<Details: View>: View {
+    @Environment(\.docketSurfacePalette) private var palette
+
     let item: any SharedListItem
     let addedBy: String
     let symbol: String
@@ -28,7 +30,8 @@ struct DetailPage<Details: View>: View {
                     DetailSectionCard(
                         title: "The particulars",
                         symbol: symbol,
-                        accent: accent
+                        accent: accent,
+                        rotationDegrees: sectionRotation(for: "particulars")
                     ) {
                         details
                     }
@@ -36,12 +39,13 @@ struct DetailPage<Details: View>: View {
                     DetailSectionCard(
                         title: "A note for later",
                         symbol: "text.quote",
-                        accent: accent
+                        accent: accent,
+                        rotationDegrees: sectionRotation(for: "notes")
                     ) {
                         if isEditing {
                             TextField("Add a note…", text: $draft.notes, axis: .vertical)
                                 .font(DocketDetailTheme.Notes.font)
-                                .foregroundStyle(DocketDetailTheme.Notes.color)
+                                .foregroundStyle(palette.bodyText)
                                 .lineSpacing(DocketDetailTheme.Notes.lineSpacing)
                                 .lineLimit(3...8)
                                 .textFieldStyle(.plain)
@@ -49,12 +53,12 @@ struct DetailPage<Details: View>: View {
                         } else if let notes = item.notes, !notes.isEmpty {
                             Text(notes)
                                 .font(DocketDetailTheme.Notes.font)
-                                .foregroundStyle(DocketDetailTheme.Notes.color)
+                                .foregroundStyle(palette.bodyText)
                                 .lineSpacing(DocketDetailTheme.Notes.lineSpacing)
                         } else {
                             Text("Tap to add a note…")
                                 .font(DocketDetailTheme.Empty.font)
-                                .foregroundStyle(DocketDetailTheme.Empty.color)
+                                .foregroundStyle(palette.mutedText)
                         }
                     }
                     .contentShape(Rectangle())
@@ -67,7 +71,8 @@ struct DetailPage<Details: View>: View {
                         DetailSectionCard(
                             title: "Couldn't save",
                             symbol: "exclamationmark.triangle.fill",
-                            accent: DocketDetailTheme.Edit.errorColor
+                            accent: DocketDetailTheme.Edit.errorColor,
+                            rotationDegrees: sectionRotation(for: "save-error")
                         ) {
                             Text(saveErrorMessage)
                                 .font(DocketDetailTheme.Fact.labelFont)
@@ -80,6 +85,12 @@ struct DetailPage<Details: View>: View {
                 .padding(.bottom, DocketDetailTheme.Page.bottomPadding)
             }
         }
+    }
+
+    private func sectionRotation(for section: String) -> Double {
+        DocketTheme.rotationDegrees(
+            for: "\(item.id.recordName).detail.\(section)"
+        ) * DocketDetailTheme.Card.rotationScale
     }
 
     private var hero: some View {
@@ -137,13 +148,13 @@ struct DetailPage<Details: View>: View {
             if isEditing {
                 TextField("Title", text: $draft.title, axis: .vertical)
                     .font(DocketDetailTheme.Hero.titleFont)
-                    .foregroundStyle(DocketDetailTheme.Hero.titleColor)
+                    .foregroundStyle(palette.primaryText)
                     .textFieldStyle(.plain)
                     .focused(focusedField, equals: .title)
             } else {
                 Text(item.title)
                     .font(DocketDetailTheme.Hero.titleFont)
-                    .foregroundStyle(DocketDetailTheme.Hero.titleColor)
+                    .foregroundStyle(palette.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                     .contentShape(Rectangle())
                     .onTapGesture { onEdit(.title) }
@@ -156,15 +167,15 @@ struct DetailPage<Details: View>: View {
                 Text(item.dateAdded, format: .dateTime.month(.abbreviated).day().year())
             }
             .font(DocketDetailTheme.Hero.metadataFont)
-            .foregroundStyle(DocketDetailTheme.Hero.metadataColor)
+            .foregroundStyle(palette.mutedText)
         }
         .padding(DocketDetailTheme.Hero.padding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: DocketDetailTheme.Hero.cornerRadius)
-                .fill(DocketDetailTheme.Hero.paper)
+                .fill(palette.raisedPaper)
                 .shadow(
-                    color: DocketDetailTheme.Hero.shadowColor,
+                    color: palette.shadow,
                     radius: DocketDetailTheme.Hero.shadowRadius,
                     x: DocketDetailTheme.Hero.shadowX,
                     y: DocketDetailTheme.Hero.shadowY
