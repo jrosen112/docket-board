@@ -72,6 +72,15 @@ nonisolated enum DocketTheme {
     enum BoardFilterHeader {
         static let contentPadding: CGFloat = 10
         static let verticalMargin: CGFloat = 8
+        static let barSpacing: CGFloat = 10
+        static let buttonSpacing: CGFloat = 6
+        static let buttonHorizontalPadding: CGFloat = 12
+        static let buttonVerticalPadding: CGFloat = 7
+        static let minimumButtonSpacing: CGFloat = 12
+        static let clearTracking: CGFloat = 1
+        static let clearHorizontalPadding: CGFloat = 14
+        static let clearVerticalPadding: CGFloat = 7
+        static let disabledOpacity: Double = 0.28
         static let cornerRadius: CGFloat = 18
         static let borderWidth: CGFloat = 1
         static let shadowRadius: CGFloat = 5
@@ -79,6 +88,31 @@ nonisolated enum DocketTheme {
         static let glassTint = DocketTheme.inkLight.opacity(0.52)
         static let borderColor = DocketTheme.cream.opacity(0.08)
         static let shadowColor = Color.black.opacity(0.24)
+        static let buttonFont: Font = .caption.weight(.semibold)
+        static let clearFont: Font = .caption.weight(.bold)
+    }
+
+    enum FilterSheet {
+        static let sectionSpacing: CGFloat = 26
+        static let sectionHeaderSpacing: CGFloat = 12
+        static let gridSpacing: CGFloat = 10
+        static let gridMinimumWidth: CGFloat = 118
+        static let pageHorizontalPadding: CGFloat = 18
+        static let pageTopPadding: CGFloat = 20
+        static let pageBottomPadding: CGFloat = 34
+        static let tileSpacing: CGFloat = 8
+        static let tileHorizontalPadding: CGFloat = 12
+        static let tileVerticalPadding: CGFloat = 11
+        static let tileCornerRadius: CGFloat = 12
+        static let tileMinimumHeight: CGFloat = 44
+        static let sectionTitleFont: Font = DocketTheme.display(20)
+        static let selectionSummaryFont: Font = .caption
+        static let tileFont: Font = .subheadline.weight(.semibold)
+        static let sectionTitleColor = DocketTheme.cream
+        static let selectionSummaryColor = DocketTheme.cream.opacity(0.58)
+        static let unselectedFill = DocketTheme.cream.opacity(0.08)
+        static let unselectedForeground = DocketTheme.cream.opacity(0.88)
+        static let unselectedBorder = DocketTheme.cream.opacity(0.1)
     }
 
     enum BoardSwitcher {
@@ -141,6 +175,19 @@ nonisolated enum DocketTheme {
             let elapsed = date.timeIntervalSinceReferenceDate
                 .truncatingRemainder(dividingBy: shimmerDuration)
             return CGFloat(elapsed / shimmerDuration)
+        }
+    }
+
+    enum BoardItems {
+        static let insertionScale = 0.92
+        static let removalScale = 0.96
+        static let changeResponse: TimeInterval = 0.42
+        static let changeDamping: CGFloat = 0.84
+        static let revealDelay: Duration = .milliseconds(30)
+        static let revealCleanupDelay: Duration = .milliseconds(550)
+
+        static var changeAnimation: Animation {
+            .spring(response: changeResponse, dampingFraction: changeDamping)
         }
     }
 

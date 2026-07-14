@@ -6,6 +6,7 @@ struct ItemDetailView: View {
     @FocusState private var focusedField: ItemDraftField?
 
     let itemID: CKRecord.ID
+    var startsEditing = false
     @State private var isEditing = false
     @State private var isSaving = false
     @State private var showingConflict = false
@@ -13,6 +14,7 @@ struct ItemDetailView: View {
     @State private var saveErrorMessage: String?
     @State private var editBase: DetailEditBase?
     @State private var isToolbarVisible = true
+    @State private var appliedInitialEditMode = false
 
     private var item: (any SharedListItem)? {
         store.items.first { $0.id == itemID }
@@ -49,7 +51,12 @@ struct ItemDetailView: View {
                     } message: {
                         Text("Someone else saved a newer version. Reload before editing it again.")
                     }
-                    .onAppear { isToolbarVisible = true }
+                    .onAppear {
+                        isToolbarVisible = true
+                        guard startsEditing, !appliedInitialEditMode else { return }
+                        appliedInitialEditMode = true
+                        beginEditing(item, field: .title)
+                    }
                     .onDisappear {
                         focusedField = nil
                         isToolbarVisible = false

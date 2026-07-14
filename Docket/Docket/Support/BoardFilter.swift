@@ -9,17 +9,39 @@
 import Foundation
 
 nonisolated struct BoardFilter: Equatable {
-    /// nil = all categories.
-    var category: ItemCategory?
-    /// nil = any status.
-    var status: ItemStatus?
+    /// Empty means every category is included.
+    var categories: Set<ItemCategory> = []
+    /// Empty means every status is included.
+    var statuses: Set<ItemStatus> = []
 
-    var isActive: Bool { category != nil || status != nil }
+    var isActive: Bool { !categories.isEmpty || !statuses.isEmpty }
+    var selectionCount: Int { categories.count + statuses.count }
+
+    mutating func toggle(_ category: ItemCategory) {
+        if categories.contains(category) {
+            categories.remove(category)
+        } else {
+            categories.insert(category)
+        }
+    }
+
+    mutating func toggle(_ status: ItemStatus) {
+        if statuses.contains(status) {
+            statuses.remove(status)
+        } else {
+            statuses.insert(status)
+        }
+    }
+
+    mutating func clear() {
+        categories.removeAll()
+        statuses.removeAll()
+    }
 
     func apply(to items: [any SharedListItem]) -> [any SharedListItem] {
         items.filter { item in
-            (category == nil || item.category == category)
-                && (status == nil || item.status == status)
+            (categories.isEmpty || categories.contains(item.category))
+                && (statuses.isEmpty || statuses.contains(item.status))
         }
     }
 }

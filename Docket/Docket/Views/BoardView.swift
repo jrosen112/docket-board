@@ -18,15 +18,20 @@ struct BoardView: View {
     @State private var addTarget: AddTarget?
     @State private var showingShare = false
     @State private var showingCreateBoard = false
-    @State private var editTarget: EditTarget?
     @State private var detailTarget: DetailTarget?
     @State private var filter = BoardFilter()
     @State private var scrollNoteProgress: CGFloat = 0
     @State private var boardNotice: BoardNotice?
-    @State private var shouldShowAddedNotice = false
+    @State private var pendingAddedItemID: CKRecord.ID?
+    @State private var revealingAddedItemID: CKRecord.ID?
+    @State private var isAddedItemRevealed = true
 
     private var filteredItems: [any SharedListItem] {
         filter.apply(to: store.items)
+    }
+
+    private var filteredItemIDs: [CKRecord.ID] {
+        filteredItems.map(\.id)
     }
 
     var body: some View {
@@ -61,7 +66,7 @@ struct BoardView: View {
                 NewItemView(
                     itemID: target.id,
                     dateAdded: target.dateAdded,
-                    onSaved: { shouldShowAddedNotice = true }
+                    onSaved: { pendingAddedItemID = target.id }
                 )
                     .navigationTransition(
                         .zoom(
@@ -69,9 +74,6 @@ struct BoardView: View {
                             in: toolbarTransitionNamespace
                         )
                     )
-            }
-            .sheet(item: $editTarget) { target in
-                ItemFormView(editing: target.item)
             }
             .sheet(isPresented: $showingShare) {
                 if let share = store.activeShare {
@@ -88,7 +90,10 @@ struct BoardView: View {
                 CreateBoardView()
             }
             .navigationDestination(item: $detailTarget) { target in
-                ItemDetailView(itemID: target.id)
+                ItemDetailView(
+                    itemID: target.id,
+                    startsEditing: target.startsEditing
+                )
                     .navigationTransition(
                         .zoom(sourceID: target.id, in: boardTransitionNamespace)
                     )
@@ -157,6 +162,7 @@ struct BoardView: View {
                     card(for: item)
                 }
             }
+            .animation(DocketTheme.BoardItems.changeAnimation, value: filteredItemIDs)
             // Breathing room so pins/tilts don't clip at the edges.
             .padding(.top, 6)
         }
@@ -185,7 +191,7 @@ struct BoardView: View {
         .onTapGesture { detailTarget = DetailTarget(id: item.id) }
         .contextMenu {
             Button {
-                editTarget = EditTarget(item: item)
+                detailTarget = DetailTarget(id: item.id, startsEditing: true)
             } label: {
                 Label("Edit", systemImage: "pencil")
             }
@@ -200,6 +206,20 @@ struct BoardView: View {
                 addedBy: store.displayName(for: item)
             )
         }
+        .scaleEffect(
+            revealingAddedItemID == item.id && !isAddedItemRevealed
+                ? DocketTheme.BoardItems.insertionScale
+                : 1
+        )
+        .opacity(revealingAddedItemID == item.id && !isAddedItemRevealed ? 0 : 1)
+        .transition(
+            .asymmetric(
+                insertion: .scale(scale: DocketTheme.BoardItems.insertionScale)
+                    .combined(with: .opacity),
+                removal: .scale(scale: DocketTheme.BoardItems.removalScale)
+                    .combined(with: .opacity)
+            )
+        )
     }
 
     private func prepareShare() {
@@ -229,9 +249,26 @@ struct BoardView: View {
     }
 
     private func presentAddedNoticeIfNeeded() {
-        guard shouldShowAddedNotice else { return }
-        shouldShowAddedNotice = false
+        guard let itemID = pendingAddedItemID else { return }
+        pendingAddedItemID = nil
         presentNotice(message: "Added to board", systemImage: "pin.fill")
+
+        guard filteredItemIDs.contains(itemID) else { return }
+        revealingAddedItemID = itemID
+        isAddedItemRevealed = false
+
+        Task { @MainActor in
+            try? await Task.sleep(for: DocketTheme.BoardItems.revealDelay)
+            guard revealingAddedItemID == itemID else { return }
+
+            withAnimation(DocketTheme.BoardItems.changeAnimation) {
+                isAddedItemRevealed = true
+            }
+
+            try? await Task.sleep(for: DocketTheme.BoardItems.revealCleanupDelay)
+            guard revealingAddedItemID == itemID else { return }
+            revealingAddedItemID = nil
+        }
     }
 
     private func presentNotice(message: String, systemImage: String) {
@@ -315,15 +352,9 @@ struct BoardView: View {
     }
 }
 
-/// Wraps an item for .sheet(item:) — existentials can't satisfy Identifiable's
-/// generic constraint directly.
-private struct EditTarget: Identifiable {
-    let item: any SharedListItem
-    var id: CKRecord.ID { item.id }
-}
-
 private struct DetailTarget: Identifiable, Hashable {
     let id: CKRecord.ID
+    var startsEditing = false
 }
 
 private struct AddTarget: Identifiable {

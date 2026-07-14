@@ -2,55 +2,77 @@
 //  BoardFilterBar.swift
 //  Docket
 //
-//  Category + status filter chips for the board. Owns no state — takes a
-//  BoardFilter binding and mutates it on taps.
+//  Compact pinned trigger for the multi-select filter sheet.
 //
 
 import SwiftUI
 
 struct BoardFilterBar: View {
-    @Binding var filter: BoardFilter
-    let categories: [ItemCategory]
+    let filter: BoardFilter
+    let onShowFilters: () -> Void
+    let onClear: () -> Void
+
+    private var buttonTitle: String {
+        filter.isActive ? "Filters (\(filter.selectionCount))" : "No Filters"
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    FilterChip(label: "All", isSelected: filter.category == nil) {
-                        filter.category = nil
-                    }
-                    ForEach(categories, id: \.self) { category in
-                        FilterChip(
-                            label: category.label,
-                            isSelected: filter.category == category,
-                            accent: category.accent
-                        ) {
-                            filter.category = filter.category == category ? nil : category
-                        }
-                    }
+        ZStack(alignment: .trailing) {
+            Button(action: onShowFilters) {
+                HStack(spacing: DocketTheme.BoardFilterHeader.barSpacing) {
+                    filterLabel
+                    Spacer(minLength: DocketTheme.BoardFilterHeader.minimumButtonSpacing)
                 }
+                .padding(DocketTheme.BoardFilterHeader.contentPadding)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel(
+                filter.isActive
+                    ? "Open filters, \(filter.selectionCount) selected"
+                    : "Open filters, none selected"
+            )
 
-            HStack(spacing: 8) {
-                FilterChip(label: "Any status", isSelected: filter.status == nil) {
-                    filter.status = nil
-                }
-                ForEach(ItemStatus.allCases, id: \.self) { status in
-                    FilterChip(
-                        label: status.label,
-                        isSelected: filter.status == status
-                    ) {
-                        filter.status = filter.status == status ? nil : status
-                    }
-                }
-            }
+            Button("CLEAR", action: onClear)
+                .font(DocketTheme.BoardFilterHeader.clearFont)
+                .tracking(DocketTheme.BoardFilterHeader.clearTracking)
+                .padding(.horizontal, DocketTheme.BoardFilterHeader.clearHorizontalPadding)
+                .padding(.vertical, DocketTheme.BoardFilterHeader.clearVerticalPadding)
+                .foregroundStyle(DocketTheme.ink)
+                .background(Capsule().fill(DocketTheme.brass))
+                .buttonStyle(.plain)
+                .disabled(!filter.isActive)
+                .opacity(filter.isActive ? 1 : DocketTheme.BoardFilterHeader.disabledOpacity)
+                .padding(.trailing, DocketTheme.BoardFilterHeader.contentPadding)
         }
+    }
+
+    private var filterLabel: some View {
+        HStack(spacing: DocketTheme.BoardFilterHeader.buttonSpacing) {
+            Image(systemName: "line.3.horizontal.decrease")
+            Text(buttonTitle)
+        }
+        .font(DocketTheme.BoardFilterHeader.buttonFont)
+        .padding(.horizontal, DocketTheme.BoardFilterHeader.buttonHorizontalPadding)
+        .padding(.vertical, DocketTheme.BoardFilterHeader.buttonVerticalPadding)
+        .foregroundStyle(
+            filter.isActive
+                ? DocketTheme.ink
+                : DocketTheme.cream.opacity(0.9)
+        )
+        .background(
+            Capsule().fill(
+                filter.isActive
+                    ? DocketTheme.brass
+                    : DocketTheme.cream.opacity(0.1)
+            )
+        )
     }
 }
 
 #Preview {
-    @Previewable @State var filter = BoardFilter()
-    BoardFilterBar(filter: $filter, categories: ItemCategory.supported)
+    BoardFilterBar(filter: BoardFilter(), onShowFilters: {}, onClear: {})
         .padding()
         .background(DocketTheme.ink)
 }

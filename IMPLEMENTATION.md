@@ -1,6 +1,6 @@
 # Docket — Implementation
 
-_Current as of 2026-07-13._
+_Current as of 2026-07-14._
 
 This document describes the app as it exists now. [CLAUDE.md](CLAUDE.md)
 contains the original product brief and working agreement; where its old
@@ -21,7 +21,11 @@ The current app supports:
 - Owner-only membership management; participants collaborate on board content.
 - Restaurant, Bar, and Movie items with category-specific fields.
 - Add, inline detail editing, deletion, conflict detection, and attribution.
-- Category/status filtering over a two-column masonry board.
+- Multi-select category/status filtering over a two-column masonry board.
+- Rich long-press quick looks with category facts, notes, attribution, and
+  direct entry into the current detail editor.
+- Visible save progress, reusable success/refresh notices, and animated board
+  changes for filtering, additions, deletions, and refreshes.
 - Silent CloudKit change notifications and local notifications for items added
   by another participant.
 - Pull-to-refresh feedback showing the number of newly added items.
@@ -93,6 +97,11 @@ archive so change tags survive round-trips and concurrent writes produce a real
 `Support/ItemDraft.swift` is the shared, tested conversion path for both new
 items and inline edits.
 
+`Support/BoardFilter.swift` stores selected categories and statuses as sets.
+An empty set means “all” for that dimension. Selections are ORed within one
+dimension and the two dimensions are ANDed together; for example,
+`(Restaurant OR Bar) AND (Want to go OR Planned)`.
+
 ### Service layer
 
 `SpaceDataService` is the test seam for board-scoped data access.
@@ -155,23 +164,41 @@ views.
   the persistent board screen.
 - `BoardView` composes the board background, pinned filters, masonry cards,
   native navigation/toolbars, sheets, navigation, and transient overlays.
+- `BoardFilterHeader` is a stable one-line pinned surface. Its main area opens
+  the editor, reads “No Filters” when inactive or “Filters (N)” when active,
+  and keeps a separate brass `CLEAR` action on the trailing edge.
+- `BoardFilterSheet` is the scalable multi-select editor. Category tiles use
+  an adaptive grid, status choices are independent, Cancel discards, and both
+  the explicit apply action and interactive sheet dismissal commit changes.
 - `BoardSwitcher` selects any owned or joined board and starts board creation.
 - `CreateBoardView` creates a named board using the same visual language as the
   detail editors.
 - `BoardSkeletonView` replaces only the card area during board switches. The
   navigation bar, filters, background, and bottom toolbar remain mounted.
-- `BoardRefreshPill` reports “No new items,” “1 item added,” or a plural count,
-  auto-dismisses, and tracks a downward swipe for early dismissal.
+- `BoardNoticePill` is the reusable transient board notice. It reports refresh
+  results and successful additions, auto-dismisses, and tracks a downward swipe
+  for early dismissal.
+- `BoardItemQuickLookView` supplies a rich context-menu preview. Address-like
+  fields receive full-width wrapping; compact facts share aligned columns.
+- Board cards preserve their pin/shadow overflow in context-menu and matched
+  transition captures without changing masonry spacing.
 - `DetailViews/` contains the typed Restaurant, Bar, and Movie detail screens,
   the new-item screen, and their shared inline-editing components.
 - `ItemDetailView` resolves a record ID against live store data so edits update
-  the visible detail without replacing the navigation destination.
+  the visible detail without replacing the navigation destination. Context-menu
+  Edit navigates here with edit mode already active; the legacy form sheet has
+  been removed.
+- Saves replace the Save label with progress, dismiss keyboard focus, prevent
+  interactive dismissal while in flight, and retain inline failure feedback.
+- Stable item IDs plus asymmetric transitions animate filtered/deleted cards
+  out, visible/new cards in, and remaining cards into new masonry positions.
+  A newly created card is revealed after its add sheet finishes dismissing.
 - The bottom toolbars use native iOS glass styling and matched transitions.
 
 All reusable visual constants belong under `Views/Theme/`:
 
 - `DocketTheme.swift`: board palette, cards, filters, skeletons, refresh pill,
-  switcher, creation flow, and other board tokens.
+  item motion, switcher, creation flow, and other board tokens.
 - `DocketDetailTheme.swift`: detail and inline-edit presentation.
 - `DocketControlStyles.swift`: shared control/button styles.
 
@@ -180,6 +207,8 @@ All reusable visual constants belong under `Views/Theme/`:
 - Initial CloudKit failure cannot masquerade as first-time onboarding.
 - Saving a new profile persists its local identity only after CloudKit succeeds.
 - Failed item saves keep editing UI open.
+- Saving presents immediate progress and prevents dismissal until the operation
+  completes; a successful add produces a board notice after sheet dismissal.
 - Concurrent edits show a specific reload-and-retry message.
 - Pull-to-refresh returns an exact new-record count only after a successful read.
 - Airplane-mode refresh ends promptly with a short offline message.
@@ -197,12 +226,12 @@ seeding is compiled out of release/TestFlight builds.
 
 ## Tests and verification
 
-The signed iPhone 17 Pro simulator suite currently has **67 passing tests**:
+The repository currently contains **72 unit tests**:
 
-- `BoardStoreTests`: 30
+- `BoardStoreTests`: 31
 - `ModelConversionTests`: 8
 - `DocketThemeTests`: 7
-- `BoardFilterTests`: 5
+- `BoardFilterTests`: 9
 - `SpaceTests`: 4
 - `ItemDraftTests`: 3
 - `RecordDecoderTests`: 3
@@ -213,7 +242,14 @@ The signed iPhone 17 Pro simulator suite currently has **67 passing tests**:
 Coverage includes model/system-field round-trips, conflict behavior, profile
 identity, multi-board persistence and switching, board-creation rollback,
 remote-add notification decisions, offline refresh/switch handling, error-copy
-sanitization, filters, skeleton timing, refresh counts, and sample-data safety.
+sanitization, multi-select OR/AND filter behavior, selection counts and clearing,
+skeleton timing, refresh counts, and sample-data safety.
+
+A compile-only generic iOS build succeeded on 2026-07-14. The new filter tests
+compile, but a focused XCTest execution could not install on the current Mac
+because that device is absent from the iOS provisioning profile. Run the full
+suite from the signed simulator configuration before treating all 72 as a new
+passing baseline.
 
 Build and test commands are allowed, but automated sessions should not launch
 the app. Live CloudKit sharing and notification behavior require Jared's manual
@@ -229,7 +265,13 @@ Important manual checks:
    tapping it selects the correct board.
 4. Pull to refresh and verify the new-item pill count, auto-dismissal, and
    swipe-down dismissal.
-5. Enable airplane mode. Refresh should finish promptly, board switching should
+5. Select multiple categories and statuses. Verify the compact count, CLEAR,
+   Cancel, explicit apply, swipe-to-apply, and card reflow animations.
+6. Long-press a card. Verify the rich quick look, full address wrapping, and
+   that Edit opens the current detail editor rather than a legacy form.
+7. Add and delete items. Verify save progress, post-dismiss success feedback,
+   and card insertion/removal animation.
+8. Enable airplane mode. Refresh should finish promptly, board switching should
    return to the previous board, and no technical CloudKit text should appear.
 
 ## Remaining work

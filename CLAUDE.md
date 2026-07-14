@@ -21,11 +21,12 @@ No generic "Item" record type. Each category is its own `CKRecord` type, unified
 ```swift
 protocol SharedListItem {
     var id: CKRecord.ID { get }
-    var title: String { get }
-    var notes: String? { get }
+    var title: String { get set }
+    var notes: String? { get set }
     var status: ItemStatus { get set }
-    var addedBy: String { get }
+    var addedBy: CKRecord.Reference { get }
     var dateAdded: Date { get }
+    var category: ItemCategory { get }
 }
 
 enum ItemStatus: String, CaseIterable {
@@ -40,14 +41,28 @@ Pinned corkboard aesthetic, not a plain list. Reference: two-column masonry grid
 
 Palette: ink-navy background (`#14181F`), warm cream cards (`#EFE6D3`), brass/gold primary accent (`#D9A441`). Serif display type (Georgia) for titles.
 
-## Build Order
-1. CloudKit container/zone/share setup — validate sync works between two accounts before UI
-2. CKRecord conversion (`init(record:)` / `toRecord()`) per category type
-3. Masonry list view with category/status filtering
-4. Add/edit form (category picker → category-specific fields)
-5. Category-specific detail views
-6. Map view for location-based categories
-7. Push sync (`CKDatabaseSubscription` + silent push), photo attachments, polish
+Current interaction details:
+
+- The board uses a compact pinned filter bar. Its full surface opens a
+  multi-select sheet; `CLEAR` is the only excluded tap target.
+- Filter state is set-based: empty means all, selections are ORed within
+  categories/statuses, and the two dimensions are ANDed together.
+- Long-press shows a rich quick look; its Edit action routes into the same
+  typed detail editor used everywhere else.
+- Save operations show progress and successful additions produce a transient
+  board notice.
+- Stable card IDs drive animated filter, add, delete, refresh, and masonry
+  position changes.
+
+## Implementation Status
+
+Built: CloudKit zones/sharing, multi-board switching, typed Restaurant/Bar/Movie
+records, masonry board, multi-select filtering, typed add/detail editing,
+conflict handling, silent push reconciliation, local notifications, and current
+board interaction polish. See `IMPLEMENTATION.md` for authoritative details.
+
+Next: MapKit search/map support, Happy Hour/Landmark/Hike/Activity record types,
+photos, profile images, board management, and production/TestFlight work.
 
 ## Explicitly Out of Scope for Phase 1
 - Custom auth beyond Apple ID + CloudKit sharing

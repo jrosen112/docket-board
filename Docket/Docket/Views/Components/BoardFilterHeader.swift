@@ -3,10 +3,16 @@ import SwiftUI
 struct BoardFilterHeader: View {
     @Binding var filter: BoardFilter
     let categories: [ItemCategory]
+    @State private var showingFilterSheet = false
+    @State private var draftFilter = BoardFilter()
+    @State private var appliesDraftOnDismiss = false
 
     var body: some View {
-        BoardFilterBar(filter: $filter, categories: categories)
-            .padding(DocketTheme.BoardFilterHeader.contentPadding)
+        BoardFilterBar(
+            filter: filter,
+            onShowFilters: presentFilters,
+            onClear: clearFilters
+        )
             .glassEffect(
                 .regular.tint(DocketTheme.BoardFilterHeader.glassTint),
                 in: RoundedRectangle(
@@ -28,5 +34,48 @@ struct BoardFilterHeader: View {
                 )
             )
             .padding(.vertical, DocketTheme.BoardFilterHeader.verticalMargin)
+            .sheet(
+                isPresented: $showingFilterSheet,
+                onDismiss: applyDismissedDraftIfNeeded
+            ) {
+                BoardFilterSheet(
+                    filter: $draftFilter,
+                    categories: categories,
+                    onCancel: cancelFilters,
+                    onApply: applyFilters
+                )
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            }
+    }
+
+    private func presentFilters() {
+        draftFilter = filter
+        appliesDraftOnDismiss = true
+        showingFilterSheet = true
+    }
+
+    private func applyFilters() {
+        appliesDraftOnDismiss = true
+        showingFilterSheet = false
+    }
+
+    private func cancelFilters() {
+        appliesDraftOnDismiss = false
+        showingFilterSheet = false
+    }
+
+    private func applyDismissedDraftIfNeeded() {
+        guard appliesDraftOnDismiss else { return }
+        withAnimation(DocketTheme.BoardItems.changeAnimation) {
+            filter = draftFilter
+        }
+        appliesDraftOnDismiss = false
+    }
+
+    private func clearFilters() {
+        withAnimation(DocketTheme.BoardItems.changeAnimation) {
+            filter.clear()
+        }
     }
 }
