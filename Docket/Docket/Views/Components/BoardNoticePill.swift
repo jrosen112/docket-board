@@ -1,18 +1,19 @@
 import SwiftUI
 
-struct BoardRefreshPill: View {
-    let summary: BoardRefreshSummary
+struct BoardNoticePill: View {
+    let message: String
+    let systemImage: String
     let onDismiss: () -> Void
 
     @State private var dragOffset: CGFloat = 0
 
     var body: some View {
         HStack(spacing: DocketTheme.RefreshPill.contentSpacing) {
-            Image(systemName: summary.addedItemCount == 0 ? "checkmark" : "plus")
+            Image(systemName: systemImage)
                 .font(DocketTheme.RefreshPill.iconFont)
                 .foregroundStyle(DocketTheme.RefreshPill.iconColor)
 
-            Text(summary.message)
+            Text(message)
                 .font(DocketTheme.RefreshPill.messageFont)
                 .foregroundStyle(DocketTheme.RefreshPill.messageColor)
                 .lineLimit(1)

@@ -56,6 +56,12 @@ nonisolated enum DocketTheme {
         static let categoryTracking: CGFloat = 1.2
     }
 
+    enum BoardCard {
+        /// Transparent breathing room included in transition and context-menu
+        /// snapshots so the tilted paper, shadow, and pin are not clipped.
+        static let transitionCaptureInset: CGFloat = 10
+    }
+
     enum StatusBadge {
         static let horizontalPadding: CGFloat = 8
         static let verticalPadding: CGFloat = 3

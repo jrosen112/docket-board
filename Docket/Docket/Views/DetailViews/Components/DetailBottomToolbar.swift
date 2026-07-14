@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct DetailBottomToolbar: ToolbarContent {
+    let isVisible: Bool
     let isEditing: Bool
     let hasKeyboardFocus: Bool
     let isSaving: Bool
@@ -10,47 +11,57 @@ struct DetailBottomToolbar: ToolbarContent {
     let onSave: () -> Void
 
     var body: some ToolbarContent {
-        if isEditing {
-            if hasKeyboardFocus {
-                ToolbarItemGroup(placement: .keyboard) {
-                    cancelButton
-                    Spacer()
-                    saveButton
+        if isVisible {
+            if isEditing {
+                if hasKeyboardFocus {
+                    ToolbarItemGroup(placement: .keyboard) {
+                        cancelButton
+                        Spacer()
+                        saveButton
+                    }
+                } else {
+                    ToolbarItem(id: "docket.detail.cancel", placement: .bottomBar) {
+                        cancelButton
+                    }
+
+                    ToolbarSpacer(.flexible, placement: .bottomBar)
+
+                    ToolbarItem(id: "docket.detail.save", placement: .bottomBar) {
+                        saveButton
+                    }
                 }
             } else {
-                ToolbarItem(placement: .bottomBar) {
-                    cancelButton
-                }
-
                 ToolbarSpacer(.flexible, placement: .bottomBar)
 
-                ToolbarItem(placement: .bottomBar) {
-                    saveButton
+                ToolbarItem(id: "docket.detail.edit", placement: .bottomBar) {
+                    Button(action: onEdit) {
+                        Label("Edit", systemImage: "pencil")
+                    }
+                    .docketPrimaryActionStyle()
                 }
-            }
-        } else {
-            ToolbarSpacer(.flexible, placement: .bottomBar)
-
-            ToolbarItem(placement: .bottomBar) {
-                Button(action: onEdit) {
-                    Label("Edit", systemImage: "pencil")
-                }
-                .docketPrimaryActionStyle()
             }
         }
     }
 
     private var cancelButton: some View {
         Button("Cancel", action: onCancel)
-            .docketSecondaryActionStyle()
             .disabled(isSaving)
     }
 
     private var saveButton: some View {
         Button(action: onSave) {
-            Label("Save", systemImage: "checkmark")
+            if isSaving {
+                HStack(spacing: 7) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Saving…")
+                }
+            } else {
+                Label("Save", systemImage: "checkmark")
+            }
         }
         .docketPrimaryActionStyle()
         .disabled(!canSave || isSaving)
+        .accessibilityLabel(isSaving ? "Saving" : "Save")
     }
 }

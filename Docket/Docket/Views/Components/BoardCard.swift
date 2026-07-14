@@ -72,6 +72,37 @@ struct BoardCard: View {
     }
 }
 
+/// The paper-and-pin silhouette used by the lifted context-menu preview.
+/// The surrounding transition capture area stays transparent instead of
+/// receiving the system's rectangular highlight.
+struct BoardCardPreviewShape: Shape {
+    let captureInset: CGFloat
+    let rotationDegrees: Double
+
+    func path(in rect: CGRect) -> Path {
+        let cardRect = rect.insetBy(dx: captureInset, dy: captureInset)
+        var path = Path(
+            roundedRect: cardRect,
+            cornerRadius: 5,
+            style: .continuous
+        )
+        path.addEllipse(
+            in: CGRect(
+                x: cardRect.midX - 5.5,
+                y: cardRect.minY - 5,
+                width: 11,
+                height: 11
+            )
+        )
+
+        let radians = CGFloat(rotationDegrees * .pi / 180)
+        let rotation = CGAffineTransform(translationX: rect.midX, y: rect.midY)
+            .rotated(by: radians)
+            .translatedBy(x: -rect.midX, y: -rect.midY)
+        return path.applying(rotation)
+    }
+}
+
 /// The brass "push pin" head at the top of each card.
 private struct PinDot: View {
     var body: some View {

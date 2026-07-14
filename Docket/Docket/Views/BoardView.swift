@@ -22,7 +22,8 @@ struct BoardView: View {
     @State private var detailTarget: DetailTarget?
     @State private var filter = BoardFilter()
     @State private var scrollNoteProgress: CGFloat = 0
-    @State private var refreshNotice: BoardRefreshNotice?
+    @State private var boardNotice: BoardNotice?
+    @State private var shouldShowAddedNotice = false
 
     private var filteredItems: [any SharedListItem] {
         filter.apply(to: store.items)
@@ -56,8 +57,12 @@ struct BoardView: View {
                 )
             }
             .overlay(alignment: .bottom) { boardOverlay }
-            .sheet(item: $addTarget) { target in
-                NewItemView(itemID: target.id, dateAdded: target.dateAdded)
+            .sheet(item: $addTarget, onDismiss: presentAddedNoticeIfNeeded) { target in
+                NewItemView(
+                    itemID: target.id,
+                    dateAdded: target.dateAdded,
+                    onSaved: { shouldShowAddedNotice = true }
+                )
                     .navigationTransition(
                         .zoom(
                             sourceID: BoardToolbarTransitionID.add,
@@ -143,7 +148,11 @@ struct BoardView: View {
         if filteredItems.isEmpty {
             EmptyBoardView(isFiltered: filter.isActive && !store.items.isEmpty)
         } else {
-            MasonryLayout(columns: 2, spacing: 14) {
+            MasonryLayout(
+                columns: 2,
+                spacing: 14,
+                contentOverflow: DocketTheme.BoardCard.transitionCaptureInset
+            ) {
                 ForEach(filteredItems, id: \.id) { item in
                     card(for: item)
                 }
@@ -154,10 +163,23 @@ struct BoardView: View {
     }
 
     private func card(for item: any SharedListItem) -> some View {
-        BoardCard(
+        let captureInset = DocketTheme.BoardCard.transitionCaptureInset
+
+        return BoardCard(
             item: item,
             subtitle: cardSubtitle(for: item),
             addedBy: store.displayName(for: item)
+        )
+        // Capture visual overflow from the pin, shadow, and card rotation.
+        // MasonryLayout accounts for this inset without moving the paper.
+        .padding(captureInset)
+        .contentShape(.interaction, Rectangle().inset(by: captureInset))
+        .contentShape(
+            .contextMenuPreview,
+            BoardCardPreviewShape(
+                captureInset: captureInset,
+                rotationDegrees: DocketTheme.rotationDegrees(for: item.id.recordName)
+            )
         )
         .matchedTransitionSource(id: item.id, in: boardTransitionNamespace)
         .onTapGesture { detailTarget = DetailTarget(id: item.id) }
@@ -172,6 +194,11 @@ struct BoardView: View {
             } label: {
                 Label("Delete", systemImage: "trash")
             }
+        } preview: {
+            BoardItemQuickLookView(
+                item: item,
+                addedBy: store.displayName(for: item)
+            )
         }
     }
 
@@ -194,15 +221,35 @@ struct BoardView: View {
                 dampingFraction: DocketTheme.RefreshPill.insertionDamping
             )
         ) {
-            refreshNotice = BoardRefreshNotice(summary: summary)
+            boardNotice = BoardNotice(
+                message: summary.message,
+                systemImage: summary.addedItemCount == 0 ? "checkmark" : "plus"
+            )
         }
     }
 
-    private func dismissRefreshNotice() {
+    private func presentAddedNoticeIfNeeded() {
+        guard shouldShowAddedNotice else { return }
+        shouldShowAddedNotice = false
+        presentNotice(message: "Added to board", systemImage: "pin.fill")
+    }
+
+    private func presentNotice(message: String, systemImage: String) {
+        withAnimation(
+            .spring(
+                response: DocketTheme.RefreshPill.insertionResponse,
+                dampingFraction: DocketTheme.RefreshPill.insertionDamping
+            )
+        ) {
+            boardNotice = BoardNotice(message: message, systemImage: systemImage)
+        }
+    }
+
+    private func dismissBoardNotice() {
         withAnimation(
             .easeIn(duration: DocketTheme.RefreshPill.removalDuration)
         ) {
-            refreshNotice = nil
+            boardNotice = nil
         }
     }
 
@@ -213,10 +260,11 @@ struct BoardView: View {
                 ErrorBanner(message: message) { store.errorMessage = nil }
             }
 
-            if let notice = refreshNotice {
-                BoardRefreshPill(
-                    summary: notice.summary,
-                    onDismiss: dismissRefreshNotice
+            if let notice = boardNotice {
+                BoardNoticePill(
+                    message: notice.message,
+                    systemImage: notice.systemImage,
+                    onDismiss: dismissBoardNotice
                 )
                 .id(notice.id)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -226,7 +274,7 @@ struct BoardView: View {
                     } catch {
                         return
                     }
-                    dismissRefreshNotice()
+                    dismissBoardNotice()
                 }
             }
         }
@@ -283,7 +331,8 @@ private struct AddTarget: Identifiable {
     let dateAdded: Date
 }
 
-private struct BoardRefreshNotice: Identifiable {
+private struct BoardNotice: Identifiable {
     let id = UUID()
-    let summary: BoardRefreshSummary
+    let message: String
+    let systemImage: String
 }

@@ -85,6 +85,46 @@ nonisolated enum DocketDetailTheme {
         static let color = DocketTheme.ink.opacity(0.55)
     }
 
+    enum QuickLook {
+        static let width: CGFloat = 320
+        static let padding: CGFloat = 20
+        static let contentLeadingExtraPadding: CGFloat = 12
+        static let cornerRadius: CGFloat = 14
+        static let sectionSpacing: CGFloat = 13
+        static let headerSpacing: CGFloat = 9
+        static let factSpacing: CGFloat = 8
+        static let factGroupSpacing: CGFloat = 10
+        static let factTextSpacing: CGFloat = 4
+        static let noteSpacing: CGFloat = 10
+        static let noteLineSpacing: CGFloat = 2
+        static let footerSpacing: CGFloat = 8
+        static let stripeWidth: CGFloat = 4
+        static let stripeVerticalPadding: CGFloat = 16
+        static let stripeLeadingPadding: CGFloat = 14
+        static let pinSize: CGFloat = 10
+        static let pinOffset: CGFloat = 5
+        static let categorySymbolSize: CGFloat = 30
+        static let categoryTracking: CGFloat = 1.2
+        static let factLabelTracking: CGFloat = 0.5
+
+        static let titleFont: Font = DocketTheme.display(24)
+        static let categoryFont: Font = .caption2.weight(.bold)
+        static let categorySymbolFont: Font = .subheadline.weight(.semibold)
+        static let factLabelFont: Font = .caption
+        static let factValueFont: Font = .subheadline.weight(.semibold)
+        static let noteSymbolFont: Font = .subheadline.weight(.semibold)
+        static let notesFont: Font = DocketTheme.displayRegular(15)
+        static let footerFont: Font = .caption2
+
+        static let paper = DocketTheme.cream
+        static let titleColor = DocketTheme.ink
+        static let factLabelColor = DocketTheme.ink.opacity(0.56)
+        static let factValueColor = DocketTheme.ink
+        static let notesColor = DocketTheme.ink.opacity(0.82)
+        static let footerColor = DocketTheme.ink.opacity(0.5)
+        static let dividerColor = DocketTheme.ink.opacity(0.13)
+    }
+
     enum Edit {
         static let fieldSpacing: CGFloat = 3
         static let fieldVerticalPadding: CGFloat = 3

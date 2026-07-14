@@ -7,6 +7,7 @@ struct NewItemView: View {
 
     let itemID: CKRecord.ID
     let dateAdded: Date
+    let onSaved: () -> Void
 
     @State private var draft = ItemDraft()
     @State private var isSaving = false
@@ -41,6 +42,7 @@ struct NewItemView: View {
             .navigationBarBackButtonHidden(true)
             .toolbar {
                 DetailBottomToolbar(
+                    isVisible: true,
                     isEditing: true,
                     hasKeyboardFocus: focusedField != nil,
                     isSaving: isSaving,
@@ -51,6 +53,7 @@ struct NewItemView: View {
                 )
             }
         }
+        .interactiveDismissDisabled(isSaving)
         .task {
             try? await Task.sleep(for: DocketDetailTheme.Edit.focusDelay)
             guard !Task.isCancelled else { return }
@@ -100,6 +103,7 @@ struct NewItemView: View {
     }
 
     private func save() async {
+        guard !isSaving else { return }
         guard let profile = store.currentProfile,
               let item = draft.makeNew(
                 id: itemID,
@@ -108,12 +112,14 @@ struct NewItemView: View {
               )
         else { return }
 
+        focusedField = nil
         isSaving = true
         saveErrorMessage = nil
         defer { isSaving = false }
 
         switch await store.save(item) {
         case .saved:
+            onSaved()
             dismiss()
         case .conflict(let message), .failed(let message):
             saveErrorMessage = message

@@ -12,6 +12,10 @@ import SwiftUI
 nonisolated struct MasonryLayout: Layout {
     var columns: Int = 2
     var spacing: CGFloat = 14
+    /// Extra transparent space each subview carries around its visible content.
+    /// The layout removes it from measurement and placement calculations so
+    /// visual column widths and gaps remain unchanged.
+    var contentOverflow: CGFloat = 0
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let width = proposal.width ?? 0
@@ -21,18 +25,23 @@ nonisolated struct MasonryLayout: Layout {
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         let columnWidth = self.columnWidth(totalWidth: bounds.width)
+        let proposedWidth = columnWidth + contentOverflow * 2
         var heights = [CGFloat](repeating: 0, count: columns)
 
         for subview in subviews {
-            let size = subview.sizeThatFits(ProposedViewSize(width: columnWidth, height: nil))
+            let size = subview.sizeThatFits(ProposedViewSize(width: proposedWidth, height: nil))
+            let contentHeight = max(size.height - contentOverflow * 2, 0)
             let column = shortestColumn(heights)
-            let x = bounds.minX + CGFloat(column) * (columnWidth + spacing)
-            let y = bounds.minY + heights[column]
+            let x = bounds.minX
+                + CGFloat(column) * (columnWidth + spacing)
+                - contentOverflow
+            let y = bounds.minY + heights[column] - contentOverflow
             subview.place(
                 at: CGPoint(x: x, y: y),
-                proposal: ProposedViewSize(width: columnWidth, height: size.height)
+                anchor: .topLeading,
+                proposal: ProposedViewSize(width: proposedWidth, height: size.height)
             )
-            heights[column] += size.height + spacing
+            heights[column] += contentHeight + spacing
         }
     }
 
@@ -48,10 +57,12 @@ nonisolated struct MasonryLayout: Layout {
 
     private func columnHeights(subviews: Subviews, totalWidth: CGFloat) -> (heights: [CGFloat], columnWidth: CGFloat) {
         let columnWidth = self.columnWidth(totalWidth: totalWidth)
+        let proposedWidth = columnWidth + contentOverflow * 2
         var heights = [CGFloat](repeating: 0, count: columns)
         for subview in subviews {
-            let size = subview.sizeThatFits(ProposedViewSize(width: columnWidth, height: nil))
-            heights[shortestColumn(heights)] += size.height + spacing
+            let size = subview.sizeThatFits(ProposedViewSize(width: proposedWidth, height: nil))
+            let contentHeight = max(size.height - contentOverflow * 2, 0)
+            heights[shortestColumn(heights)] += contentHeight + spacing
         }
         return (heights, columnWidth)
     }

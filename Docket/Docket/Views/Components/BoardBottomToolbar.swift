@@ -13,7 +13,7 @@ struct BoardBottomToolbar: ToolbarContent {
     let onAdd: () -> Void
 
     var body: some ToolbarContent {
-        ToolbarItem(placement: .bottomBar) {
+        ToolbarItem(id: "docket.board.share", placement: .bottomBar) {
             Button(action: onShare) {
                 Label(
                     isOwner ? "Invite" : "People",
@@ -31,7 +31,7 @@ struct BoardBottomToolbar: ToolbarContent {
 
         ToolbarSpacer(.flexible, placement: .bottomBar)
 
-        ToolbarItem(placement: .bottomBar) {
+        ToolbarItem(id: "docket.board.add", placement: .bottomBar) {
             Button(action: onAdd) {
                 Label("Add", systemImage: "plus")
             }
