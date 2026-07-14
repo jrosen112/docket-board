@@ -55,6 +55,16 @@ database.
 `SpaceStore` persists the full board catalog and selected board, deduplicates
 memberships by stable space ID, and migrates the original single-space keys.
 
+On a fresh device, the welcome screen can rebuild that local catalog from
+CloudKit. `CloudKitService.discoverSpaces()` enumerates Docket zones in both the
+private and shared databases. `BoardStore.restoreFromICloud()` admits only zones
+containing a `UserProfile` whose CloudKit `creatorUserRecordID` matches the
+currently signed-in account, then restores each per-board profile pointer
+without creating duplicate records. Owned private-database profiles also match
+CloudKit's `CKCurrentUserDefaultName` owner alias; joined boards intentionally
+require the explicit account record ID so the zone owner's profile cannot be
+mistaken for the current participant.
+
 Local state that belongs to one board is keyed by `Space.id`, including the
 current profile record and remembered item IDs. Switching boards never destroys
 another board's local identity.
@@ -88,7 +98,9 @@ than variants of one generic record.
 
 Every item stores `addedBy` as a `CKRecord.Reference` to a `UserProfile` in the
 same shared zone. Profiles are first-class records and the current device's
-profile identity is remembered per board.
+profile identity is remembered per board. A decoded profile also retains its
+CloudKit creator identity so the same iCloud user can reclaim it on another
+device without adding an app-specific account field.
 
 Decoded models archive CloudKit system fields. Edits rebuild records from that
 archive so change tags survive round-trips and concurrent writes produce a real
@@ -217,6 +229,10 @@ All reusable visual constants belong under `Views/Theme/`:
 ## Reliability behavior
 
 - Initial CloudKit failure cannot masquerade as first-time onboarding.
+- iCloud restoration never creates or edits records; a no-match account stays
+  in onboarding and can create a genuinely new profile.
+- Fresh-device restoration rebuilds owned and joined board memberships and
+  persists the matching profile pointer for every recovered board.
 - Saving a new profile persists its local identity only after CloudKit succeeds.
 - Failed item saves keep editing UI open.
 - Saving presents immediate progress and prevents dismissal until the operation

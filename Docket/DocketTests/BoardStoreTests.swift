@@ -56,6 +56,7 @@ final class BoardStoreTests: XCTestCase {
             lastName: "Nguyen"
         )
         mock.records[profile.id] = profile.toRecord()
+        mock.profileCreatorRecordNames[profile.id] = mock.accountUserID.recordName
         return profile
     }
 
@@ -170,6 +171,75 @@ final class BoardStoreTests: XCTestCase {
     }
 
     // MARK: - Profile identity
+
+    func testRestoreFromICloudReclaimsExistingProfileWithoutCreatingDuplicate() async {
+        let profile = seedProfile()
+        // Private-database system metadata aliases its owner rather than
+        // exposing the opaque account record name returned by userRecordID().
+        mock.profileCreatorRecordNames[profile.id] = CKCurrentUserDefaultName
+        await store.bootstrap()
+        XCTAssertNil(store.currentProfile)
+        let recordCountBeforeRestore = mock.records.count
+
+        let result = await store.restoreFromICloud()
+
+        XCTAssertEqual(result, .restored(boardCount: 1))
+        XCTAssertEqual(store.currentProfile?.id, profile.id)
+        XCTAssertEqual(mock.records.count, recordCountBeforeRestore)
+    }
+
+    func testRestoreFromICloudReportsNotFoundForAnotherUsersProfile() async {
+        let profile = seedProfile()
+        mock.profileCreatorRecordNames[profile.id] = "someone-else"
+        await store.bootstrap()
+
+        let result = await store.restoreFromICloud()
+
+        XCTAssertEqual(result, .notFound)
+        XCTAssertNil(store.currentProfile)
+    }
+
+    func testRestoreFromICloudRebuildsMultipleBoardCatalog() async {
+        let defaultProfile = seedProfile()
+        let joined = Space(
+            zoneID: CKRecordZone.ID(
+                zoneName: "DocketBoard-joined",
+                ownerName: "partner"
+            ),
+            access: .joined,
+            title: "Date Nights"
+        )
+        let joinedService = MockSpaceService(space: joined)
+        joinedService.accountUserID = mock.accountUserID
+        let joinedProfile = UserProfile(
+            id: CKRecord.ID(recordName: "profile-me-joined", zoneID: joined.zoneID),
+            firstName: "Alice",
+            lastName: "Nguyen"
+        )
+        joinedService.records[joinedProfile.id] = joinedProfile.toRecord()
+        joinedService.profileCreatorRecordNames[joinedProfile.id] = mock.accountUserID.recordName
+        mock.discoveredSpaces = [.default, joined]
+        let defaultService = mock!
+
+        let restoringStore = BoardStore(
+            defaults: defaults,
+            makeService: { space in
+                space == joined ? joinedService : defaultService
+            },
+            notificationService: notificationMock,
+            networkAvailability: networkMock
+        )
+        await restoringStore.bootstrap()
+
+        let result = await restoringStore.restoreFromICloud()
+
+        XCTAssertEqual(result, .restored(boardCount: 2))
+        XCTAssertEqual(restoringStore.currentProfile?.id, defaultProfile.id)
+        XCTAssertEqual(Set(restoringStore.spaces.map(\.id)), Set([Space.default.id, joined.id]))
+
+        await restoringStore.switchTo(space: joined)
+        XCTAssertEqual(restoringStore.currentProfile?.id, joinedProfile.id)
+    }
 
     func testCreateProfilePersistsIdentityAcrossRelaunch() async {
         await store.createProfile(firstName: "Jared", lastName: "R")

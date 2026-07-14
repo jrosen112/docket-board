@@ -131,6 +131,18 @@ nonisolated enum SpaceStore {
         defaults.set(space.id, forKey: selectedIDKey)
     }
 
+    /// Replaces device-local discovery state with the memberships CloudKit
+    /// reports for this account, preserving one explicit current selection.
+    static func replace(
+        with spaces: [Space],
+        selected: Space,
+        in defaults: UserDefaults = .standard
+    ) {
+        let discovered = unique(spaces + [selected])
+        persist(discovered, in: defaults)
+        defaults.set(selected.id, forKey: selectedIDKey)
+    }
+
     private static func legacySpace(from defaults: UserDefaults) -> Space? {
         guard
             let zoneName = defaults.string(forKey: zoneNameKey),

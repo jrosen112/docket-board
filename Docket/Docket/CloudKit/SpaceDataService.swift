@@ -20,6 +20,10 @@ nonisolated protocol SpaceDataService: Sendable {
     /// A fresh record ID inside this space's zone.
     func newRecordID() -> CKRecord.ID
 
+    /// Stable identity for the iCloud account currently using the container.
+    func accountUserRecordID() async throws -> CKRecord.ID
+    /// All Docket-owned and Docket-shared zones available to this account.
+    func discoverSpaces() async throws -> [Space]
     func loadEverything() async throws -> (items: [any SharedListItem], profiles: [UserProfile])
     @discardableResult
     func save(_ record: CKRecord) async throws -> CKRecord

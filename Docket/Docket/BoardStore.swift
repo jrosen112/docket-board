@@ -25,6 +25,12 @@ nonisolated enum StoreSaveResult: Equatable {
     case failed(message: String)
 }
 
+nonisolated enum ICloudRestoreResult: Equatable {
+    case restored(boardCount: Int)
+    case notFound
+    case failed(message: String)
+}
+
 nonisolated struct BoardRefreshSummary: Equatable, Sendable {
     let addedItemCount: Int
 
@@ -205,6 +211,107 @@ final class BoardStore {
     }
 
     // MARK: - Profile
+
+    /// Reclaims this iCloud user's profiles and board memberships on a new
+    /// device. Profile ownership comes from CloudKit's creator metadata; no
+    /// names are guessed and no duplicate profile records are created.
+    func restoreFromICloud() async -> ICloudRestoreResult {
+        errorMessage = nil
+        isLoading = true
+
+        do {
+            try await requireNetwork()
+            let userRecordName = (try await service.accountUserRecordID()).recordName
+            let discovered = try await service.discoverSpaces()
+            let candidates = discovered.map { discoveredSpace in
+                spaces.first(where: { $0.id == discoveredSpace.id }) ?? discoveredSpace
+            }
+
+            var restored: [(
+                space: Space,
+                service: any SpaceDataService,
+                items: [any SharedListItem],
+                profiles: [UserProfile],
+                profile: UserProfile
+            )] = []
+            var firstLoadError: Error?
+
+            for candidate in candidates {
+                let candidateService = makeService(candidate)
+                do {
+                    let loaded = try await candidateService.loadEverything()
+                    guard let profile = loaded.profiles.first(where: {
+                        Self.profileBelongsToCurrentAccount(
+                            $0,
+                            in: candidate,
+                            userRecordName: userRecordName
+                        )
+                    }) else { continue }
+                    restored.append((
+                        candidate,
+                        candidateService,
+                        loaded.items,
+                        loaded.profiles,
+                        profile
+                    ))
+                } catch {
+                    if firstLoadError == nil { firstLoadError = error }
+                }
+            }
+
+            guard !restored.isEmpty else {
+                isLoading = false
+                if let firstLoadError {
+                    let message = Self.message(for: firstLoadError)
+                    errorMessage = message
+                    return .failed(message: message)
+                }
+                return .notFound
+            }
+
+            let selected = restored.first(where: { $0.space.id == space.id }) ?? restored[0]
+            let restoredSpaces = restored.map(\.space)
+            SpaceStore.replace(with: restoredSpaces, selected: selected.space, in: defaults)
+            for board in restored {
+                defaults.set(
+                    board.profile.id.recordName,
+                    forKey: profileKey(for: board.space)
+                )
+                remember(items: board.items, in: board.space)
+            }
+
+            refreshGeneration += 1
+            space = selected.space
+            spaces = SpaceStore.loadAll(from: defaults)
+            service = selected.service
+            items = selected.items.sorted { $0.dateAdded > $1.dateAdded }
+            profiles = selected.profiles
+            currentProfile = selected.profile
+            activeShare = nil
+            errorMessage = nil
+            isLoading = false
+            loadState = .loaded
+            return .restored(boardCount: restored.count)
+        } catch {
+            let message = Self.message(for: error)
+            errorMessage = message
+            isLoading = false
+            return .failed(message: message)
+        }
+    }
+
+    /// CloudKit aliases the owner of a private database to
+    /// `CKCurrentUserDefaultName` in record system metadata. Shared databases
+    /// do not get that fallback because their default owner is another person.
+    private static func profileBelongsToCurrentAccount(
+        _ profile: UserProfile,
+        in space: Space,
+        userRecordName: String
+    ) -> Bool {
+        guard let creator = profile.creatorUserRecordName else { return false }
+        if creator == userRecordName { return true }
+        return space.isOwned && creator == CKCurrentUserDefaultName
+    }
 
     @discardableResult
     func createProfile(firstName: String, lastName: String) async -> Bool {

@@ -238,6 +238,41 @@ nonisolated enum DocketTheme {
         static let focusDelay: Duration = .milliseconds(180)
     }
 
+    enum ProfileSetup {
+        static let maxContentWidth: CGFloat = 520
+        static let horizontalPadding: CGFloat = 24
+        static let topPadding: CGFloat = 38
+        static let bottomPadding: CGFloat = 40
+        static let heroSpacing: CGFloat = 10
+        static let sectionSpacing: CGFloat = 22
+        static let paperSpacing: CGFloat = 18
+        static let paperPadding: CGFloat = 22
+        static let paperCornerRadius: CGFloat = 8
+        static let fieldSpacing: CGFloat = 8
+        static let fieldPadding: CGFloat = 14
+        static let fieldCornerRadius: CGFloat = 10
+        static let pinSize: CGFloat = 16
+        static let pinOffsetY: CGFloat = -7
+        static let titleFont: Font = DocketTheme.display(34)
+        static let headingFont: Font = DocketTheme.display(23)
+        static let bodyFont: Font = .subheadline
+        static let labelFont: Font = .caption.weight(.bold)
+        static let messageFont: Font = .footnote.weight(.medium)
+        static let titleColor = DocketTheme.cream
+        static let bodyColor = DocketTheme.cream.opacity(0.68)
+        static let paperTitleColor = DocketTheme.ink
+        static let paperBodyColor = DocketTheme.ink.opacity(0.62)
+        static let fieldBackground = DocketTheme.ink.opacity(0.06)
+        static let fieldBorder = DocketTheme.ink.opacity(0.1)
+        static let messageColor = DocketTheme.cream.opacity(0.76)
+        static let errorColor = Color(hex: 0xE29A89)
+    }
+
+    enum DetailToolbar {
+        /// Keeps keyboard actions visually separate from the keys beneath them.
+        static let keyboardBottomPadding: CGFloat = 8
+    }
+
     enum BoardScrollNote {
         static let font: Font = .footnote.weight(.medium)
         static let color = DocketTheme.cream.opacity(0.62)

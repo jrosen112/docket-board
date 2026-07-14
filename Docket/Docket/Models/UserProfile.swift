@@ -13,6 +13,10 @@ nonisolated struct UserProfile: Identifiable, Equatable {
     let id: CKRecord.ID
     var firstName: String
     var lastName: String
+    /// CloudKit's stable account identity for the user who created this
+    /// profile. This is system metadata, not an app-defined schema field, and
+    /// lets another device signed into the same iCloud account reclaim it.
+    var creatorUserRecordName: String?
     /// nil until first fetched from CloudKit; carries the change tag for edits.
     var systemFields: Data?
 
@@ -35,10 +39,16 @@ nonisolated struct UserProfile: Identifiable, Equatable {
         CKRecord.Reference(recordID: id, action: .none)
     }
 
-    init(id: CKRecord.ID, firstName: String, lastName: String) {
+    init(
+        id: CKRecord.ID,
+        firstName: String,
+        lastName: String,
+        creatorUserRecordName: String? = nil
+    ) {
         self.id = id
         self.firstName = firstName
         self.lastName = lastName
+        self.creatorUserRecordName = creatorUserRecordName
     }
 
     init?(record: CKRecord) {
@@ -50,6 +60,7 @@ nonisolated struct UserProfile: Identifiable, Equatable {
         self.id = record.recordID
         self.firstName = firstName
         self.lastName = record[Schema.Field.lastName] as? String ?? ""
+        self.creatorUserRecordName = record.creatorUserRecordID?.recordName
         self.systemFields = record.systemFieldsData
     }
 

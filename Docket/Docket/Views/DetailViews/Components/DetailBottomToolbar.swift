@@ -15,8 +15,10 @@ struct DetailBottomToolbar: ToolbarContent {
                 if hasKeyboardFocus {
                     ToolbarItemGroup(placement: .keyboard) {
                         cancelButton
+                            .padding(.bottom, DocketTheme.DetailToolbar.keyboardBottomPadding)
                         Spacer()
                         saveButton
+                            .padding(.bottom, DocketTheme.DetailToolbar.keyboardBottomPadding)
                     }
                 } else {
                     ToolbarItem(id: "docket.detail.cancel", placement: .bottomBar) {

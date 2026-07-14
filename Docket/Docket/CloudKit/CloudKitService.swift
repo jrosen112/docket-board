@@ -46,6 +46,72 @@ actor CloudKitService: SpaceDataService {
         CKRecord.ID(recordName: UUID().uuidString, zoneID: zoneID)
     }
 
+    nonisolated func accountUserRecordID() async throws -> CKRecord.ID {
+        try await container.userRecordID()
+    }
+
+    /// Rebuilds the local board catalog on a new device from the account's
+    /// private and shared databases. Only Docket's zone naming conventions are
+    /// admitted so unrelated custom zones in the same container are ignored.
+    nonisolated func discoverSpaces() async throws -> [Space] {
+        let privateDatabase = container.privateCloudDatabase
+        let sharedDatabase = container.sharedCloudDatabase
+        let ownedZones = try await privateDatabase.allRecordZones()
+        let joinedZones = try await sharedDatabase.allRecordZones()
+
+        var discovered: [Space] = []
+        for zone in ownedZones where Self.isDocketZone(zone.zoneID) {
+            let title = await Self.boardTitle(for: zone, in: privateDatabase)
+            discovered.append(
+                Space(
+                    zoneID: zone.zoneID,
+                    access: .owned,
+                    title: title ?? Self.fallbackTitle(for: zone.zoneID, access: .owned)
+                )
+            )
+        }
+        for zone in joinedZones where Self.isDocketZone(zone.zoneID) {
+            let title = await Self.boardTitle(for: zone, in: sharedDatabase)
+            discovered.append(
+                Space(
+                    zoneID: zone.zoneID,
+                    access: .joined,
+                    title: title ?? Self.fallbackTitle(for: zone.zoneID, access: .joined)
+                )
+            )
+        }
+        return Self.unique(discovered)
+    }
+
+    private nonisolated static func isDocketZone(_ zoneID: CKRecordZone.ID) -> Bool {
+        zoneID.zoneName == Schema.zoneName || zoneID.zoneName.hasPrefix("DocketBoard-")
+    }
+
+    private nonisolated static func fallbackTitle(
+        for zoneID: CKRecordZone.ID,
+        access: Space.Access
+    ) -> String {
+        if zoneID.zoneName == Schema.zoneName {
+            return access == .owned ? "My Board" : "Shared Board"
+        }
+        return access == .owned ? "Recovered Board" : "Shared Board"
+    }
+
+    private nonisolated static func boardTitle(
+        for zone: CKRecordZone,
+        in database: CKDatabase
+    ) async -> String? {
+        guard let shareID = zone.share?.recordID,
+              let share = try? await database.record(for: shareID) as? CKShare
+        else { return nil }
+        return share[CKShare.SystemFieldKey.title] as? String
+    }
+
+    private nonisolated static func unique(_ spaces: [Space]) -> [Space] {
+        var seen = Set<String>()
+        return spaces.filter { seen.insert($0.id).inserted }
+    }
+
     // MARK: - Zone
 
     /// Creates the zone if it doesn't exist yet. Idempotent. A joined space's
