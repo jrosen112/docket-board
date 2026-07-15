@@ -50,6 +50,7 @@ final class ItemDraftTests: XCTestCase {
         draft.releaseYear = "1995"
         draft.streamingService = "Max"
         draft.notes = "Friday night"
+        draft.tmdbID = 949
 
         let edited = try XCTUnwrap(draft.applying(to: movie) as? Movie)
 
@@ -57,6 +58,7 @@ final class ItemDraftTests: XCTestCase {
         XCTAssertEqual(edited.releaseYear, 1995)
         XCTAssertEqual(edited.streamingService, "Max")
         XCTAssertEqual(edited.notes, "Friday night")
+        XCTAssertEqual(edited.tmdbID, 949)
     }
 
     func testDraftBuildsNewTypedItem() throws {

@@ -180,7 +180,7 @@ private struct DocketPhotoButtonStyle: ButtonStyle {
     }
 }
 
-private enum ItemPhotoProcessor {
+enum ItemPhotoProcessor {
     static let maximumDimension: CGFloat = 1_800
     static let compressionQuality: CGFloat = 0.82
 

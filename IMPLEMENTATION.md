@@ -20,6 +20,7 @@ The current app supports:
 - Joining, switching between, and leaving shared boards.
 - Owner-only membership management; participants collaborate on board content.
 - Restaurant, Bar, and Movie items with category-specific fields.
+- TMDB movie lookup that fills titles, release years, runtimes, and posters.
 - Add, inline detail editing, deletion, conflict detection, and attribution.
 - Multi-select category/status filtering over a two-column masonry board.
 - Rich long-press quick looks with category facts, notes, attribution, and
@@ -83,8 +84,15 @@ Shares are private and read/write. CloudKit exposes read-only and read/write
 participant permissions, but no secure add-only role. Membership management is
 owner-only; read/write participants can add, edit, and delete board content.
 
-Share acceptance is handled by `AppDelegate`, which runs
-`CKAcceptSharesOperation` and routes the accepted zone into `BoardStore`.
+Share acceptance uses a custom `UIWindowSceneDelegate`, configured by
+`AppDelegate`, because scene-based SwiftUI apps receive CloudKit invitation
+metadata at the scene rather than the legacy application callback. The scene
+delegate handles both an already-running scene and cold-launch metadata from
+`UIScene.ConnectionOptions`. `CloudKitShareAcceptanceRouter` runs
+`CKAcceptSharesOperation` and buffers its result until `BoardStore` installs a
+handler, preventing a cold-launch invitation from being dropped. The first
+shared-zone load retries briefly because CloudKit can finish acceptance before
+the shared zone is fully visible.
 `CKSharingSupported` is declared in the real `Docket/Info.plist`; using an
 `INFOPLIST_KEY_` build setting for this key does not survive into the bundle.
 
@@ -108,6 +116,13 @@ archive so change tags survive round-trips and concurrent writes produce a real
 
 `Support/ItemDraft.swift` is the shared, tested conversion path for both new
 items and inline edits.
+
+Movie records can also retain a TMDB movie ID. While adding or editing a movie,
+the user can search TMDB, select a result, and fill its title, release year,
+runtime, and poster. Poster bytes are prepared through the existing photo path
+and saved as the movie's CloudKit asset, so collaborators do not need to call
+TMDB to see the chosen art. Existing manually entered movie fields remain fully
+editable, and older movie records safely decode without a TMDB ID.
 
 `Support/BoardFilter.swift` stores selected categories and statuses as sets.
 An empty set means “all” for that dimension. Selections are ORed within one
@@ -200,6 +215,7 @@ views.
   opens app preferences, including a persisted Darker Theme toggle. This is a
   Docket-specific palette that darkens board cards, quick looks, detail cards,
   and editing surfaces without changing the system light/dark appearance.
+- Settings includes TMDB's required logo, link, and API attribution notice.
 - `BoardFilterHeader` is a stable one-line pinned surface. Its main area opens
   the editor, reads “No Filters” when inactive or “Filters (N)” when active,
   and keeps a separate brass `CLEAR` action on the trailing edge.
@@ -266,20 +282,31 @@ covering every currently supported category and status. Sample records use a
 `sample-` record-name prefix, and deletion targets only that prefix. Debug
 seeding is compiled out of release/TestFlight builds.
 
+## TMDB configuration
+
+`Docket/Config/Base.xcconfig` is the checked-in target configuration and
+optionally includes `Secrets.xcconfig`. Copy `Secrets.xcconfig.example` to that
+ignored filename and set `TMDB_API_KEY` to the v3 API Key from TMDB. The build
+expands it into the app's generated Info.plist. The key is intentionally absent
+from source control; like any key shipped in a client app, it should not be
+treated as a server-side secret.
+
 ## Tests and verification
 
-The repository currently contains **72 unit tests**:
+The repository currently contains **88 unit tests**:
 
-- `BoardStoreTests`: 31
-- `ModelConversionTests`: 8
+- `BoardStoreTests`: 37
+- `ModelConversionTests`: 9
 - `DocketThemeTests`: 7
-- `BoardFilterTests`: 9
+- `BoardFilterTests`: 11
 - `SpaceTests`: 4
-- `ItemDraftTests`: 3
+- `ItemDraftTests`: 5
 - `RecordDecoderTests`: 3
 - `UserFacingErrorTests`: 3
 - `CloudKitFetchAccumulatorTests`: 2
 - `SampleDataTests`: 2
+- `TMDBServiceTests`: 3
+- `ShareAcceptanceRouterTests`: 2
 
 Coverage includes model/system-field round-trips, conflict behavior, profile
 identity, multi-board persistence and switching, board-creation rollback,
@@ -321,7 +348,7 @@ Important manual checks:
 - Implement MapKit search/autocomplete, coordinates, and a map view for
   location-based categories.
 - Add HappyHour, Landmark, Hike, and Activity models/forms/detail views.
-- Add item photos and profile-picture `CKAsset` support.
+- Add profile-picture `CKAsset` support.
 - Add first-class board rename/delete management and reconcile local catalogs
   after a participant leaves or an owner stops sharing.
 - Continue real-device testing for CloudKit sharing, push delivery, revoked

@@ -61,6 +61,13 @@ nonisolated enum ProfileNameUpdateResult: Equatable {
     case failed(message: String)
 }
 
+nonisolated struct BoardInvitation: Identifiable, Equatable, Sendable {
+    let space: Space
+    let inviterName: String?
+
+    var id: String { space.id }
+}
+
 nonisolated struct BoardRefreshSummary: Equatable, Sendable {
     let addedItemCount: Int
 
@@ -82,6 +89,16 @@ final class BoardStore {
     @ObservationIgnored private let notificationService: any BoardNotificationService
     @ObservationIgnored private let networkAvailability: any NetworkAvailabilityProviding
     private var service: any SpaceDataService
+
+    private static let accountRecordNameKey = "docket.iCloudAccountRecordName.v1"
+    private static let profileTemplateFirstNameKey = "docket.profileTemplate.firstName.v1"
+    private static let profileTemplateLastNameKey = "docket.profileTemplate.lastName.v1"
+    @ObservationIgnored private var isBootstrapping = false
+    @ObservationIgnored private var didBootstrap = false
+    @ObservationIgnored private var isReconcilingLifecycle = false
+    @ObservationIgnored private var notificationsPrepared = false
+    @ObservationIgnored private var needsMembershipRecovery = false
+    @ObservationIgnored private var pendingAcceptedInvitation: BoardInvitation?
 
     /// The board (space) this store is currently pointed at.
     private(set) var space: Space
@@ -109,6 +126,12 @@ final class BoardStore {
     /// use this to keep their chrome mounted and skeletonize the card region.
     private(set) var isSwitchingBoard = false
     var errorMessage: String?
+    var shareAcceptanceErrorMessage: String?
+    /// An accepted CloudKit invitation waiting for the user to choose whether
+    /// to open it now. The membership remains in the board switcher if they
+    /// choose Not Now.
+    private(set) var boardInvitation: BoardInvitation?
+    private(set) var isJoiningBoardInvitation = false
     /// Initial loading is distinct from onboarding. A failed CloudKit read must
     /// never look like a brand-new user with no profile.
     var loadState: BoardLoadState = .loading
@@ -141,6 +164,11 @@ final class BoardStore {
     }
 
     // MARK: - "Who am I" persistence (per space)
+
+    private struct ProfileNameTemplate {
+        let firstName: String
+        let lastName: String
+    }
 
     /// Which profile record is "me" is local state, and it's per-board: the
     /// same person can have different profiles on different boards.
@@ -175,14 +203,166 @@ final class BoardStore {
         // profile to nil, or a signed-in user gets bounced back to onboarding.
         if let match = profiles.first(where: { $0.id.recordName == name }) {
             currentProfile = match
+            rememberProfileTemplate(match)
         }
+    }
+
+    private func rememberProfileTemplate(_ profile: UserProfile) {
+        defaults.set(profile.firstName, forKey: Self.profileTemplateFirstNameKey)
+        defaults.set(profile.lastName, forKey: Self.profileTemplateLastNameKey)
+    }
+
+    private func rememberedProfileTemplate() -> ProfileNameTemplate? {
+        guard let firstName = defaults.string(forKey: Self.profileTemplateFirstNameKey),
+              !firstName.isEmpty
+        else { return nil }
+        return ProfileNameTemplate(
+            firstName: firstName,
+            lastName: defaults.string(forKey: Self.profileTemplateLastNameKey) ?? ""
+        )
     }
 
     // MARK: - Lifecycle
 
     func bootstrap() async {
-        await loadForPresentation()
-        try? await notificationService.prepare()
+        guard !isBootstrapping else { return }
+        isBootstrapping = true
+
+        switch await reconcileAccountIdentity() {
+        case .changed:
+            resetLocalStateForNewAccount()
+            await loadForPresentation()
+            _ = await restoreFromICloud()
+        case .signedOut(let message):
+            presentSignedOutState(message: message)
+        case .unchanged, .indeterminate:
+            await loadForPresentation()
+        }
+        if loadState == .loaded,
+           currentProfile == nil,
+           (pendingAcceptedInvitation != nil || spaces.count > 1) {
+            _ = await restoreFromICloud()
+        }
+        await prepareNotificationsIfNeeded()
+        isBootstrapping = false
+        didBootstrap = true
+        presentPendingBoardInvitationIfNeeded()
+    }
+
+    /// Refreshes on every foreground transition because CloudKit pushes are
+    /// coalesced hints, not a guaranteed change log. This also retries a share
+    /// whose zone was still being prepared and notification setup that failed
+    /// during a previous launch.
+    func applicationBecameActive() async {
+        guard didBootstrap, !isBootstrapping else { return }
+        await reconcileLifecycle()
+    }
+
+    /// Called for `CKAccountChanged`. The same reconciliation also runs when
+    /// the app foregrounds, covering account changes that happened while the
+    /// process was suspended or terminated.
+    func handleICloudAccountChange() async {
+        guard didBootstrap, !isBootstrapping else { return }
+        await reconcileLifecycle()
+    }
+
+    private func reconcileLifecycle() async {
+        guard !isReconcilingLifecycle else { return }
+        isReconcilingLifecycle = true
+        defer { isReconcilingLifecycle = false }
+
+        switch await reconcileAccountIdentity() {
+        case .changed:
+            notificationsPrepared = false
+            needsMembershipRecovery = true
+            resetLocalStateForNewAccount()
+            await loadForPresentation()
+            _ = await restoreFromICloud()
+        case .signedOut(let message):
+            notificationsPrepared = false
+            presentSignedOutState(message: message)
+        case .unchanged, .indeterminate:
+            if needsMembershipRecovery {
+                _ = await restoreFromICloud()
+            } else {
+                _ = await refresh()
+            }
+            presentPendingBoardInvitationIfNeeded()
+        }
+        await prepareNotificationsIfNeeded()
+    }
+
+    private enum AccountIdentityResult {
+        case unchanged
+        case changed
+        case signedOut(message: String)
+        case indeterminate
+    }
+
+    private func reconcileAccountIdentity() async -> AccountIdentityResult {
+        do {
+            let currentRecordName = try await service.accountUserRecordID().recordName
+            let previousRecordName = defaults.string(forKey: Self.accountRecordNameKey)
+            defaults.set(currentRecordName, forKey: Self.accountRecordNameKey)
+            guard let previousRecordName else { return .unchanged }
+            return previousRecordName == currentRecordName ? .unchanged : .changed
+        } catch let error as CKError where error.code == .notAuthenticated {
+            return .signedOut(message: Self.message(for: error))
+        } catch {
+            // Network and temporary account failures must not erase cached
+            // identity. The normal refresh path will surface a useful error and
+            // a later foreground transition will try the identity check again.
+            return .indeterminate
+        }
+    }
+
+    private func resetLocalStateForNewAccount() {
+        refreshGeneration += 1
+        for key in defaults.dictionaryRepresentation().keys where
+            key.hasPrefix("docket.currentProfileRecordName.")
+                || key.hasPrefix("docket.knownItemRecordNames.")
+                || key.hasPrefix("docket.profileTemplate.") {
+            defaults.removeObject(forKey: key)
+        }
+        SpaceStore.replace(with: [.default], selected: .default, in: defaults)
+        space = .default
+        spaces = SpaceStore.loadAll(from: defaults)
+        service = makeService(.default)
+        items = []
+        profiles = []
+        currentProfile = nil
+        activeShare = nil
+        pendingAcceptedInvitation = nil
+        boardInvitation = nil
+        isJoiningBoardInvitation = false
+        shareAcceptanceErrorMessage = nil
+        errorMessage = nil
+        isLoading = false
+        isSwitchingBoard = false
+        loadState = .loading
+    }
+
+    private func presentSignedOutState(message: String) {
+        refreshGeneration += 1
+        items = []
+        profiles = []
+        currentProfile = nil
+        activeShare = nil
+        errorMessage = message
+        isLoading = false
+        isSwitchingBoard = false
+        loadState = .failed(message: message)
+    }
+
+    private func prepareNotificationsIfNeeded() async {
+        guard !notificationsPrepared else { return }
+        do {
+            try await notificationService.prepare()
+            notificationsPrepared = true
+        } catch {
+            // Sync remains usable through foreground and manual refreshes. Keep
+            // this false so the next foreground transition retries setup.
+        }
     }
 
     private func loadForPresentation() async {
@@ -292,16 +472,20 @@ final class BoardStore {
             guard !restored.isEmpty else {
                 isLoading = false
                 if let firstLoadError {
+                    needsMembershipRecovery = true
                     let message = Self.message(for: firstLoadError)
                     errorMessage = message
                     return .failed(message: message)
                 }
+                needsMembershipRecovery = false
                 return .notFound
             }
 
             let selected = restored.first(where: { $0.space.id == space.id }) ?? restored[0]
-            let restoredSpaces = restored.map(\.space)
-            SpaceStore.replace(with: restoredSpaces, selected: selected.space, in: defaults)
+            // Discovery succeeded for every candidate even if loading one of
+            // those zones failed transiently. Keep all discovered memberships
+            // so one flaky board never disappears from the local switcher.
+            SpaceStore.replace(with: candidates, selected: selected.space, in: defaults)
             for board in restored {
                 defaults.set(
                     board.profile.id.recordName,
@@ -317,12 +501,15 @@ final class BoardStore {
             items = selected.items.sorted { $0.dateAdded > $1.dateAdded }
             profiles = selected.profiles
             currentProfile = selected.profile
+            rememberProfileTemplate(selected.profile)
             activeShare = nil
             errorMessage = nil
             isLoading = false
             loadState = .loaded
+            needsMembershipRecovery = firstLoadError != nil
             return .restored(boardCount: restored.count)
         } catch {
+            needsMembershipRecovery = true
             let message = Self.message(for: error)
             errorMessage = message
             isLoading = false
@@ -469,6 +656,7 @@ final class BoardStore {
                             profiles[index] = savedProfile
                         }
                         currentProfile = savedProfile
+                        rememberProfileTemplate(savedProfile)
                     }
                 } catch {
                     failedBoardTitles.append(candidate.title)
@@ -511,17 +699,27 @@ final class BoardStore {
     @discardableResult
     func createProfile(firstName: String, lastName: String) async -> Bool {
         errorMessage = nil
+        let requestedSpace = space
+        let requestedService = service
         let profile = UserProfile(
-            id: service.newRecordID(),
+            id: requestedService.newRecordID(),
             firstName: firstName,
             lastName: lastName
         )
         do {
             try await requireNetwork()
-            try await service.save(profile.toRecord())
+            let savedRecord = try await requestedService.save(profile.toRecord())
+            let savedProfile = UserProfile(record: savedRecord) ?? profile
+            guard space == requestedSpace else { return true }
             defaults.set(profile.id.recordName, forKey: profileKey)
-            currentProfile = profile
-            await refresh()
+            currentProfile = savedProfile
+            rememberProfileTemplate(savedProfile)
+            if let index = profiles.firstIndex(where: { $0.id == savedProfile.id }) {
+                profiles[index] = savedProfile
+            } else {
+                profiles.append(savedProfile)
+            }
+            _ = await refresh()
             return true
         } catch {
             errorMessage = Self.message(for: error)
@@ -543,10 +741,22 @@ final class BoardStore {
     /// leaving a second, unrelated error banner behind.
     @discardableResult
     func save(_ item: any SharedListItem) async -> StoreSaveResult {
+        let requestedSpace = space
+        let requestedService = service
         do {
             try await requireNetwork()
-            try await service.save(item.toRecord())
-            await refresh()
+            let savedRecord = try await requestedService.save(item.toRecord())
+            if space == requestedSpace,
+               let savedItem = RecordDecoder.item(from: savedRecord) {
+                if let index = items.firstIndex(where: { $0.id == savedItem.id }) {
+                    items[index] = savedItem
+                } else {
+                    items.append(savedItem)
+                }
+                items.sort { $0.dateAdded > $1.dateAdded }
+                remember(items: items, in: requestedSpace)
+                _ = await refresh()
+            }
             return .saved
         } catch {
             if Self.isConflict(error) {
@@ -677,8 +887,45 @@ final class BoardStore {
         SpaceStore.save(newSpace, in: defaults)
         spaces = SpaceStore.loadAll(from: defaults)
         let selectedSpace = spaces.first(where: { $0.id == newSpace.id }) ?? newSpace
+        let profileTemplate = currentProfile.map {
+            ProfileNameTemplate(firstName: $0.firstName, lastName: $0.lastName)
+        } ?? rememberedProfileTemplate()
+        if isSwitchingBoard, selectedSpace == space { return }
         guard selectedSpace != space else {
             space = selectedSpace
+            isSwitchingBoard = true
+            if loadState == .loaded {
+                do {
+                    try await provisionProfileIfNeeded(
+                        in: selectedSpace,
+                        using: profileTemplate
+                    )
+                    guard space == selectedSpace else { return }
+                } catch {
+                    let message = Self.message(for: error)
+                    errorMessage = message
+                    loadState = .failed(message: message)
+                }
+                isSwitchingBoard = false
+                return
+            }
+            let result = await performRefresh()
+            guard space == selectedSpace else { return }
+            if case .loaded = result {
+                do {
+                    try await provisionProfileIfNeeded(
+                        in: selectedSpace,
+                        using: profileTemplate
+                    )
+                    guard space == selectedSpace else { return }
+                    loadState = .loaded
+                } catch {
+                    let message = Self.message(for: error)
+                    errorMessage = message
+                    loadState = .failed(message: message)
+                }
+            }
+            isSwitchingBoard = false
             return
         }
 
@@ -704,11 +951,31 @@ final class BoardStore {
         // A newer switch owns the presentation state if the selected space
         // changed while this CloudKit request was suspended.
         guard space == selectedSpace else { return }
-        isSwitchingBoard = false
 
         switch result {
         case .loaded:
-            loadState = .loaded
+            do {
+                try await provisionProfileIfNeeded(
+                    in: selectedSpace,
+                    using: profileTemplate
+                )
+                guard space == selectedSpace else { return }
+                loadState = .loaded
+                isSwitchingBoard = false
+            } catch {
+                guard space == selectedSpace else { return }
+                errorMessage = Self.message(for: error)
+                space = previousSpace
+                service = previousService
+                items = previousItems
+                profiles = previousProfiles
+                currentProfile = previousProfile
+                activeShare = previousShare
+                loadState = previousLoadState
+                isSwitchingBoard = false
+                SpaceStore.save(previousSpace, in: defaults)
+                spaces = SpaceStore.loadAll(from: defaults)
+            }
         case .failed:
             // A failed switch must not strand the app with the new service and
             // the old board's profile. Restore the fully-consistent board that
@@ -721,11 +988,137 @@ final class BoardStore {
             currentProfile = previousProfile
             activeShare = previousShare
             loadState = previousLoadState
+            isSwitchingBoard = false
             SpaceStore.save(previousSpace, in: defaults)
             spaces = SpaceStore.loadAll(from: defaults)
         case .superseded:
             break
         }
+    }
+
+    /// Profiles are records inside each board's zone. When an existing Docket
+    /// user joins a new board, copy their name into that zone silently instead
+    /// of treating the absent per-board record as a signed-out session.
+    private func provisionProfileIfNeeded(
+        in targetSpace: Space,
+        using template: ProfileNameTemplate?
+    ) async throws {
+        guard currentProfile == nil else { return }
+        let targetService = service
+        let userRecordName = try await targetService.accountUserRecordID().recordName
+        guard space == targetSpace else { return }
+
+        if let existing = profileForCurrentAccount(
+            in: profiles,
+            space: targetSpace,
+            userRecordName: userRecordName
+        ) {
+            defaults.set(existing.id.recordName, forKey: profileKey(for: targetSpace))
+            currentProfile = existing
+            rememberProfileTemplate(existing)
+            return
+        }
+
+        guard let template else { return }
+        let profile = UserProfile(
+            id: targetService.newRecordID(),
+            firstName: template.firstName,
+            lastName: template.lastName
+        )
+        let savedRecord = try await targetService.save(profile.toRecord())
+        guard space == targetSpace else { return }
+        var savedProfile = UserProfile(record: savedRecord) ?? profile
+        savedProfile.creatorUserRecordName = userRecordName
+        defaults.set(savedProfile.id.recordName, forKey: profileKey(for: targetSpace))
+        profiles.append(savedProfile)
+        currentProfile = savedProfile
+        rememberProfileTemplate(savedProfile)
+    }
+
+    /// Queues a confirmation sheet after CloudKit accepts an invitation. On a
+    /// cold launch, presentation waits until the user's existing identity has
+    /// had a chance to load so the invite never looks like a sign-in failure.
+    func openAcceptedShare(
+        _ acceptedSpace: Space,
+        inviterName: String? = nil
+    ) async {
+        let invitation = BoardInvitation(
+            space: acceptedSpace,
+            inviterName: inviterName?.trimmingCharacters(in: .whitespacesAndNewlines).orNil
+        )
+        pendingAcceptedInvitation = invitation
+        shareAcceptanceErrorMessage = nil
+        guard didBootstrap else { return }
+        presentPendingBoardInvitationIfNeeded()
+    }
+
+    /// Keeps the already-accepted CloudKit membership available without
+    /// changing the board currently on screen.
+    func dismissBoardInvitation() {
+        guard !isJoiningBoardInvitation else { return }
+        boardInvitation = nil
+        pendingAcceptedInvitation = nil
+    }
+
+    /// Opens the accepted board and silently provisions this person's profile
+    /// inside its shared zone. CloudKit can take a few moments to expose a
+    /// freshly accepted zone, so retry briefly before surfacing an error.
+    func joinPendingBoardInvitation() async {
+        guard
+            let invitation = boardInvitation ?? pendingAcceptedInvitation,
+            !isJoiningBoardInvitation
+        else { return }
+
+        isJoiningBoardInvitation = true
+        shareAcceptanceErrorMessage = nil
+        defer { isJoiningBoardInvitation = false }
+
+        let acceptedSpace = invitation.space
+        await switchTo(space: acceptedSpace)
+        if finishBoardInvitationIfLoaded(acceptedSpace) { return }
+
+        for delay in [
+            Duration.milliseconds(500),
+            .seconds(1.5),
+            .seconds(3),
+            .seconds(6)
+        ] {
+            do {
+                try await Task.sleep(for: delay)
+            } catch {
+                return
+            }
+
+            await switchTo(space: acceptedSpace)
+            if finishBoardInvitationIfLoaded(acceptedSpace) { return }
+        }
+
+        shareAcceptanceErrorMessage =
+            "The invitation was accepted, but iCloud is still preparing the board. Tap Join Board to try again in a moment."
+    }
+
+    private func presentPendingBoardInvitationIfNeeded() {
+        guard didBootstrap, let invitation = pendingAcceptedInvitation else { return }
+
+        // CKAcceptSharesOperation has already granted membership. Catalog it
+        // now while preserving the currently selected board, which gives Not
+        // Now useful semantics instead of losing the accepted invitation.
+        SpaceStore.replace(
+            with: spaces + [invitation.space],
+            selected: space,
+            in: defaults
+        )
+        spaces = SpaceStore.loadAll(from: defaults)
+        boardInvitation = invitation
+    }
+
+    private func finishBoardInvitationIfLoaded(_ acceptedSpace: Space) -> Bool {
+        guard space == acceptedSpace, loadState == .loaded, !isSwitchingBoard else {
+            return false
+        }
+        boardInvitation = nil
+        pendingAcceptedInvitation = nil
+        return true
     }
 
     // MARK: - Remote board changes

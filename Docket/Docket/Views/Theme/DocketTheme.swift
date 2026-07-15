@@ -238,6 +238,30 @@ nonisolated enum DocketTheme {
         static let focusDelay: Duration = .milliseconds(180)
     }
 
+    enum JoinBoard {
+        static let maxContentWidth: CGFloat = 520
+        static let horizontalPadding: CGFloat = 24
+        static let topPadding: CGFloat = 28
+        static let bottomPadding: CGFloat = 24
+        static let sectionSpacing: CGFloat = 20
+        static let heroSpacing: CGFloat = 8
+        static let iconSize: CGFloat = 64
+        static let iconFont: Font = .system(size: 27, weight: .semibold)
+        static let titleFont: Font = DocketTheme.display(27)
+        static let bodyFont: Font = .subheadline
+        static let boardNameFont: Font = DocketTheme.display(23)
+        static let labelFont: Font = .caption2.weight(.bold)
+        static let cardPadding: CGFloat = 20
+        static let cardCornerRadius: CGFloat = 8
+        static let pinSize: CGFloat = 14
+        static let pinOffsetY: CGFloat = -6
+        static let actionSpacing: CGFloat = 10
+        static let titleColor = DocketTheme.cream
+        static let bodyColor = DocketTheme.cream.opacity(0.68)
+        static let cardTitleColor = DocketTheme.ink
+        static let cardLabelColor = DocketTheme.ink.opacity(0.55)
+    }
+
     enum ProfileSetup {
         static let maxContentWidth: CGFloat = 520
         static let horizontalPadding: CGFloat = 24

@@ -14,6 +14,8 @@
 	-->
 	<key>CKSharingSupported</key>
 	<true/>
+	<key>TMDBAPIKey</key>
+	<string>$(TMDB_API_KEY)</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>

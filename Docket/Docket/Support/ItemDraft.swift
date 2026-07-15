@@ -30,6 +30,7 @@ nonisolated struct ItemDraft {
     var runtime = ""
     var streamingService = ""
     var releaseYear = ""
+    var tmdbID: Int?
 
     var isValid: Bool { !title.trimmed.isEmpty }
 
@@ -57,6 +58,7 @@ nonisolated struct ItemDraft {
             runtime = movie.runtimeMinutes.map(String.init) ?? ""
             streamingService = movie.streamingService ?? ""
             releaseYear = movie.releaseYear.map(String.init) ?? ""
+            tmdbID = movie.tmdbID
         default:
             break
         }
@@ -94,6 +96,7 @@ nonisolated struct ItemDraft {
             movie.runtimeMinutes = Int(runtime)
             movie.streamingService = streamingService.orNil
             movie.releaseYear = Int(releaseYear)
+            movie.tmdbID = tmdbID
             return movie
         default:
             return nil
@@ -145,7 +148,8 @@ nonisolated struct ItemDraft {
                 showsPhotoOnBoard: showsPhotoOnBoard,
                 runtimeMinutes: Int(runtime),
                 streamingService: streamingService.orNil,
-                releaseYear: Int(releaseYear)
+                releaseYear: Int(releaseYear),
+                tmdbID: tmdbID
             )
         default:
             nil

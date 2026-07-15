@@ -12,6 +12,7 @@ import CloudKit
 @MainActor
 struct DocketApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage(AppPreferences.darkerThemeKey) private var darkerThemeEnabled =
         AppPreferences.defaultDarkerThemeEnabled
     @State private var store: BoardStore
@@ -21,6 +22,23 @@ struct DocketApp: App {
         _store = State(initialValue: store)
         RemoteNotificationRouter.shared.handler = { scope in
             await store.handleRemoteDatabaseChange(scope: scope)
+        }
+        CloudKitShareAcceptanceRouter.shared.install { event in
+            switch event {
+            case .accepted(let acceptedShare):
+                Task {
+                    await store.openAcceptedShare(
+                        Space(
+                            zoneID: acceptedShare.zoneID,
+                            access: .joined,
+                            title: acceptedShare.title
+                        ),
+                        inviterName: acceptedShare.inviterName
+                    )
+                }
+            case .failed(let message):
+                store.shareAcceptanceErrorMessage = message
+            }
         }
     }
 
@@ -33,17 +51,14 @@ struct DocketApp: App {
                     darkerThemeEnabled ? .darker : .standard
                 )
                 .task { await store.bootstrap() }
-                .onReceive(NotificationCenter.default.publisher(for: .docketDidAcceptShare)) { note in
-                    guard let zoneID = note.userInfo?["zoneID"] as? CKRecordZone.ID else { return }
-                    let title = note.userInfo?["title"] as? String
-                    Task {
-                        await store.switchTo(
-                            space: Space(zoneID: zoneID, access: .joined, title: title)
-                        )
-                    }
+                .onChange(of: scenePhase) { _, phase in
+                    guard phase == .active else { return }
+                    Task { await store.applicationBecameActive() }
                 }
-                .onReceive(NotificationCenter.default.publisher(for: .docketShareAcceptFailed)) { note in
-                    store.errorMessage = note.userInfo?["error"] as? String
+                .onReceive(
+                    NotificationCenter.default.publisher(for: .CKAccountChanged)
+                ) { _ in
+                    Task { await store.handleICloudAccountChange() }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .docketOpenSpace)) { note in
                     guard

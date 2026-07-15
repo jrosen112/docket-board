@@ -16,6 +16,7 @@ nonisolated final class MockSpaceService: SpaceDataService, @unchecked Sendable 
     var records: [CKRecord.ID: CKRecord] = [:]
     var loadError: Error?
     var saveError: Error?
+    var loadErrorAfterSave: Error?
     var loadDelayNanoseconds: UInt64 = 0
     var accountUserID = CKRecord.ID(recordName: "mock-icloud-user")
     var discoveredSpaces: [Space]
@@ -60,6 +61,10 @@ nonisolated final class MockSpaceService: SpaceDataService, @unchecked Sendable 
         records[record.recordID] = record
         if record.recordType == Schema.RecordType.userProfile {
             profileCreatorRecordNames[record.recordID] = accountUserID.recordName
+        }
+        if let loadErrorAfterSave {
+            loadError = loadErrorAfterSave
+            self.loadErrorAfterSave = nil
         }
         return record
     }

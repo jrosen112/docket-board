@@ -30,6 +30,31 @@ struct ContentView: View {
             }
         }
         .tint(DocketTheme.brass)
+        .sheet(
+            item: Binding(
+                get: { store.boardInvitation },
+                set: { invitation in
+                    if invitation == nil { store.dismissBoardInvitation() }
+                }
+            )
+        ) { invitation in
+            JoinBoardView(invitation: invitation)
+        }
+        .alert(
+            "Couldn't Join Board",
+            isPresented: Binding(
+                get: { store.shareAcceptanceErrorMessage != nil },
+                set: { isPresented in
+                    if !isPresented { store.shareAcceptanceErrorMessage = nil }
+                }
+            )
+        ) {
+            Button("OK", role: .cancel) {
+                store.shareAcceptanceErrorMessage = nil
+            }
+        } message: {
+            Text(store.shareAcceptanceErrorMessage ?? "Please try the invitation again.")
+        }
     }
 
     private var loadingView: some View {

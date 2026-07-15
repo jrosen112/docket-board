@@ -86,7 +86,8 @@ final class ModelConversionTests: XCTestCase {
             dateAdded: fixedDate,
             runtimeMinutes: 105,
             streamingService: "Showtime",
-            releaseYear: 2023
+            releaseYear: 2023,
+            tmdbID: 666277
         )
 
         let decoded = try XCTUnwrap(Movie(record: original.toRecord()))
@@ -95,6 +96,7 @@ final class ModelConversionTests: XCTestCase {
         XCTAssertEqual(decoded.runtimeMinutes, original.runtimeMinutes)
         XCTAssertEqual(decoded.streamingService, original.streamingService)
         XCTAssertEqual(decoded.releaseYear, original.releaseYear)
+        XCTAssertEqual(decoded.tmdbID, original.tmdbID)
     }
 
     // MARK: UserProfile

@@ -24,6 +24,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		A10000010000000000000001 /* Config/Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config/Base.xcconfig; sourceTree = SOURCE_ROOT; };
 		EB5D0F0730044876003C719B /* Docket.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Docket.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		EB5D0F1430044876003C719B /* DocketTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DocketTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		EB5D0F1E30044876003C719B /* DocketUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DocketUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -75,6 +76,7 @@
 		EB5D0EFE30044876003C719B = {
 			isa = PBXGroup;
 			children = (
+				A10000010000000000000001 /* Config/Base.xcconfig */,
 				EB5D0F0930044876003C719B /* Docket */,
 				EB5D0F1730044876003C719B /* DocketTests */,
 				EB5D0F2130044876003C719B /* DocketUITests */,
@@ -392,6 +394,7 @@
 		};
 		EB5D0F2930044876003C719B /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = A10000010000000000000001 /* Config/Base.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -426,6 +429,7 @@
 		};
 		EB5D0F2A30044876003C719B /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = A10000010000000000000001 /* Config/Base.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;

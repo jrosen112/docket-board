@@ -25,6 +25,7 @@ nonisolated struct Movie: SharedListItem {
     var runtimeMinutes: Int?
     var streamingService: String?
     var releaseYear: Int?
+    var tmdbID: Int?
 
     init(
         id: CKRecord.ID,
@@ -37,7 +38,8 @@ nonisolated struct Movie: SharedListItem {
         showsPhotoOnBoard: Bool = false,
         runtimeMinutes: Int? = nil,
         streamingService: String? = nil,
-        releaseYear: Int? = nil
+        releaseYear: Int? = nil,
+        tmdbID: Int? = nil
     ) {
         self.id = id
         self.title = title
@@ -50,6 +52,7 @@ nonisolated struct Movie: SharedListItem {
         self.runtimeMinutes = runtimeMinutes
         self.streamingService = streamingService
         self.releaseYear = releaseYear
+        self.tmdbID = tmdbID
     }
 
     init?(record: CKRecord) {
@@ -70,6 +73,7 @@ nonisolated struct Movie: SharedListItem {
         self.runtimeMinutes = record[Schema.Field.runtimeMinutes] as? Int
         self.streamingService = record[Schema.Field.streamingService] as? String
         self.releaseYear = record[Schema.Field.releaseYear] as? Int
+        self.tmdbID = record[Schema.Field.tmdbID] as? Int
     }
 
     func toRecord() -> CKRecord {
@@ -82,6 +86,7 @@ nonisolated struct Movie: SharedListItem {
         record[Schema.Field.runtimeMinutes] = runtimeMinutes
         record[Schema.Field.streamingService] = streamingService
         record[Schema.Field.releaseYear] = releaseYear
+        record[Schema.Field.tmdbID] = tmdbID
         return record
     }
 }

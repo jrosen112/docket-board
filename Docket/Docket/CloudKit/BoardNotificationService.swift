@@ -29,7 +29,6 @@ actor CloudKitBoardNotificationService: BoardNotificationService {
     }
 
     func prepare() async throws {
-        _ = try await center.requestAuthorization(options: [.alert, .sound])
         let container = CKContainer(identifier: containerIdentifier)
         try await ensureSubscription(
             in: container.privateCloudDatabase,
@@ -39,6 +38,10 @@ actor CloudKitBoardNotificationService: BoardNotificationService {
             in: container.sharedCloudDatabase,
             id: "docket-shared-database-v1"
         )
+        // Alert permission controls only the optional local banner. A denied or
+        // temporarily failed prompt must not prevent silent CloudKit change
+        // subscriptions from being installed.
+        _ = try? await center.requestAuthorization(options: [.alert, .sound])
     }
 
     func post(_ notice: BoardChangeNotice) async throws {

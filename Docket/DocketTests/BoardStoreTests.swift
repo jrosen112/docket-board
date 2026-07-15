@@ -86,6 +86,41 @@ final class BoardStoreTests: XCTestCase {
         XCTAssertEqual(prepareCount, 1)
     }
 
+    func testForegroundRefreshReconcilesChangesMissedByPush() async {
+        let alice = seedProfile()
+        await store.bootstrap()
+        seedMovie("Arrived While Backgrounded", addedBy: alice, dateAdded: .now)
+
+        await store.applicationBecameActive()
+
+        XCTAssertEqual(store.items.map(\.title), ["Arrived While Backgrounded"])
+    }
+
+    func testForegroundRetriesNotificationPreparationAfterTransientFailure() async {
+        await notificationMock.setPrepareError(CKError(.serviceUnavailable))
+        await store.bootstrap()
+        let failedPrepareCount = await notificationMock.prepareCount
+        XCTAssertEqual(failedPrepareCount, 1)
+
+        await notificationMock.setPrepareError(nil)
+        await store.applicationBecameActive()
+
+        let recoveredPrepareCount = await notificationMock.prepareCount
+        XCTAssertEqual(recoveredPrepareCount, 2)
+    }
+
+    func testAccountChangeClearsPriorAccountsRememberedProfile() async {
+        await store.bootstrap()
+        await store.createProfile(firstName: "Jared", lastName: "R")
+        XCTAssertNotNil(store.currentProfile)
+
+        mock.accountUserID = CKRecord.ID(recordName: "different-icloud-user")
+        await store.handleICloudAccountChange()
+
+        XCTAssertNil(store.currentProfile)
+        XCTAssertEqual(store.spaces, [.default])
+    }
+
     func testItemsSortedNewestFirst() async {
         let alice = seedProfile()
         seedMovie("Older", addedBy: alice, dateAdded: Date(timeIntervalSince1970: 100))
@@ -239,6 +274,52 @@ final class BoardStoreTests: XCTestCase {
 
         await restoringStore.switchTo(space: joined)
         XCTAssertEqual(restoringStore.currentProfile?.id, joinedProfile.id)
+    }
+
+    func testRestoreKeepsDiscoveredBoardWhenItsLoadFailsTransiently() async {
+        let defaultProfile = seedProfile()
+        mock.profileCreatorRecordNames[defaultProfile.id] = CKCurrentUserDefaultName
+        let unavailable = Space(
+            zoneID: CKRecordZone.ID(
+                zoneName: "DocketBoard-temporarily-unavailable",
+                ownerName: "partner"
+            ),
+            access: .joined,
+            title: "Still Mine"
+        )
+        let unavailableService = MockSpaceService(space: unavailable)
+        unavailableService.loadError = CKError(.serviceUnavailable)
+        mock.discoveredSpaces = [.default, unavailable]
+        let defaultService = mock!
+        let restoringStore = BoardStore(
+            defaults: defaults,
+            makeService: { space in
+                space == unavailable ? unavailableService : defaultService
+            },
+            notificationService: notificationMock,
+            networkAvailability: networkMock
+        )
+        await restoringStore.bootstrap()
+
+        let result = await restoringStore.restoreFromICloud()
+
+        XCTAssertEqual(result, .restored(boardCount: 1))
+        XCTAssertTrue(restoringStore.spaces.contains(unavailable))
+
+        let recoveredProfile = UserProfile(
+            id: CKRecord.ID(recordName: "profile-recovered", zoneID: unavailable.zoneID),
+            firstName: "Alice",
+            lastName: "Nguyen"
+        )
+        unavailableService.records[recoveredProfile.id] = recoveredProfile.toRecord()
+        unavailableService.profileCreatorRecordNames[recoveredProfile.id] =
+            mock.accountUserID.recordName
+        unavailableService.loadError = nil
+
+        await restoringStore.applicationBecameActive()
+        await restoringStore.switchTo(space: unavailable)
+
+        XCTAssertEqual(restoringStore.currentProfile?.id, recoveredProfile.id)
     }
 
     func testNameUpdatePropagatesProfilesAcrossBoardsWithoutRewritingItems() async throws {
@@ -516,6 +597,22 @@ final class BoardStoreTests: XCTestCase {
         XCTAssertNil(store.errorMessage)
     }
 
+    func testSuccessfulSaveAppearsLocallyWhenConfirmingRefreshFails() async {
+        await store.createProfile(firstName: "Jared", lastName: "R")
+        mock.loadErrorAfterSave = CKError(.networkFailure)
+        let movie = Movie(
+            id: store.newItemID(),
+            title: "Saved Once",
+            addedBy: store.currentProfile!.reference
+        )
+
+        let result = await store.save(movie)
+
+        XCTAssertEqual(result, .saved)
+        XCTAssertEqual(store.items.map(\.title), ["Saved Once"])
+        XCTAssertNotNil(store.errorMessage)
+    }
+
     func testConflictReturnsDistinctResult() async {
         await store.createProfile(firstName: "Jared", lastName: "R")
         mock.saveError = CKError(.serverRecordChanged)
@@ -591,7 +688,8 @@ final class BoardStoreTests: XCTestCase {
 
         XCTAssertFalse(store.isOwner)
         XCTAssertEqual(store.space, joined)
-        XCTAssertNil(store.currentProfile) // fresh identity on the new board
+        XCTAssertEqual(store.currentProfile?.displayName, "Jared R")
+        XCTAssertEqual(store.currentProfile?.id.zoneID, joined.zoneID)
         XCTAssertTrue(store.items.isEmpty)
         XCTAssertEqual(store.spaces.count, 2)
         XCTAssertTrue(store.spaces.contains(.default))
@@ -613,6 +711,72 @@ final class BoardStoreTests: XCTestCase {
         // Coming back to the owned board finds the same identity — nothing was
         // wiped by joining someone else's board.
         XCTAssertEqual(store.currentProfile?.firstName, "Jared")
+    }
+
+    func testColdLaunchInviteWaitsForBootstrapAndJoinConfirmation() async {
+        await store.createProfile(firstName: "Jared", lastName: "R")
+        let ownedService = mock!
+        let joined = Space(
+            zoneID: CKRecordZone.ID(
+                zoneName: "DocketBoard-cold-invite",
+                ownerName: "partner"
+            ),
+            access: .joined,
+            title: "Together"
+        )
+        let joinedService = MockSpaceService(space: joined)
+        joinedService.accountUserID = mock.accountUserID
+        let coldLaunchStore = BoardStore(
+            defaults: defaults,
+            makeService: { space in
+                space == joined ? joinedService : ownedService
+            },
+            notificationService: notificationMock,
+            networkAvailability: networkMock
+        )
+
+        await coldLaunchStore.openAcceptedShare(joined, inviterName: "Alex")
+        XCTAssertEqual(coldLaunchStore.space, .default)
+        XCTAssertNil(coldLaunchStore.boardInvitation)
+
+        await coldLaunchStore.bootstrap()
+
+        XCTAssertEqual(coldLaunchStore.space, .default)
+        XCTAssertEqual(
+            coldLaunchStore.boardInvitation,
+            BoardInvitation(space: joined, inviterName: "Alex")
+        )
+        XCTAssertTrue(coldLaunchStore.spaces.contains(joined))
+        XCTAssertTrue(joinedService.records.isEmpty)
+
+        await coldLaunchStore.joinPendingBoardInvitation()
+
+        XCTAssertEqual(coldLaunchStore.space, joined)
+        XCTAssertEqual(coldLaunchStore.currentProfile?.displayName, "Jared R")
+        XCTAssertEqual(joinedService.records.values.count, 1)
+        XCTAssertNil(coldLaunchStore.boardInvitation)
+    }
+
+    func testNotNowKeepsAcceptedBoardWithoutChangingSelection() async {
+        await store.bootstrap()
+        await store.createProfile(firstName: "Jared", lastName: "R")
+        let originalSpace = store.space
+        let joined = Space(
+            zoneID: CKRecordZone.ID(
+                zoneName: "DocketBoard-later-invite",
+                ownerName: "partner"
+            ),
+            access: .joined,
+            title: "Watch List"
+        )
+
+        await store.openAcceptedShare(joined, inviterName: "Alex")
+        store.dismissBoardInvitation()
+
+        XCTAssertNil(store.boardInvitation)
+        XCTAssertEqual(store.space, originalSpace)
+        XCTAssertEqual(SpaceStore.load(from: defaults), originalSpace)
+        XCTAssertTrue(store.spaces.contains(joined))
     }
 
     func testSwitchKeepsBoardPresentationLoadedWhileNewSpaceLoads() async {
@@ -681,6 +845,20 @@ final class BoardStoreTests: XCTestCase {
         XCTAssertTrue(switchingStore.spaces.contains(joined))
         XCTAssertEqual(SpaceStore.load(from: defaults), originalSpace)
         XCTAssertNotNil(switchingStore.errorMessage)
+    }
+
+    func testSwitchingToCurrentFailedBoardRetriesItsLoad() async {
+        mock.loadError = CKError(.serviceUnavailable)
+        await store.bootstrap()
+        guard case .failed = store.loadState else {
+            return XCTFail("Expected the initial load to fail")
+        }
+
+        mock.loadError = nil
+        await store.switchTo(space: .default)
+
+        XCTAssertEqual(store.loadState, .loaded)
+        XCTAssertNil(store.errorMessage)
     }
 
     func testOfflineSwitchImmediatelyRestoresPreviousBoard() async {

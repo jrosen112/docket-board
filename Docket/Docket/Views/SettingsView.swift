@@ -63,6 +63,38 @@ struct SettingsView: View {
                     )
                         .foregroundStyle(DocketTheme.cream.opacity(0.62))
                 }
+
+                Section {
+                    Link(destination: URL(string: "https://www.themoviedb.org")!) {
+                        HStack(spacing: 16) {
+                            Image("TMDBLogo")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 76, height: 34)
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("Movie data & images")
+                                    .foregroundStyle(palette.primaryText)
+                                Text("Visit The Movie Database")
+                                    .font(.caption)
+                                    .foregroundStyle(palette.secondaryText)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "arrow.up.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(DocketTheme.brass)
+                        }
+                    }
+                    .listRowBackground(palette.raisedPaper)
+                } header: {
+                    Text("Credits")
+                        .foregroundStyle(DocketTheme.cream.opacity(0.62))
+                } footer: {
+                    Text("This product uses the TMDB API but is not endorsed or certified by TMDB.")
+                        .foregroundStyle(DocketTheme.cream.opacity(0.62))
+                }
             }
             .scrollContentBackground(.hidden)
             .background(DocketTheme.boardBackground)
