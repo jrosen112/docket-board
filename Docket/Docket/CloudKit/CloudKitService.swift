@@ -136,6 +136,12 @@ actor CloudKitService: SpaceDataService {
         try await database.deleteRecord(withID: recordID)
     }
 
+    func deleteBoardZone() async throws {
+        guard space.isOwned else { throw CloudKitServiceError.notBoardOwner }
+        _ = try await database.modifyRecordZones(saving: [], deleting: [zoneID])
+        didEnsureZone = false
+    }
+
     // MARK: - Reads
 
     /// One combined load of everything in the zone: category items + profiles.
@@ -245,11 +251,14 @@ nonisolated final class CloudKitFetchAccumulator: @unchecked Sendable {
 
 nonisolated enum CloudKitServiceError: LocalizedError {
     case shareUnavailable
+    case notBoardOwner
 
     var errorDescription: String? {
         switch self {
         case .shareUnavailable:
             "This board's sharing details aren't available yet. Try again after refreshing."
+        case .notBoardOwner:
+            "Only the board owner can delete this board."
         }
     }
 }

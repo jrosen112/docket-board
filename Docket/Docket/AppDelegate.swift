@@ -10,8 +10,37 @@ import CloudKit
 import UIKit
 import UserNotifications
 
-extension Notification.Name {
-    static let docketOpenSpace = Notification.Name("docketOpenSpace")
+nonisolated struct BoardDeepLink: Equatable, Sendable {
+    let spaceID: String
+    let itemRecordName: String?
+}
+
+/// Notification responses can arrive before SwiftUI installs its scene. Keep
+/// them buffered so a cold-launch tap is never reduced to merely opening the
+/// app's last board.
+@MainActor
+final class BoardDeepLinkRouter {
+    static let shared = BoardDeepLinkRouter()
+
+    typealias Handler = @MainActor (BoardDeepLink) -> Void
+
+    private var handler: Handler?
+    private var pendingLinks: [BoardDeepLink] = []
+
+    func install(handler: @escaping Handler) {
+        self.handler = handler
+        let pendingLinks = self.pendingLinks
+        self.pendingLinks.removeAll()
+        pendingLinks.forEach(handler)
+    }
+
+    func route(_ link: BoardDeepLink) {
+        guard let handler else {
+            pendingLinks.append(link)
+            return
+        }
+        handler(link)
+    }
 }
 
 nonisolated struct AcceptedCloudKitShare: Equatable, Sendable {
@@ -196,13 +225,15 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
-        guard let spaceID = response.notification.request.content.userInfo["spaceID"] as? String else {
+        let userInfo = response.notification.request.content.userInfo
+        guard let spaceID = userInfo["spaceID"] as? String else {
             return
         }
-        NotificationCenter.default.post(
-            name: .docketOpenSpace,
-            object: nil,
-            userInfo: ["spaceID": spaceID]
+        BoardDeepLinkRouter.shared.route(
+            BoardDeepLink(
+                spaceID: spaceID,
+                itemRecordName: userInfo["itemRecordName"] as? String
+            )
         )
     }
 

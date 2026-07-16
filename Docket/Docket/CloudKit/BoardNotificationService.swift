@@ -3,6 +3,7 @@ import UserNotifications
 
 nonisolated struct BoardChangeNotice: Equatable, Sendable {
     let boardID: String
+    let itemRecordName: String?
     let title: String
     let body: String
 }
@@ -49,7 +50,11 @@ actor CloudKitBoardNotificationService: BoardNotificationService {
         content.title = notice.title
         content.body = notice.body
         content.sound = .default
-        content.userInfo = ["spaceID": notice.boardID]
+        var userInfo = ["spaceID": notice.boardID]
+        if let itemRecordName = notice.itemRecordName {
+            userInfo["itemRecordName"] = itemRecordName
+        }
+        content.userInfo = userInfo
 
         let request = UNNotificationRequest(
             identifier: "docket-board-change-\(UUID().uuidString)",

@@ -125,6 +125,29 @@ nonisolated enum DocketTheme {
         static let chevronColor = DocketTheme.brass.opacity(0.8)
     }
 
+    enum BoardManager {
+        static let maxContentWidth: CGFloat = 680
+        static let horizontalPadding: CGFloat = 18
+        static let verticalPadding: CGFloat = 20
+        static let cardSpacing: CGFloat = 14
+        static let cardPadding: CGFloat = 18
+        static let cardCornerRadius: CGFloat = 12
+        static let headerSpacing: CGFloat = 12
+        static let metadataSpacing: CGFloat = 8
+        static let actionSpacing: CGFloat = 10
+        static let iconSize: CGFloat = 42
+        static let titleFont: Font = DocketTheme.display(21)
+        static let roleFont: Font = .caption.weight(.semibold)
+        static let metadataFont: Font = .caption
+        static let currentFont: Font = .caption2.weight(.bold)
+        static let currentHorizontalPadding: CGFloat = 8
+        static let currentVerticalPadding: CGFloat = 4
+        static let currentCornerRadius: CGFloat = 8
+        static let shadowRadius: CGFloat = 7
+        static let shadowY: CGFloat = 4
+        static let unavailableColor = Color(hex: 0xE8B36A)
+    }
+
     enum BoardSkeleton {
         static let cardCount = 10
         static let columns = 2
@@ -258,7 +281,6 @@ nonisolated enum DocketTheme {
         static let actionSpacing: CGFloat = 10
         static let titleColor = DocketTheme.cream
         static let bodyColor = DocketTheme.cream.opacity(0.68)
-        static let cardTitleColor = DocketTheme.ink
         static let cardLabelColor = DocketTheme.ink.opacity(0.55)
     }
 

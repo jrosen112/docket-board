@@ -1,7 +1,6 @@
 import SwiftUI
 
 enum BoardToolbarTransitionID: Hashable {
-    case share
     case settings
     case add
 }

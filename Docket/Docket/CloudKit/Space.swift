@@ -143,6 +143,20 @@ nonisolated enum SpaceStore {
         defaults.set(selected.id, forKey: selectedIDKey)
     }
 
+    /// Removes one local membership while preserving an explicit valid
+    /// selection. CloudKit deletion/leaving is performed by the caller first.
+    static func remove(
+        _ space: Space,
+        selecting selected: Space,
+        in defaults: UserDefaults = .standard
+    ) {
+        let remaining = loadAll(from: defaults).filter { $0 != space }
+        guard !remaining.isEmpty else { return }
+        let validSelection = remaining.first(where: { $0 == selected }) ?? remaining[0]
+        persist(remaining, in: defaults)
+        defaults.set(validSelection.id, forKey: selectedIDKey)
+    }
+
     private static func legacySpace(from defaults: UserDefaults) -> Space? {
         guard
             let zoneName = defaults.string(forKey: zoneNameKey),

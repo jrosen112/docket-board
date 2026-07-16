@@ -918,11 +918,105 @@ final class BoardStoreTests: XCTestCase {
         try? await Task.sleep(nanoseconds: 10_000_000)
 
         await switchingStore.switchTo(space: joined)
-        await oldRefresh.value
+        _ = await oldRefresh.value
 
         XCTAssertEqual(switchingStore.space, joined)
         XCTAssertEqual(switchingStore.items.map(\.title), ["New board item"])
         XCTAssertEqual(switchingStore.loadState, .loaded)
+    }
+
+    func testColdLaunchNotificationSwitchesBoardAndRequestsExactItem() async {
+        let owned = Space.default
+        let joined = Space(
+            zoneID: CKRecordZone.ID(
+                zoneName: "DocketBoard-notification",
+                ownerName: "partner"
+            ),
+            access: .joined,
+            title: "Together"
+        )
+        SpaceStore.replace(with: [owned, joined], selected: owned, in: defaults)
+
+        let ownedService = MockSpaceService(space: owned)
+        let joinedService = MockSpaceService(space: joined)
+        let author = UserProfile(
+            id: CKRecord.ID(recordName: "profile-partner", zoneID: joined.zoneID),
+            firstName: "Alex",
+            lastName: "Stone"
+        )
+        let movie = Movie(
+            id: CKRecord.ID(recordName: "movie-notification", zoneID: joined.zoneID),
+            title: "Heat",
+            addedBy: author.reference
+        )
+        joinedService.records[author.id] = author.toRecord()
+        joinedService.records[movie.id] = movie.toRecord()
+
+        let deepLinkStore = BoardStore(
+            defaults: defaults,
+            makeService: { space in
+                space == joined ? joinedService : ownedService
+            },
+            notificationService: notificationMock,
+            networkAvailability: networkMock
+        )
+        let link = BoardDeepLink(
+            spaceID: joined.id,
+            itemRecordName: movie.id.recordName
+        )
+
+        await deepLinkStore.openDeepLink(link)
+        XCTAssertNil(deepLinkStore.itemNavigationRequest)
+
+        await deepLinkStore.bootstrap()
+
+        XCTAssertEqual(deepLinkStore.space, joined)
+        XCTAssertEqual(deepLinkStore.itemNavigationRequest?.recordID, movie.id)
+        let requestID = deepLinkStore.itemNavigationRequest!.id
+        deepLinkStore.consumeItemNavigationRequest(requestID)
+        XCTAssertNil(deepLinkStore.itemNavigationRequest)
+    }
+
+    func testDeletingCurrentOwnedBoardMovesToFallbackAndDeletesZone() async {
+        let fallback = Space.default
+        let deletable = Space.newOwned(
+            title: "Old Board",
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000123")!
+        )
+        SpaceStore.replace(with: [fallback, deletable], selected: deletable, in: defaults)
+        let fallbackService = MockSpaceService(space: fallback)
+        let deletableService = MockSpaceService(space: deletable)
+        let deletingStore = BoardStore(
+            defaults: defaults,
+            makeService: { space in
+                space == deletable ? deletableService : fallbackService
+            },
+            notificationService: notificationMock,
+            networkAvailability: networkMock
+        )
+        await deletingStore.bootstrap()
+
+        let deleted = await deletingStore.deleteBoard(deletable)
+
+        XCTAssertTrue(deleted)
+        XCTAssertTrue(deletableService.didDeleteBoardZone)
+        XCTAssertEqual(deletingStore.space, fallback)
+        XCTAssertEqual(deletingStore.spaces, [fallback])
+        XCTAssertEqual(SpaceStore.load(from: defaults), fallback)
+    }
+
+    func testBoardManagementSnapshotsIncludePinsAndParticipantNames() async {
+        let alice = seedProfile(name: "Alice")
+        seedMovie("Heat", addedBy: alice, dateAdded: .now)
+        await store.bootstrap()
+
+        let snapshots = await store.loadBoardManagementSnapshots()
+
+        XCTAssertEqual(snapshots.count, 1)
+        XCTAssertEqual(snapshots[0].space, .default)
+        XCTAssertEqual(snapshots[0].itemCount, 1)
+        XCTAssertEqual(snapshots[0].participantNames, ["Alice Nguyen"])
+        XCTAssertTrue(snapshots[0].isAvailable)
     }
 
     // MARK: - Remote additions
@@ -937,8 +1031,9 @@ final class BoardStoreTests: XCTestCase {
         XCTAssertTrue(receivedData)
         let notices = await notificationMock.capturedNotices()
         XCTAssertEqual(notices.count, 1)
-        XCTAssertEqual(notices[0].title, "My Board")
-        XCTAssertEqual(notices[0].body, "Alice Nguyen added “Heat”.")
+        XCTAssertEqual(notices[0].title, "New on My Board")
+        XCTAssertEqual(notices[0].body, "Alice Nguyen pinned “Heat” · Movie")
+        XCTAssertEqual(notices[0].itemRecordName, "movie-Heat")
         XCTAssertEqual(store.items.map(\.title), ["Heat"])
     }
 
@@ -953,7 +1048,7 @@ final class BoardStoreTests: XCTestCase {
         XCTAssertTrue(notices.isEmpty)
     }
 
-    func testRemoteEditDoesNotPostAdditionNotification() async {
+    func testRemoteEditPostsItemAwareUpdateNotification() async {
         let alice = seedProfile(name: "Alice")
         seedMovie("Original", addedBy: alice, dateAdded: .now)
         await store.bootstrap()
@@ -966,7 +1061,10 @@ final class BoardStoreTests: XCTestCase {
         _ = await store.handleRemoteDatabaseChange(scope: .private)
 
         let notices = await notificationMock.capturedNotices()
-        XCTAssertTrue(notices.isEmpty)
+        XCTAssertEqual(notices.count, 1)
+        XCTAssertEqual(notices[0].title, "Updated on My Board")
+        XCTAssertEqual(notices[0].body, "“Edited” has new details.")
+        XCTAssertEqual(notices[0].itemRecordName, recordID.recordName)
         XCTAssertEqual(store.items.map(\.title), ["Edited"])
     }
 

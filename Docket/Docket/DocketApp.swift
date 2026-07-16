@@ -23,6 +23,9 @@ struct DocketApp: App {
         RemoteNotificationRouter.shared.handler = { scope in
             await store.handleRemoteDatabaseChange(scope: scope)
         }
+        BoardDeepLinkRouter.shared.install { link in
+            Task { await store.openDeepLink(link) }
+        }
         CloudKitShareAcceptanceRouter.shared.install { event in
             switch event {
             case .accepted(let acceptedShare):
@@ -59,13 +62,6 @@ struct DocketApp: App {
                     NotificationCenter.default.publisher(for: .CKAccountChanged)
                 ) { _ in
                     Task { await store.handleICloudAccountChange() }
-                }
-                .onReceive(NotificationCenter.default.publisher(for: .docketOpenSpace)) { note in
-                    guard
-                        let spaceID = note.userInfo?["spaceID"] as? String,
-                        let space = store.spaces.first(where: { $0.id == spaceID })
-                    else { return }
-                    Task { await store.switchTo(space: space) }
                 }
         }
     }

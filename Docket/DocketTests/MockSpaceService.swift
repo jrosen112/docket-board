@@ -21,6 +21,7 @@ nonisolated final class MockSpaceService: SpaceDataService, @unchecked Sendable 
     var accountUserID = CKRecord.ID(recordName: "mock-icloud-user")
     var discoveredSpaces: [Space]
     var profileCreatorRecordNames: [CKRecord.ID: String] = [:]
+    var didDeleteBoardZone = false
 
     init(space: Space = .default) {
         self.space = space
@@ -71,6 +72,13 @@ nonisolated final class MockSpaceService: SpaceDataService, @unchecked Sendable 
 
     func delete(_ recordID: CKRecord.ID) async throws {
         records[recordID] = nil
+    }
+
+    func deleteBoardZone() async throws {
+        if let saveError { throw saveError }
+        guard space.isOwned else { throw CloudKitServiceError.notBoardOwner }
+        records.removeAll()
+        didDeleteBoardZone = true
     }
 
     func loadShare() async throws -> CKShare {

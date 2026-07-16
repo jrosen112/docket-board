@@ -28,6 +28,8 @@ nonisolated protocol SpaceDataService: Sendable {
     @discardableResult
     func save(_ record: CKRecord) async throws -> CKRecord
     func delete(_ recordID: CKRecord.ID) async throws
+    /// Permanently deletes an owned board's complete custom record zone.
+    func deleteBoardZone() async throws
     /// Loads this board's existing share. For an owned, not-yet-shared board,
     /// creates the zone-wide share first.
     func loadShare() async throws -> CKShare

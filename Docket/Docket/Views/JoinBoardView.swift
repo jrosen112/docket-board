@@ -1,5 +1,5 @@
-import SwiftUI
 import CloudKit
+import SwiftUI
 
 struct JoinBoardView: View {
     @Environment(BoardStore.self) private var store
@@ -13,18 +13,22 @@ struct JoinBoardView: View {
                 .fill(DocketTheme.boardBackground)
                 .ignoresSafeArea()
 
-            VStack(spacing: DocketTheme.JoinBoard.sectionSpacing) {
-                hero
-                boardCard
-                actions
+            ScrollView {
+                VStack(spacing: DocketTheme.JoinBoard.sectionSpacing) {
+                    hero
+                    boardCard
+                    actions
+                }
+                .frame(maxWidth: DocketTheme.JoinBoard.maxContentWidth)
+                .padding(.horizontal, DocketTheme.JoinBoard.horizontalPadding)
+                .padding(.top, DocketTheme.JoinBoard.topPadding)
+                .padding(.bottom, DocketTheme.JoinBoard.bottomPadding)
+                .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: DocketTheme.JoinBoard.maxContentWidth)
-            .padding(.horizontal, DocketTheme.JoinBoard.horizontalPadding)
-            .padding(.top, DocketTheme.JoinBoard.topPadding)
-            .padding(.bottom, DocketTheme.JoinBoard.bottomPadding)
+            .scrollIndicators(.hidden)
         }
         .tint(DocketTheme.brass)
-        .presentationDetents([.medium])
+        .presentationDetents([.fraction(0.62), .large])
         .presentationDragIndicator(.visible)
         .interactiveDismissDisabled(store.isJoiningBoardInvitation)
     }
@@ -112,8 +116,11 @@ struct JoinBoardView: View {
             .docketPrimaryActionStyle()
             .disabled(store.isJoiningBoardInvitation)
 
-            Button("Not Now") {
+            Button {
                 store.dismissBoardInvitation()
+            } label: {
+                Text("Not Now")
+                    .frame(maxWidth: .infinity)
             }
             .docketSecondaryActionStyle()
             .disabled(store.isJoiningBoardInvitation)

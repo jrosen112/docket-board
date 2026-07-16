@@ -17,9 +17,8 @@ struct BoardView: View {
     @Namespace private var boardTransitionNamespace
 
     @State private var addTarget: AddTarget?
-    @State private var showingShare = false
     @State private var showingSettings = false
-    @State private var showingCreateBoard = false
+    @State private var showingBoardManager = false
     @State private var detailTarget: DetailTarget?
     @State private var filter = BoardFilter()
     @State private var searchQuery = ""
@@ -93,17 +92,6 @@ struct BoardView: View {
                         )
                     )
             }
-            .sheet(isPresented: $showingShare) {
-                if let share = store.activeShare {
-                    CloudSharingSheet(share: share, container: store.container)
-                        .navigationTransition(
-                            .zoom(
-                                sourceID: BoardToolbarTransitionID.share,
-                                in: toolbarTransitionNamespace
-                            )
-                        )
-                }
-            }
             .sheet(isPresented: $showingSettings) {
                 SettingsView()
                     .navigationTransition(
@@ -113,8 +101,8 @@ struct BoardView: View {
                         )
                     )
             }
-            .sheet(isPresented: $showingCreateBoard) {
-                CreateBoardView()
+            .sheet(isPresented: $showingBoardManager) {
+                BoardManagerView()
             }
             .navigationDestination(item: $detailTarget) { target in
                 ItemDetailView(
@@ -125,6 +113,11 @@ struct BoardView: View {
                     .navigationTransition(
                         .zoom(sourceID: target.id, in: boardTransitionNamespace)
                     )
+            }
+            .task(id: store.itemNavigationRequest?.id) {
+                guard let request = store.itemNavigationRequest else { return }
+                detailTarget = DetailTarget(id: request.recordID)
+                store.consumeItemNavigationRequest(request.id)
             }
         }
     }
@@ -251,13 +244,6 @@ struct BoardView: View {
                     .combined(with: .opacity)
             )
         )
-    }
-
-    private func prepareShare() {
-        Task {
-            await store.prepareShare()
-            showingShare = store.activeShare != nil
-        }
     }
 
     private func beginAdding(category: ItemCategory) {
@@ -447,31 +433,12 @@ struct BoardView: View {
     }
 
     @ToolbarContentBuilder private var topToolbarItems: some ToolbarContent {
-        ToolbarItem(id: "docket.board.share", placement: .topBarLeading) {
-            Button(action: prepareShare) {
-                Image(
-                    systemName: store.isOwner
-                        ? "person.crop.circle.badge.plus"
-                        : "person.2"
-                )
-            }
-            .disabled(store.isSwitchingBoard)
-            .accessibilityLabel(store.isOwner ? "Invite people" : "View people")
-        }
-        .matchedTransitionSource(
-            id: BoardToolbarTransitionID.share,
-            in: toolbarTransitionNamespace
-        )
-
         ToolbarItem(placement: .principal) {
             BoardSwitcher(
                 currentSpace: store.space,
-                spaces: store.spaces,
                 isEnabled: !store.isSwitchingBoard
-            ) { space in
-                Task { await store.switchTo(space: space) }
-            } onCreate: {
-                showingCreateBoard = true
+            ) {
+                showingBoardManager = true
             }
         }
         #if DEBUG

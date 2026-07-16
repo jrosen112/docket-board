@@ -1,6 +1,6 @@
 # Docket — Implementation
 
-_Current as of 2026-07-14._
+_Current as of 2026-07-15._
 
 This document describes the app as it exists now. [CLAUDE.md](CLAUDE.md)
 contains the original product brief and working agreement; where its old
@@ -90,9 +90,13 @@ metadata at the scene rather than the legacy application callback. The scene
 delegate handles both an already-running scene and cold-launch metadata from
 `UIScene.ConnectionOptions`. `CloudKitShareAcceptanceRouter` runs
 `CKAcceptSharesOperation` and buffers its result until `BoardStore` installs a
-handler, preventing a cold-launch invitation from being dropped. The first
-shared-zone load retries briefly because CloudKit can finish acceptance before
-the shared zone is fully visible.
+handler, preventing a cold-launch invitation from being dropped. Once CloudKit
+accepts the membership, Docket presents a board invitation sheet with the board
+title and owner's display name when available. Join Board provisions the
+current user's existing profile in that board and switches to it; Not Now keeps
+the accepted board in the switcher without changing the current selection. The
+first shared-zone load retries briefly because CloudKit can finish acceptance
+before the shared zone is fully visible.
 `CKSharingSupported` is declared in the real `Docket/Info.plist`; using an
 `INFOPLIST_KEY_` build setting for this key does not survive into the bundle.
 
@@ -146,7 +150,23 @@ that may arrive on different queues.
 
 ### BoardStore
 
-`BoardStore` is `@MainActor`, `@Observable`, and dependency-injected. It owns:
+`BoardStore` is a dependency-injected, `@MainActor`, `@Observable` façade. Its
+core file owns observable state plus lifecycle and refresh orchestration; its
+domain behavior is split across focused files under `Docket/Store`:
+
+- `BoardStore+Profiles` handles iCloud identity recovery, profile creation,
+  profile stats, and cross-board name changes.
+- `BoardStore+Items` handles item identity, saving, deletion, attribution, and
+  debug-only sample data.
+- `BoardStore+Management` handles sharing, board summaries, creation,
+  deletion, and leaving shared boards.
+- `BoardStore+Switching` handles atomic board changes, accepted invitations,
+  profile provisioning, and notification deep links.
+- `BoardStore+Notifications` handles remote-change reconciliation, local
+  fingerprints, notification copy, and destination metadata.
+- `BoardStoreTypes` contains the store's value types and operation results.
+
+Together, the façade and its focused domains own:
 
 - The selected space and complete space catalog.
 - Loaded items, profiles, and the current per-space profile.
@@ -154,6 +174,7 @@ that may arrive on different queues.
 - Profile creation, cross-board profile updates/stats, and item save/delete
   workflows.
 - Board creation and atomic board switching.
+- Remote change reconciliation and notification decisions.
 
 Profile name edits save the matching `UserProfile` in every known board. Item
 records are deliberately not rewritten: their existing `addedBy` references
@@ -167,7 +188,6 @@ include only items whose `addedBy` reference matches the current user's profile
 for that board, and expose total pins, status counts, favorite category, and a
 per-board contribution breakdown. An unavailable board produces partial stats
 rather than discarding the boards that loaded successfully.
-- Remote change reconciliation and notification decisions.
 
 Refresh generations prevent older requests from publishing into a newly
 selected board. Board switches keep the board screen mounted while loading; a
@@ -181,8 +201,12 @@ the private and shared databases. A push is treated as a change hint, not as
 the data itself: `BoardStore` reloads matching spaces and compares persisted
 record IDs.
 
-Only newly discovered items added by a different local profile produce a local
-notification. Tapping that notification routes the app to the relevant board.
+Per-board item fingerprints distinguish additions from edits. Single-item
+notifications use contextual copy (board, author/category for new pins, and
+the updated title for edits) and carry both the board and record identity.
+Tapping one survives cold launch, switches to the relevant board, refreshes it,
+and opens the exact item. Batched activity routes to the board rather than
+guessing which item the user intended to inspect.
 
 ### Connectivity and errors
 
@@ -211,7 +235,13 @@ views.
   ANDed together and compose with the existing category/status filters.
 - Tapping Add keeps the fast Restaurant-first flow. Long-pressing it opens a
   native category menu for starting directly with Restaurant, Bar, or Movie.
-- Board sharing lives in the top navigation bar. The bottom Settings control
+- Tapping the board title opens `BoardManagerView`, a full board-management
+  sheet with current/ownership state, pin counts, participant profile names,
+  switching, creation, native CloudKit People controls, and owner-only board
+  deletion. Deleting an owned board removes its complete CloudKit zone only
+  after a valid fallback board is selected; joined boards leave through
+  CloudKit's participant UI and then prune the local membership.
+- The bottom Settings control
   opens app preferences, including a persisted Darker Theme toggle. This is a
   Docket-specific palette that darkens board cards, quick looks, detail cards,
   and editing surfaces without changing the system light/dark appearance.
@@ -222,7 +252,7 @@ views.
 - `BoardFilterSheet` is the scalable multi-select editor. Category tiles use
   an adaptive grid, status choices are independent, Cancel discards, and both
   the explicit apply action and interactive sheet dismissal commit changes.
-- `BoardSwitcher` selects any owned or joined board and starts board creation.
+- `BoardSwitcher` is the compact title-bar entry point into board management.
 - `CreateBoardView` creates a named board using the same visual language as the
   detail editors.
 - `BoardSkeletonView` replaces only the card area during board switches. The
@@ -293,9 +323,9 @@ treated as a server-side secret.
 
 ## Tests and verification
 
-The repository currently contains **88 unit tests**:
+The repository currently contains **100 unit tests**:
 
-- `BoardStoreTests`: 37
+- `BoardStoreTests`: 48
 - `ModelConversionTests`: 9
 - `DocketThemeTests`: 7
 - `BoardFilterTests`: 11
@@ -306,7 +336,7 @@ The repository currently contains **88 unit tests**:
 - `CloudKitFetchAccumulatorTests`: 2
 - `SampleDataTests`: 2
 - `TMDBServiceTests`: 3
-- `ShareAcceptanceRouterTests`: 2
+- `ShareAcceptanceRouterTests`: 3
 
 Coverage includes model/system-field round-trips, conflict behavior, profile
 identity, multi-board persistence and switching, board-creation rollback,

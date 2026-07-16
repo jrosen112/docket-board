@@ -4,6 +4,22 @@ import XCTest
 
 @MainActor
 final class ShareAcceptanceRouterTests: XCTestCase {
+    func testNotificationDeepLinkWaitsForColdLaunchHandler() {
+        let router = BoardDeepLinkRouter()
+        let link = BoardDeepLink(
+            spaceID: "joined:owner/board",
+            itemRecordName: "movie-heat"
+        )
+        var received: [BoardDeepLink] = []
+
+        router.route(link)
+        XCTAssertTrue(received.isEmpty)
+
+        router.install { received.append($0) }
+
+        XCTAssertEqual(received, [link])
+    }
+
     func testEventWaitsForHandlerDuringColdLaunch() {
         let router = CloudKitShareAcceptanceRouter()
         let event = CloudKitShareAcceptanceEvent.accepted(
