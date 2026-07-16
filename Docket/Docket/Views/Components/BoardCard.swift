@@ -3,8 +3,10 @@
 //  Docket
 //
 //  One pinned card on the board: themed stock, brass pin, category accent
-//  stripe, serif title, deterministic slight tilt. Dumb component — everything
-//  it shows arrives via init; taps/menus are attached by the parent.
+//  stripe, serif title, deterministic slight tilt. Movies with artwork use a
+//  full-bleed poster treatment; other items keep the tactile paper layout.
+//  Dumb component — everything it shows arrives via init; taps/menus are
+//  attached by the parent.
 //
 
 import SwiftUI
@@ -19,7 +21,18 @@ struct BoardCard: View {
 
     private var accent: Color { item.category.accent }
 
+    @ViewBuilder
     var body: some View {
+        if item is Movie,
+           item.showsPhotoOnBoard,
+           let photoData = item.photoData {
+            moviePosterCard(photoData)
+        } else {
+            paperCard
+        }
+    }
+
+    private var paperCard: some View {
         VStack(alignment: .leading, spacing: 7) {
             Text(item.category.label.uppercased())
                 .font(DocketTheme.BoardCardHeader.categoryFont)
@@ -86,6 +99,102 @@ struct BoardCard: View {
                 .padding(.vertical, 12)
                 .padding(.leading, 5)
         }
+        .overlay(alignment: .top) {
+            PinDot().offset(y: -5)
+        }
+        .rotationEffect(.degrees(DocketTheme.rotationDegrees(for: item.id.recordName)))
+    }
+
+    private func moviePosterCard(_ photoData: Data) -> some View {
+        ZStack(alignment: .bottomLeading) {
+            DocketTheme.ink
+
+            GeometryReader { geometry in
+                ItemPhotoImage(data: photoData, contentMode: .fill)
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .clipped()
+            }
+            .accessibilityHidden(true)
+
+            LinearGradient(
+                colors: DocketTheme.BoardCard.moviePosterGradientColors,
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            VStack(alignment: .leading, spacing: DocketTheme.BoardCard.movieTextSpacing) {
+                Text(item.title)
+                    .font(DocketTheme.BoardCard.movieTitleFont)
+                    .foregroundStyle(DocketTheme.BoardCard.moviePrimaryText)
+                    .lineLimit(DocketTheme.BoardCard.movieTitleLineLimit)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let subtitle {
+                    Text(subtitle)
+                        .font(DocketTheme.BoardCard.movieSubtitleFont)
+                        .foregroundStyle(DocketTheme.BoardCard.movieSecondaryText)
+                        .lineLimit(2)
+                }
+
+                Text("— \(addedBy)")
+                    .font(DocketTheme.BoardCard.movieAuthorFont)
+                    .foregroundStyle(DocketTheme.BoardCard.movieMutedText)
+                    .lineLimit(1)
+            }
+            .padding(DocketTheme.BoardCard.movieContentPadding)
+        }
+        .overlay(alignment: .top) {
+            HStack(alignment: .center, spacing: DocketTheme.BoardCard.movieBadgeSpacing) {
+                Label("MOVIE", systemImage: "film.fill")
+                    .font(DocketTheme.BoardCard.movieBadgeFont)
+                    .tracking(DocketTheme.BoardCard.movieBadgeTracking)
+                    .foregroundStyle(DocketTheme.BoardCard.moviePrimaryText)
+                    .padding(.horizontal, DocketTheme.BoardCard.movieBadgeHorizontalPadding)
+                    .padding(.vertical, DocketTheme.BoardCard.movieBadgeVerticalPadding)
+                    .background(
+                        DocketTheme.BoardCard.movieBadgeBackground,
+                        in: Capsule()
+                    )
+
+                Spacer(minLength: 0)
+
+                HStack(spacing: DocketTheme.BoardCard.movieStatusSpacing) {
+                    Circle()
+                        .fill(item.status.chipColor)
+                        .frame(
+                            width: DocketTheme.BoardCard.movieStatusDotSize,
+                            height: DocketTheme.BoardCard.movieStatusDotSize
+                        )
+                    Text(item.status.label)
+                        .lineLimit(1)
+                }
+                .font(DocketTheme.BoardCard.movieStatusFont)
+                .foregroundStyle(DocketTheme.BoardCard.moviePrimaryText)
+                .padding(.horizontal, DocketTheme.BoardCard.movieBadgeHorizontalPadding)
+                .padding(.vertical, DocketTheme.BoardCard.movieBadgeVerticalPadding)
+                .background(
+                    DocketTheme.BoardCard.movieBadgeBackground,
+                    in: Capsule()
+                )
+            }
+            .padding(DocketTheme.BoardCard.movieBadgeInset)
+        }
+        .aspectRatio(DocketTheme.BoardCard.moviePosterAspectRatio, contentMode: .fit)
+        .frame(maxWidth: .infinity)
+        .clipShape(
+            RoundedRectangle(
+                cornerRadius: DocketTheme.BoardCard.movieCornerRadius,
+                style: .continuous
+            )
+        )
+        .background(
+            RoundedRectangle(
+                cornerRadius: DocketTheme.BoardCard.movieCornerRadius,
+                style: .continuous
+            )
+            .fill(palette.paper)
+            .shadow(color: palette.shadow, radius: 5, x: 0, y: 4)
+        )
         .overlay(alignment: .top) {
             PinDot().offset(y: -5)
         }

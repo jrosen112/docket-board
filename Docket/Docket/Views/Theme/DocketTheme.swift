@@ -62,6 +62,36 @@ nonisolated enum DocketTheme {
         static let transitionCaptureInset: CGFloat = 10
         static let photoHeight: CGFloat = 104
         static let photoCornerRadius: CGFloat = 4
+        /// TMDB posters are delivered at roughly 2:3, so matching the card to
+        /// that ratio keeps the artwork visible instead of turning it into a
+        /// short landscape crop.
+        static let moviePosterAspectRatio: CGFloat = 2.0 / 3.0
+        static let movieCornerRadius: CGFloat = 5
+        static let movieContentPadding: CGFloat = 12
+        static let movieTextSpacing: CGFloat = 4
+        static let movieTitleFont: Font = DocketTheme.display(19)
+        static let movieSubtitleFont: Font = .caption.weight(.medium)
+        static let movieAuthorFont: Font = .caption2.italic()
+        static let movieTitleLineLimit = 3
+        static let moviePrimaryText = Color.white
+        static let movieSecondaryText = Color.white.opacity(0.82)
+        static let movieMutedText = Color.white.opacity(0.66)
+        static let moviePosterGradientColors = [
+            Color.black.opacity(0.04),
+            Color.black.opacity(0.02),
+            Color.black.opacity(0.22),
+            Color.black.opacity(0.9),
+        ]
+        static let movieBadgeSpacing: CGFloat = 7
+        static let movieBadgeInset: CGFloat = 9
+        static let movieBadgeFont: Font = .system(size: 8, weight: .bold)
+        static let movieBadgeTracking: CGFloat = 0.9
+        static let movieBadgeHorizontalPadding: CGFloat = 7
+        static let movieBadgeVerticalPadding: CGFloat = 5
+        static let movieBadgeBackground = Color.black.opacity(0.52)
+        static let movieStatusSpacing: CGFloat = 4
+        static let movieStatusDotSize: CGFloat = 6
+        static let movieStatusFont: Font = .system(size: 8, weight: .bold)
     }
 
     enum StatusBadge {
@@ -128,23 +158,75 @@ nonisolated enum DocketTheme {
     enum BoardManager {
         static let maxContentWidth: CGFloat = 680
         static let horizontalPadding: CGFloat = 18
-        static let verticalPadding: CGFloat = 20
-        static let cardSpacing: CGFloat = 14
-        static let cardPadding: CGFloat = 18
-        static let cardCornerRadius: CGFloat = 12
-        static let headerSpacing: CGFloat = 12
-        static let metadataSpacing: CGFloat = 8
+        static let topPadding: CGFloat = 22
+        static let bottomPadding: CGFloat = 36
+        static let sectionSpacing: CGFloat = 15
+        static let introSpacing: CGFloat = 16
+        static let introTextSpacing: CGFloat = 6
+        static let eyebrowFont: Font = .caption2.weight(.bold)
+        static let eyebrowTracking: CGFloat = 1.5
+        static let headingFont: Font = DocketTheme.display(28)
+        static let supportingFont: Font = .subheadline
+        static let supportingColor = DocketTheme.cream.opacity(0.62)
+        static let countFont: Font = DocketTheme.display(22)
+        static let countLabelFont: Font = .system(size: 8, weight: .bold)
+        static let countLabelTracking: CGFloat = 0.8
+        static let countBadgeSize: CGFloat = 58
+        static let sectionLabelFont: Font = .caption2.weight(.bold)
+        static let sectionLabelTracking: CGFloat = 1.25
+        static let sectionLabelColor = DocketTheme.cream.opacity(0.5)
+        static let sectionLabelLeadingPadding: CGFloat = 3
+        static let activeCardSpacing: CGFloat = 16
+        static let activeCardPadding: CGFloat = 20
+        static let activeCardCornerRadius: CGFloat = 16
+        static let cardHeaderSpacing: CGFloat = 12
+        static let titleSpacing: CGFloat = 6
+        static let statusSpacing: CGFloat = 6
+        static let liveDotFont: Font = .system(size: 7, weight: .bold)
+        static let activeLabelFont: Font = .caption2.weight(.bold)
+        static let activeLabelTracking: CGFloat = 1.2
+        static let activeColor = Color(hex: 0x668C63)
+        static let activeTitleFont: Font = DocketTheme.display(27)
+        static let roleFont: Font = .caption.weight(.medium)
         static let actionSpacing: CGFloat = 10
-        static let iconSize: CGFloat = 42
-        static let titleFont: Font = DocketTheme.display(21)
-        static let roleFont: Font = .caption.weight(.semibold)
+        static let pinSize: CGFloat = 13
+        static let pinOffsetY: CGFloat = -6
+        static let activeShadowRadius: CGFloat = 10
+        static let activeShadowY: CGFloat = 6
+        static let statSpacing: CGFloat = 20
+        static let statContentSpacing: CGFloat = 7
+        static let statIconFont: Font = .caption.weight(.bold)
+        static let statValueFont: Font = DocketTheme.display(19)
+        static let statLabelFont: Font = .system(size: 8, weight: .bold)
+        static let statLabelTracking: CGFloat = 0.7
+        static let participantFont: Font = .caption
+        static let rowSpacing: CGFloat = 9
+        static let rowContentSpacing: CGFloat = 12
+        static let rowPadding: CGFloat = 13
+        static let rowCornerRadius: CGFloat = 13
+        static let rowIconSize: CGFloat = 42
+        static let rowIconCornerRadius: CGFloat = 11
+        static let rowIconFont: Font = .subheadline.weight(.semibold)
+        static let rowTextSpacing: CGFloat = 4
+        static let rowTitleFont: Font = DocketTheme.display(18)
+        static let chevronFont: Font = .caption.weight(.bold)
+        static let rowShadowOpacity: Double = 0.45
+        static let rowShadowRadius: CGFloat = 4
+        static let rowShadowY: CGFloat = 2
         static let metadataFont: Font = .caption
-        static let currentFont: Font = .caption2.weight(.bold)
-        static let currentHorizontalPadding: CGFloat = 8
-        static let currentVerticalPadding: CGFloat = 4
-        static let currentCornerRadius: CGFloat = 8
-        static let shadowRadius: CGFloat = 7
-        static let shadowY: CGFloat = 4
+        static let menuFont: Font = .body.weight(.semibold)
+        static let menuSize: CGFloat = 38
+        static let loadingSpacing: CGFloat = 7
+        static let createSpacing: CGFloat = 13
+        static let createPadding: CGFloat = 16
+        static let createCornerRadius: CGFloat = 14
+        static let createIconSize: CGFloat = 38
+        static let createIconFont: Font = .subheadline.weight(.bold)
+        static let createTextSpacing: CGFloat = 3
+        static let createTitleFont: Font = .headline
+        static let createSupportingFont: Font = .caption
+        static let createBorderWidth: CGFloat = 1
+        static let createBorderDash: [CGFloat] = [6, 5]
         static let unavailableColor = Color(hex: 0xE8B36A)
     }
 
