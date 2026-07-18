@@ -19,7 +19,8 @@ extension BoardStore {
         var receivedData = false
         for candidate in matchingSpaces {
             do {
-                let loaded = try await makeService(candidate).loadEverything()
+                let candidateService = makeService(candidate)
+                let loaded = try await candidateService.loadEverything()
                 let previousIDs = rememberedItemIDs(in: candidate)
                 let previousVersions = rememberedItemVersions(in: candidate)
                 remember(items: loaded.items, in: candidate)
@@ -32,9 +33,28 @@ extension BoardStore {
                     let newItems = loaded.items.filter {
                         !previousIDs.contains($0.id.recordName)
                     }
-                    let myProfileID = defaults.string(forKey: profileKey(for: candidate))
+                    let myProfileIDs: Set<CKRecord.ID>
+                    if let userRecordName = try? await candidateService.accountUserRecordID().recordName {
+                        myProfileIDs = Set(
+                            profilesForCurrentAccount(
+                                in: loaded.profiles,
+                                space: candidate,
+                                userRecordName: userRecordName
+                            ).map(\.id)
+                        )
+                    } else if let rememberedID = defaults.string(
+                        forKey: profileKey(for: candidate)
+                    ) {
+                        myProfileIDs = Set(
+                            loaded.profiles
+                                .filter { $0.id.recordName == rememberedID }
+                                .map(\.id)
+                        )
+                    } else {
+                        myProfileIDs = []
+                    }
                     let additionsByOthers = newItems.filter {
-                        $0.addedBy.recordID.recordName != myProfileID
+                        !myProfileIDs.contains($0.addedBy.recordID)
                     }
                     let editedItems: [any SharedListItem]
                     if let previousVersions {
@@ -61,6 +81,7 @@ extension BoardStore {
 
                 if candidate == space {
                     publishRemoteLoad(loaded)
+                    await repairCurrentProfileIdentityIfNeeded()
                 }
             } catch {
                 // A push-triggered fetch failing is invisible work the user

@@ -1,10 +1,16 @@
 import CloudKit
 import Foundation
 
+private struct ProfileIdentityRepair {
+    let items: [any SharedListItem]
+    let profiles: [UserProfile]
+    let profile: UserProfile
+}
+
 extension BoardStore {
     /// Reclaims this iCloud user's profiles and board memberships on a new
-    /// device. Profile ownership comes from CloudKit's creator metadata; no
-    /// names are guessed and no duplicate profile records are created.
+    /// device. New profiles carry an explicit account record name; creator
+    /// metadata remains as the migration path for older records.
     func restoreFromICloud() async -> ICloudRestoreResult {
         errorMessage = nil
         isLoading = true
@@ -30,19 +36,25 @@ extension BoardStore {
                 let candidateService = makeService(candidate)
                 do {
                     let loaded = try await candidateService.loadEverything()
-                    guard let profile = loaded.profiles.first(where: {
-                        Self.profileBelongsToCurrentAccount(
-                            $0,
-                            in: candidate,
-                            userRecordName: userRecordName
-                        )
-                    }) else { continue }
+                    guard let profile = profileForCurrentAccount(
+                        in: loaded.profiles,
+                        space: candidate,
+                        userRecordName: userRecordName
+                    ) else { continue }
+                    let repair = try? await repairProfileIdentity(
+                        items: loaded.items,
+                        profiles: loaded.profiles,
+                        preferredProfile: profile,
+                        in: candidate,
+                        using: candidateService,
+                        userRecordName: userRecordName
+                    )
                     restored.append((
                         candidate,
                         candidateService,
-                        loaded.items,
-                        loaded.profiles,
-                        profile
+                        repair?.items ?? loaded.items,
+                        repair?.profiles ?? loaded.profiles,
+                        repair?.profile ?? profile
                     ))
                 } catch {
                     if firstLoadError == nil { firstLoadError = error }
@@ -88,6 +100,7 @@ extension BoardStore {
             isLoading = false
             loadState = .loaded
             needsMembershipRecovery = firstLoadError != nil
+            await repairCurrentProfileIdentityIfNeeded()
             return .restored(boardCount: restored.count)
         } catch {
             needsMembershipRecovery = true
@@ -98,17 +111,18 @@ extension BoardStore {
         }
     }
 
-    /// CloudKit aliases the owner of a private database to
-    /// `CKCurrentUserDefaultName` in record system metadata. Shared databases
-    /// do not get that fallback because their default owner is another person.
+    /// New records use the explicit account field. CloudKit creator metadata
+    /// is only a legacy fallback; the current account can be represented by
+    /// `CKCurrentUserDefaultName` in fetched system metadata.
     static func profileBelongsToCurrentAccount(
         _ profile: UserProfile,
         in space: Space,
         userRecordName: String
     ) -> Bool {
+        if profile.accountRecordName == userRecordName { return true }
         guard let creator = profile.creatorUserRecordName else { return false }
         if creator == userRecordName { return true }
-        return space.isOwned && creator == CKCurrentUserDefaultName
+        return creator == CKCurrentUserDefaultName
     }
 
     /// Aggregates only items whose `addedBy` reference points at this user's
@@ -128,15 +142,17 @@ extension BoardStore {
             for candidate in spaces {
                 do {
                     let loaded = try await makeService(candidate).loadEverything()
-                    guard let profile = profileForCurrentAccount(
+                    let accountProfiles = profilesForCurrentAccount(
                         in: loaded.profiles,
                         space: candidate,
                         userRecordName: userRecordName
-                    ) else { continue }
+                    )
+                    guard !accountProfiles.isEmpty else { continue }
 
                     loadedBoardCount += 1
+                    let profileIDs = Set(accountProfiles.map(\.id))
                     let authoredItems = loaded.items.filter {
-                        $0.addedBy.recordID == profile.id
+                        profileIDs.contains($0.addedBy.recordID)
                     }
                     itemCount += authoredItems.count
                     for item in authoredItems {
@@ -190,9 +206,9 @@ extension BoardStore {
         }
     }
 
-    /// Updates the profile record in every known board. Item records are left
-    /// untouched: their `addedBy` references continue pointing at the same
-    /// profile IDs and resolve to the new display name automatically.
+    /// Updates the profile record in every known board. Any legacy duplicate
+    /// identity is folded into the canonical profile first, preserving item
+    /// attribution while the name propagates.
     func updateCurrentUserName(
         firstName: String,
         lastName: String
@@ -213,7 +229,7 @@ extension BoardStore {
                 let candidateService = makeService(candidate)
                 do {
                     let loaded = try await candidateService.loadEverything()
-                    guard var profile = profileForCurrentAccount(
+                    guard let existingProfile = profileForCurrentAccount(
                         in: loaded.profiles,
                         space: candidate,
                         userRecordName: userRecordName
@@ -222,8 +238,19 @@ extension BoardStore {
                         continue
                     }
 
+                    let repair = try? await repairProfileIdentity(
+                        items: loaded.items,
+                        profiles: loaded.profiles,
+                        preferredProfile: existingProfile,
+                        in: candidate,
+                        using: candidateService,
+                        userRecordName: userRecordName
+                    )
+                    var profile = repair?.profile ?? existingProfile
+
                     profile.firstName = cleanedFirstName
                     profile.lastName = cleanedLastName
+                    profile.accountRecordName = userRecordName
                     let savedRecord = try await candidateService.save(profile.toRecord())
                     let savedProfile = UserProfile(record: savedRecord) ?? profile
                     defaults.set(
@@ -233,8 +260,14 @@ extension BoardStore {
                     updatedBoardCount += 1
 
                     if candidate == space {
+                        if let repair {
+                            items = repair.items.sorted { $0.dateAdded > $1.dateAdded }
+                            profiles = repair.profiles
+                        }
                         if let index = profiles.firstIndex(where: { $0.id == savedProfile.id }) {
                             profiles[index] = savedProfile
+                        } else {
+                            profiles.append(savedProfile)
                         }
                         currentProfile = savedProfile
                         rememberProfileTemplate(savedProfile)
@@ -264,16 +297,63 @@ extension BoardStore {
         space: Space,
         userRecordName: String
     ) -> UserProfile? {
+        let matches = profilesForCurrentAccount(
+            in: candidates,
+            space: space,
+            userRecordName: userRecordName
+        )
         if let rememberedID = defaults.string(forKey: profileKey(for: space)),
-           let remembered = candidates.first(where: { $0.id.recordName == rememberedID }) {
+           let remembered = matches.first(where: { $0.id.recordName == rememberedID }) {
             return remembered
         }
-        return candidates.first {
+        let stamped = matches.filter { $0.accountRecordName == userRecordName }
+        return (stamped.isEmpty ? matches : stamped).min {
+            $0.id.recordName < $1.id.recordName
+        }
+    }
+
+    func profilesForCurrentAccount(
+        in candidates: [UserProfile],
+        space: Space,
+        userRecordName: String
+    ) -> [UserProfile] {
+        var matches = candidates.filter {
             Self.profileBelongsToCurrentAccount(
                 $0,
                 in: space,
                 userRecordName: userRecordName
             )
+        }
+
+        // A freshly-saved record can briefly arrive without creator metadata.
+        // Trust a remembered legacy record only when it has no explicit,
+        // contradictory account identity.
+        if let rememberedID = defaults.string(forKey: profileKey(for: space)),
+           let remembered = candidates.first(where: { $0.id.recordName == rememberedID }),
+           remembered.accountRecordName == nil,
+           remembered.creatorUserRecordName == nil,
+           !matches.contains(where: { $0.id == remembered.id }) {
+            matches.append(remembered)
+        }
+        return matches
+    }
+
+    func reclaimCurrentProfileFromLoadedBoardIfPossible() async {
+        guard currentProfile == nil, loadState == .loaded else { return }
+        do {
+            let userRecordName = try await service.accountUserRecordID().recordName
+            guard let profile = profileForCurrentAccount(
+                in: profiles,
+                space: space,
+                userRecordName: userRecordName
+            ) else { return }
+            defaults.set(profile.id.recordName, forKey: profileKey)
+            currentProfile = profile
+            rememberProfileTemplate(profile)
+            await repairCurrentProfileIdentityIfNeeded()
+        } catch {
+            // Normal restore/onboarding remains available if identity lookup is
+            // temporarily unavailable.
         }
     }
 
@@ -282,13 +362,15 @@ extension BoardStore {
         errorMessage = nil
         let requestedSpace = space
         let requestedService = service
-        let profile = UserProfile(
-            id: requestedService.newRecordID(),
-            firstName: firstName,
-            lastName: lastName
-        )
         do {
             try await requireNetwork()
+            let accountRecordName = try await requestedService.accountUserRecordID().recordName
+            let profile = UserProfile(
+                id: requestedService.newRecordID(),
+                firstName: firstName,
+                lastName: lastName,
+                accountRecordName: accountRecordName
+            )
             let savedRecord = try await requestedService.save(profile.toRecord())
             let savedProfile = UserProfile(record: savedRecord) ?? profile
             guard space == requestedSpace else { return true }
@@ -301,10 +383,135 @@ extension BoardStore {
                 profiles.append(savedProfile)
             }
             _ = await refresh()
+            await repairCurrentProfileIdentityIfNeeded()
             return true
         } catch {
             errorMessage = Self.message(for: error)
             return false
         }
+    }
+
+    /// Stamps legacy profiles with the stable account field and safely folds
+    /// duplicate profiles created by an earlier reinstall bug into one stable
+    /// survivor. Every item reference is rewritten before an extra profile is
+    /// deleted, so attribution is never orphaned.
+    func repairCurrentProfileIdentityIfNeeded() async {
+        guard let selectedProfile = currentProfile else { return }
+
+        do {
+            let accountRecordName = try await service.accountUserRecordID().recordName
+            defaults.set(accountRecordName, forKey: Self.accountRecordNameKey)
+            guard let repair = try await repairProfileIdentity(
+                items: items,
+                profiles: profiles,
+                preferredProfile: selectedProfile,
+                in: space,
+                using: service,
+                userRecordName: accountRecordName
+            ) else { return }
+
+            items = repair.items.sorted { $0.dateAdded > $1.dateAdded }
+            profiles = repair.profiles
+            replaceLoadedProfile(repair.profile)
+            defaults.set(repair.profile.id.recordName, forKey: profileKey)
+            remember(items: items, in: space)
+        } catch {
+            // Identity repair is maintenance, not a reason to hide a healthy
+            // board. It retries on the next launch or foreground transition.
+        }
+    }
+
+    private func repairProfileIdentity(
+        items loadedItems: [any SharedListItem],
+        profiles loadedProfiles: [UserProfile],
+        preferredProfile: UserProfile,
+        in targetSpace: Space,
+        using targetService: any SpaceDataService,
+        userRecordName: String
+    ) async throws -> ProfileIdentityRepair? {
+        var accountProfiles = loadedProfiles.filter {
+            Self.profileBelongsToCurrentAccount(
+                $0,
+                in: targetSpace,
+                userRecordName: userRecordName
+            )
+        }
+
+        // Permit only a metadata-less remembered profile as an additional
+        // migration candidate. An explicitly different account must never be
+        // adopted merely because a stale UserDefaults key points to it.
+        if let loadedPreferred = loadedProfiles.first(where: { $0.id == preferredProfile.id }),
+           loadedPreferred.accountRecordName == nil,
+           loadedPreferred.creatorUserRecordName == nil,
+           !accountProfiles.contains(where: { $0.id == loadedPreferred.id }) {
+            accountProfiles.append(loadedPreferred)
+        }
+        guard !accountProfiles.isEmpty else { return nil }
+
+        // Every device signed into the same iCloud account must choose the
+        // same survivor. Prefer an already-stamped profile, then use the
+        // record name as a stable tie-breaker so concurrent repairs converge.
+        let stamped = accountProfiles.filter {
+            $0.accountRecordName == userRecordName
+        }
+        let canonicalPool = stamped.isEmpty ? accountProfiles : stamped
+        guard var canonical = canonicalPool.min(by: {
+            $0.id.recordName < $1.id.recordName
+        }) else { return nil }
+        let duplicates = accountProfiles.filter { $0.id != canonical.id }
+
+        if canonical.accountRecordName != userRecordName {
+            let legacyCreator = canonical.creatorUserRecordName
+            canonical.accountRecordName = userRecordName
+            let saved = try await targetService.save(canonical.toRecord())
+            canonical = UserProfile(record: saved) ?? canonical
+            canonical.creatorUserRecordName =
+                canonical.creatorUserRecordName ?? legacyCreator
+        }
+
+        let duplicateIDs = Set(duplicates.map(\.id))
+        var repairedItems: [any SharedListItem] = []
+        repairedItems.reserveCapacity(loadedItems.count)
+
+        // Finish every reference rewrite before deleting any profile. A
+        // network or conflict failure therefore leaves a retryable state.
+        for item in loadedItems {
+            guard duplicateIDs.contains(item.addedBy.recordID) else {
+                repairedItems.append(item)
+                continue
+            }
+            var repaired = item
+            repaired.addedBy = canonical.reference
+            let saved = try await targetService.save(repaired.toRecord())
+            repairedItems.append(RecordDecoder.item(from: saved) ?? repaired)
+        }
+
+        for duplicate in duplicates {
+            try await targetService.delete(duplicate.id)
+        }
+
+        var repairedProfiles = loadedProfiles.filter {
+            !duplicateIDs.contains($0.id)
+        }
+        if let index = repairedProfiles.firstIndex(where: { $0.id == canonical.id }) {
+            repairedProfiles[index] = canonical
+        } else {
+            repairedProfiles.append(canonical)
+        }
+        return ProfileIdentityRepair(
+            items: repairedItems,
+            profiles: repairedProfiles,
+            profile: canonical
+        )
+    }
+
+    private func replaceLoadedProfile(_ profile: UserProfile) {
+        if let index = profiles.firstIndex(where: { $0.id == profile.id }) {
+            profiles[index] = profile
+        } else {
+            profiles.append(profile)
+        }
+        currentProfile = profile
+        rememberProfileTemplate(profile)
     }
 }

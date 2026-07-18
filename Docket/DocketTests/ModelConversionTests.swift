@@ -105,12 +105,14 @@ final class ModelConversionTests: XCTestCase {
         let original = UserProfile(
             id: CKRecord.ID(recordName: "profile-alice"),
             firstName: "Alice",
-            lastName: "Nguyen"
+            lastName: "Nguyen",
+            accountRecordName: "opaque-icloud-account-id"
         )
 
         let decoded = try XCTUnwrap(UserProfile(record: original.toRecord()))
         XCTAssertEqual(decoded, original)
         XCTAssertEqual(decoded.displayName, "Alice Nguyen")
+        XCTAssertEqual(decoded.accountRecordName, "opaque-icloud-account-id")
     }
 
     // MARK: Guard rails

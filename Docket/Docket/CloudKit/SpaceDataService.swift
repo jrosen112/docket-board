@@ -10,6 +10,11 @@
 
 import CloudKit
 
+nonisolated struct BoardParticipantRoster: Equatable, Sendable {
+    let participantCount: Int
+    let participantNames: [String]
+}
+
 nonisolated protocol SpaceDataService: Sendable {
     /// The container, exposed for UICloudSharingController.
     var container: CKContainer { get }
@@ -33,4 +38,8 @@ nonisolated protocol SpaceDataService: Sendable {
     /// Loads this board's existing share. For an owned, not-yet-shared board,
     /// creates the zone-wide share first.
     func loadShare() async throws -> CKShare
+    /// Returns active membership from an existing CKShare without creating a
+    /// share as a side effect of opening Board Manager. nil means the private
+    /// board has never been shared and therefore has only its owner.
+    func loadParticipantRoster() async throws -> BoardParticipantRoster?
 }

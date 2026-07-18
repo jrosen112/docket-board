@@ -224,6 +224,31 @@ actor CloudKitService: SpaceDataService {
         case .failure(let error): throw error
         }
     }
+
+    func loadParticipantRoster() async throws -> BoardParticipantRoster? {
+        try await ensureZone()
+        let zone = try await database.recordZone(for: zoneID)
+        guard let shareReference = zone.share,
+              let share = try await database.record(for: shareReference.recordID) as? CKShare
+        else { return nil }
+
+        let participants = share.participants.filter {
+            $0.acceptanceStatus != .removed
+        }
+        let names = participants.compactMap { participant -> String? in
+            guard let components = participant.userIdentity.nameComponents else { return nil }
+            let name = PersonNameComponentsFormatter.localizedString(
+                from: components,
+                style: .default,
+                options: []
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+            return name.isEmpty ? nil : name
+        }
+        return BoardParticipantRoster(
+            participantCount: participants.count,
+            participantNames: names.sorted()
+        )
+    }
 }
 
 /// CloudKit operation callbacks are not actor-isolated and may arrive on

@@ -86,6 +86,22 @@ final class BoardStoreTests: XCTestCase {
         XCTAssertEqual(prepareCount, 1)
     }
 
+    func testSingleBoardReinstallAutomaticallyReclaimsExistingProfile() async {
+        let profile = seedProfile()
+
+        await store.bootstrap()
+
+        XCTAssertEqual(store.currentProfile?.id, profile.id)
+        XCTAssertEqual(
+            UserProfile(record: mock.records[profile.id]!)?.accountRecordName,
+            mock.accountUserID.recordName
+        )
+        XCTAssertEqual(
+            defaults.string(forKey: store.profileKey),
+            profile.id.recordName
+        )
+    }
+
     func testForegroundRefreshReconcilesChangesMissedByPush() async {
         let alice = seedProfile()
         await store.bootstrap()
@@ -213,7 +229,7 @@ final class BoardStoreTests: XCTestCase {
         // exposing the opaque account record name returned by userRecordID().
         mock.profileCreatorRecordNames[profile.id] = CKCurrentUserDefaultName
         await store.bootstrap()
-        XCTAssertNil(store.currentProfile)
+        XCTAssertEqual(store.currentProfile?.id, profile.id)
         let recordCountBeforeRestore = mock.records.count
 
         let result = await store.restoreFromICloud()
@@ -232,6 +248,147 @@ final class BoardStoreTests: XCTestCase {
 
         XCTAssertEqual(result, .notFound)
         XCTAssertNil(store.currentProfile)
+    }
+
+    func testSharedProfileRecognizesCurrentUserAliasDuringLegacyMigration() {
+        let joined = Space(
+            zoneID: CKRecordZone.ID(zoneName: "LegacyShared", ownerName: "partner"),
+            access: .joined,
+            title: "Together"
+        )
+        let profile = UserProfile(
+            id: CKRecord.ID(recordName: "legacy-me", zoneID: joined.zoneID),
+            firstName: "Alice",
+            lastName: "Nguyen",
+            creatorUserRecordName: CKCurrentUserDefaultName
+        )
+
+        XCTAssertTrue(
+            BoardStore.profileBelongsToCurrentAccount(
+                profile,
+                in: joined,
+                userRecordName: mock.accountUserID.recordName
+            )
+        )
+    }
+
+    func testStaleRememberedProfileCannotAdoptAnotherExplicitAccount() async {
+        let mine = UserProfile(
+            id: CKRecord.ID(recordName: "profile-mine", zoneID: mock.space.zoneID),
+            firstName: "Alice",
+            lastName: "Nguyen",
+            accountRecordName: mock.accountUserID.recordName
+        )
+        let someoneElse = UserProfile(
+            id: CKRecord.ID(recordName: "profile-someone-else", zoneID: mock.space.zoneID),
+            firstName: "Jordan",
+            lastName: "Lee",
+            accountRecordName: "different-icloud-account"
+        )
+        mock.records[mine.id] = mine.toRecord()
+        mock.records[someoneElse.id] = someoneElse.toRecord()
+        mock.profileCreatorRecordNames[mine.id] = mock.accountUserID.recordName
+        mock.profileCreatorRecordNames[someoneElse.id] = "different-icloud-account"
+        defaults.set(someoneElse.id.recordName, forKey: store.profileKey)
+
+        await store.bootstrap()
+
+        XCTAssertEqual(store.currentProfile?.id, mine.id)
+        XCTAssertNotNil(mock.records[someoneElse.id])
+        XCTAssertEqual(
+            UserProfile(record: mock.records[someoneElse.id]!)?.accountRecordName,
+            "different-icloud-account"
+        )
+    }
+
+    func testBootstrapMergesDuplicateProfileAndRewritesItsItems() async throws {
+        let canonical = UserProfile(
+            id: CKRecord.ID(recordName: "profile-current", zoneID: mock.space.zoneID),
+            firstName: "Alice",
+            lastName: "Nguyen",
+            accountRecordName: mock.accountUserID.recordName
+        )
+        let legacyDuplicate = UserProfile(
+            id: CKRecord.ID(recordName: "profile-pre-reinstall", zoneID: mock.space.zoneID),
+            firstName: "Alice",
+            lastName: "Nguyen"
+        )
+        let legacyMovie = Movie(
+            id: CKRecord.ID(recordName: "movie-from-old-profile", zoneID: mock.space.zoneID),
+            title: "Heat",
+            addedBy: legacyDuplicate.reference
+        )
+        mock.records[canonical.id] = canonical.toRecord()
+        mock.records[legacyDuplicate.id] = legacyDuplicate.toRecord()
+        mock.records[legacyMovie.id] = legacyMovie.toRecord()
+        mock.profileCreatorRecordNames[canonical.id] = mock.accountUserID.recordName
+        mock.profileCreatorRecordNames[legacyDuplicate.id] = CKCurrentUserDefaultName
+        defaults.set(canonical.id.recordName, forKey: store.profileKey)
+
+        await store.bootstrap()
+
+        XCTAssertEqual(store.profiles.map(\.id), [canonical.id])
+        XCTAssertEqual(store.currentProfile?.id, canonical.id)
+        XCTAssertNil(mock.records[legacyDuplicate.id])
+        let repairedRecord = try XCTUnwrap(mock.records[legacyMovie.id])
+        let repairedReference = try XCTUnwrap(
+            repairedRecord[Schema.Field.addedBy] as? CKRecord.Reference
+        )
+        XCTAssertEqual(repairedReference.recordID, canonical.id)
+        XCTAssertEqual(store.items.first?.addedBy.recordID, canonical.id)
+    }
+
+    func testRestoreRepairsDuplicatesOnBoardsThatAreNotSelected() async throws {
+        _ = seedProfile()
+        let joined = Space(
+            zoneID: CKRecordZone.ID(zoneName: "RepairEveryBoard", ownerName: "partner"),
+            access: .joined,
+            title: "Together"
+        )
+        let joinedService = MockSpaceService(space: joined)
+        joinedService.accountUserID = mock.accountUserID
+        let canonical = UserProfile(
+            id: CKRecord.ID(recordName: "profile-a", zoneID: joined.zoneID),
+            firstName: "Alice",
+            lastName: "Nguyen"
+        )
+        let duplicate = UserProfile(
+            id: CKRecord.ID(recordName: "profile-b", zoneID: joined.zoneID),
+            firstName: "Alice",
+            lastName: "Nguyen"
+        )
+        let movie = Movie(
+            id: CKRecord.ID(recordName: "joined-old-pin", zoneID: joined.zoneID),
+            title: "Heat",
+            addedBy: duplicate.reference
+        )
+        joinedService.records[canonical.id] = canonical.toRecord()
+        joinedService.records[duplicate.id] = duplicate.toRecord()
+        joinedService.records[movie.id] = movie.toRecord()
+        joinedService.profileCreatorRecordNames[canonical.id] = mock.accountUserID.recordName
+        joinedService.profileCreatorRecordNames[duplicate.id] = CKCurrentUserDefaultName
+        mock.discoveredSpaces = [.default, joined]
+        let defaultService = mock!
+        let restoringStore = BoardStore(
+            defaults: defaults,
+            makeService: { space in
+                space == joined ? joinedService : defaultService
+            },
+            notificationService: notificationMock,
+            networkAvailability: networkMock
+        )
+        await restoringStore.bootstrap()
+
+        _ = await restoringStore.restoreFromICloud()
+
+        XCTAssertEqual(restoringStore.space, .default)
+        XCTAssertNotNil(joinedService.records[canonical.id])
+        XCTAssertNil(joinedService.records[duplicate.id])
+        let repairedMovie = try XCTUnwrap(joinedService.records[movie.id])
+        let reference = try XCTUnwrap(
+            repairedMovie[Schema.Field.addedBy] as? CKRecord.Reference
+        )
+        XCTAssertEqual(reference.recordID, canonical.id)
     }
 
     func testRestoreFromICloudRebuildsMultipleBoardCatalog() async {
@@ -453,6 +610,28 @@ final class BoardStoreTests: XCTestCase {
         XCTAssertEqual(stats.boards.map(\.itemCount).reduce(0, +), 3)
     }
 
+    func testProfileStatsIncludeItemsFromEverySameAccountProfile() async {
+        await store.createProfile(firstName: "Alice", lastName: "Nguyen")
+        let canonical = store.currentProfile!
+        seedMovie("Current Profile Pin", addedBy: canonical, dateAdded: .now)
+        let duplicate = UserProfile(
+            id: CKRecord.ID(recordName: "same-account-duplicate", zoneID: mock.space.zoneID),
+            firstName: "Alice",
+            lastName: "Nguyen",
+            accountRecordName: mock.accountUserID.recordName
+        )
+        mock.records[duplicate.id] = duplicate.toRecord()
+        mock.profileCreatorRecordNames[duplicate.id] = mock.accountUserID.recordName
+        seedMovie("Old Profile Pin", addedBy: duplicate, dateAdded: .now)
+
+        let result = await store.loadProfileStats()
+
+        guard case .loaded(let stats) = result else {
+            return XCTFail("Expected profile stats")
+        }
+        XCTAssertEqual(stats.itemCount, 2)
+    }
+
     func testCreateProfilePersistsIdentityAcrossRelaunch() async {
         await store.createProfile(firstName: "Jared", lastName: "R")
         XCTAssertEqual(store.currentProfile?.firstName, "Jared")
@@ -516,6 +695,7 @@ final class BoardStoreTests: XCTestCase {
         seedMovie("Mine", addedBy: currentProfile, dateAdded: .now)
 
         let alice = seedProfile(name: "Alice")
+        mock.profileCreatorRecordNames[alice.id] = "alice-icloud-user"
         seedMovie("Hers", addedBy: alice, dateAdded: .now)
         await store.refresh()
 
@@ -1015,8 +1195,42 @@ final class BoardStoreTests: XCTestCase {
         XCTAssertEqual(snapshots.count, 1)
         XCTAssertEqual(snapshots[0].space, .default)
         XCTAssertEqual(snapshots[0].itemCount, 1)
+        XCTAssertEqual(snapshots[0].participantCount, 1)
         XCTAssertEqual(snapshots[0].participantNames, ["Alice Nguyen"])
         XCTAssertTrue(snapshots[0].isAvailable)
+    }
+
+    func testBoardManagementUsesShareRosterInsteadOfProfileRecordCount() async {
+        let alice = seedProfile(name: "Alice")
+        let staleProfile = seedProfile(name: "Old Copy")
+        mock.profileCreatorRecordNames[staleProfile.id] = "departed-user"
+        seedMovie("Heat", addedBy: alice, dateAdded: .now)
+        mock.participantRoster = BoardParticipantRoster(
+            participantCount: 2,
+            participantNames: ["Alice Nguyen", "Jared Rosen"]
+        )
+        await store.bootstrap()
+
+        let snapshots = await store.loadBoardManagementSnapshots()
+
+        XCTAssertEqual(snapshots[0].participantCount, 2)
+        XCTAssertEqual(
+            snapshots[0].participantNames,
+            ["Alice Nguyen", "Jared Rosen"]
+        )
+    }
+
+    func testBoardManagementKeepsBoardAvailableWhenRosterFetchFails() async {
+        let alice = seedProfile(name: "Alice")
+        seedMovie("Heat", addedBy: alice, dateAdded: .now)
+        mock.participantRosterError = CKError(.serviceUnavailable)
+        await store.bootstrap()
+
+        let snapshots = await store.loadBoardManagementSnapshots()
+
+        XCTAssertTrue(snapshots[0].isAvailable)
+        XCTAssertEqual(snapshots[0].itemCount, 1)
+        XCTAssertEqual(snapshots[0].participantCount, 1)
     }
 
     // MARK: - Remote additions
@@ -1024,6 +1238,7 @@ final class BoardStoreTests: XCTestCase {
     func testRemoteAdditionByAnotherProfilePostsBoardNotification() async {
         await store.createProfile(firstName: "Jared", lastName: "R")
         let alice = seedProfile(name: "Alice")
+        mock.profileCreatorRecordNames[alice.id] = "alice-icloud-user"
         seedMovie("Heat", addedBy: alice, dateAdded: .now)
 
         let receivedData = await store.handleRemoteDatabaseChange(scope: .private)
@@ -1040,6 +1255,25 @@ final class BoardStoreTests: XCTestCase {
     func testRemoteAdditionByCurrentProfileDoesNotPostNotification() async {
         await store.createProfile(firstName: "Jared", lastName: "R")
         seedMovie("Mine", addedBy: store.currentProfile!, dateAdded: .now)
+
+        let receivedData = await store.handleRemoteDatabaseChange(scope: .private)
+
+        XCTAssertTrue(receivedData)
+        let notices = await notificationMock.capturedNotices()
+        XCTAssertTrue(notices.isEmpty)
+    }
+
+    func testRemoteAdditionByDuplicateSameAccountProfileDoesNotNotifySelf() async {
+        await store.createProfile(firstName: "Jared", lastName: "R")
+        let duplicate = UserProfile(
+            id: CKRecord.ID(recordName: "my-other-device-profile", zoneID: mock.space.zoneID),
+            firstName: "Jared",
+            lastName: "R",
+            accountRecordName: mock.accountUserID.recordName
+        )
+        mock.records[duplicate.id] = duplicate.toRecord()
+        mock.profileCreatorRecordNames[duplicate.id] = mock.accountUserID.recordName
+        seedMovie("From My Other Device", addedBy: duplicate, dateAdded: .now)
 
         let receivedData = await store.handleRemoteDatabaseChange(scope: .private)
 

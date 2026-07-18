@@ -13,9 +13,13 @@ nonisolated struct UserProfile: Identifiable, Equatable {
     let id: CKRecord.ID
     var firstName: String
     var lastName: String
+    /// Stable app identity for reclaiming this profile after reinstall. This
+    /// is the opaque record name CloudKit assigns to the iCloud account within
+    /// Docket's container, not an email address or other personal information.
+    var accountRecordName: String?
     /// CloudKit's stable account identity for the user who created this
-    /// profile. This is system metadata, not an app-defined schema field, and
-    /// lets another device signed into the same iCloud account reclaim it.
+    /// profile. Retained as a legacy migration signal for profiles created
+    /// before `accountRecordName` existed.
     var creatorUserRecordName: String?
     /// nil until first fetched from CloudKit; carries the change tag for edits.
     var systemFields: Data?
@@ -43,11 +47,13 @@ nonisolated struct UserProfile: Identifiable, Equatable {
         id: CKRecord.ID,
         firstName: String,
         lastName: String,
+        accountRecordName: String? = nil,
         creatorUserRecordName: String? = nil
     ) {
         self.id = id
         self.firstName = firstName
         self.lastName = lastName
+        self.accountRecordName = accountRecordName
         self.creatorUserRecordName = creatorUserRecordName
     }
 
@@ -60,6 +66,7 @@ nonisolated struct UserProfile: Identifiable, Equatable {
         self.id = record.recordID
         self.firstName = firstName
         self.lastName = record[Schema.Field.lastName] as? String ?? ""
+        self.accountRecordName = record[Schema.Field.accountRecordName] as? String
         self.creatorUserRecordName = record.creatorUserRecordID?.recordName
         self.systemFields = record.systemFieldsData
     }
@@ -68,6 +75,7 @@ nonisolated struct UserProfile: Identifiable, Equatable {
         let record = CKRecord.base(type: Schema.RecordType.userProfile, id: id, systemFields: systemFields)
         record[Schema.Field.firstName] = firstName
         record[Schema.Field.lastName] = lastName
+        record[Schema.Field.accountRecordName] = accountRecordName
         return record
     }
 }

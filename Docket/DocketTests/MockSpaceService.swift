@@ -21,6 +21,8 @@ nonisolated final class MockSpaceService: SpaceDataService, @unchecked Sendable 
     var accountUserID = CKRecord.ID(recordName: "mock-icloud-user")
     var discoveredSpaces: [Space]
     var profileCreatorRecordNames: [CKRecord.ID: String] = [:]
+    var participantRoster: BoardParticipantRoster?
+    var participantRosterError: Error?
     var didDeleteBoardZone = false
 
     init(space: Space = .default) {
@@ -84,5 +86,11 @@ nonisolated final class MockSpaceService: SpaceDataService, @unchecked Sendable 
     func loadShare() async throws -> CKShare {
         guard space.isOwned else { throw CloudKitServiceError.shareUnavailable }
         return CKShare(recordZoneID: space.zoneID)
+    }
+
+    func loadParticipantRoster() async throws -> BoardParticipantRoster? {
+        if let participantRosterError { throw participantRosterError }
+        if let loadError { throw loadError }
+        return participantRoster
     }
 }

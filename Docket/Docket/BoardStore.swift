@@ -180,6 +180,7 @@ final class BoardStore {
         case .unchanged, .indeterminate:
             await loadForPresentation()
         }
+        await reclaimCurrentProfileFromLoadedBoardIfPossible()
         if loadState == .loaded,
            currentProfile == nil,
            (pendingAcceptedInvitation != nil || spaces.count > 1) {
@@ -319,6 +320,7 @@ final class BoardStore {
         switch await performRefresh() {
         case .loaded:
             loadState = .loaded
+            await repairCurrentProfileIdentityIfNeeded()
         case .failed(let message):
             loadState = .failed(message: message)
         case .superseded:
@@ -331,6 +333,7 @@ final class BoardStore {
         let previousIDs = Set(items.map(\.id))
         switch await performRefresh() {
         case .loaded:
+            await repairCurrentProfileIdentityIfNeeded()
             let addedItemCount = items.count { !previousIDs.contains($0.id) }
             return BoardRefreshSummary(addedItemCount: addedItemCount)
         case .failed, .superseded:

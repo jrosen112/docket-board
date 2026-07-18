@@ -27,6 +27,7 @@ nonisolated struct BoardProfileStats: Identifiable, Equatable {
 nonisolated struct BoardManagementSnapshot: Identifiable, Equatable, Sendable {
     let space: Space
     let itemCount: Int
+    let participantCount: Int
     let participantNames: [String]
     let isAvailable: Bool
 

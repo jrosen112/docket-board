@@ -33,19 +33,24 @@ extension BoardStore {
                 group.addTask {
                     do {
                         let loaded = try await candidateService.loadEverything()
+                        let roster = try? await candidateService.loadParticipantRoster()
+                        let fallbackNames = Self.fallbackParticipantNames(
+                            from: loaded.profiles
+                        )
                         return BoardManagementSnapshot(
                             space: candidate,
                             itemCount: loaded.items.count,
-                            participantNames: loaded.profiles
-                                .map(\.displayName)
-                                .filter { !$0.isEmpty }
-                                .sorted(),
+                            participantCount: roster?.participantCount
+                                ?? max(fallbackNames.count, 1),
+                            participantNames: roster?.participantNames
+                                ?? fallbackNames,
                             isAvailable: true
                         )
                     } catch {
                         return BoardManagementSnapshot(
                             space: candidate,
                             itemCount: 0,
+                            participantCount: 0,
                             participantNames: [],
                             isAvailable: false
                         )
@@ -59,6 +64,19 @@ extension BoardStore {
             }
             return candidates.compactMap { snapshotsByID[$0.id] }
         }
+    }
+
+    nonisolated private static func fallbackParticipantNames(
+        from profiles: [UserProfile]
+    ) -> [String] {
+        var namesByIdentity: [String: String] = [:]
+        for profile in profiles where !profile.displayName.isEmpty {
+            let identity = profile.accountRecordName
+                ?? profile.creatorUserRecordName
+                ?? profile.id.recordName
+            namesByIdentity[identity] = profile.displayName
+        }
+        return namesByIdentity.values.sorted()
     }
 
     /// Permanently removes an owned board's CloudKit zone. If it is currently
@@ -132,14 +150,16 @@ extension BoardStore {
         isLoading = true
         let newSpace = Space.newOwned(title: cleanedTitle)
         let newService = makeService(newSpace)
-        let newProfile = UserProfile(
-            id: newService.newRecordID(),
-            firstName: existingProfile.firstName,
-            lastName: existingProfile.lastName
-        )
 
         do {
             try await requireNetwork()
+            let accountRecordName = try await newService.accountUserRecordID().recordName
+            let newProfile = UserProfile(
+                id: newService.newRecordID(),
+                firstName: existingProfile.firstName,
+                lastName: existingProfile.lastName,
+                accountRecordName: accountRecordName
+            )
             // The first load creates the custom zone. Saving the copied profile
             // then makes the board immediately usable when it becomes current.
             _ = try await newService.loadEverything()

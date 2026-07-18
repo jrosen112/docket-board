@@ -41,6 +41,10 @@ nonisolated enum Schema {
         // MARK: UserProfile
         static let firstName = "firstName"
         static let lastName = "lastName"
+        /// Opaque, container-scoped ID from `CKContainer.userRecordID()`.
+        /// Unlike creator metadata, this has the same representation after a
+        /// reinstall and in both private and shared database scopes.
+        static let accountRecordName = "accountRecordName"
         static let profilePicture = "profilePicture"   // CKAsset (added with photo work)
 
         // MARK: Restaurant

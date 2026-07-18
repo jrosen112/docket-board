@@ -23,6 +23,7 @@ extension BoardStore {
                         using: profileTemplate
                     )
                     guard space == selectedSpace else { return }
+                    await repairCurrentProfileIdentityIfNeeded()
                 } catch {
                     let message = Self.message(for: error)
                     errorMessage = message
@@ -40,6 +41,7 @@ extension BoardStore {
                         using: profileTemplate
                     )
                     guard space == selectedSpace else { return }
+                    await repairCurrentProfileIdentityIfNeeded()
                     loadState = .loaded
                 } catch {
                     let message = Self.message(for: error)
@@ -84,6 +86,7 @@ extension BoardStore {
                     using: profileTemplate
                 )
                 guard space == selectedSpace else { return }
+                await repairCurrentProfileIdentityIfNeeded()
                 loadState = .loaded
                 isSwitchingBoard = false
             } catch {
@@ -149,7 +152,8 @@ extension BoardStore {
         let profile = UserProfile(
             id: targetService.newRecordID(),
             firstName: template.firstName,
-            lastName: template.lastName
+            lastName: template.lastName,
+            accountRecordName: userRecordName
         )
         let savedRecord = try await targetService.save(profile.toRecord())
         guard space == targetSpace else { return }
@@ -159,6 +163,18 @@ extension BoardStore {
         profiles.append(savedProfile)
         currentProfile = savedProfile
         rememberProfileTemplate(savedProfile)
+
+        // A second device can provision the same account at nearly the same
+        // moment. Re-read once after saving so the caller's repair sees both
+        // records immediately instead of waiting for the next foreground.
+        if let confirmed = try? await targetService.loadEverything(),
+           space == targetSpace {
+            items = confirmed.items.sorted { $0.dateAdded > $1.dateAdded }
+            profiles = confirmed.profiles
+            currentProfile = confirmed.profiles.first {
+                $0.id == savedProfile.id
+            } ?? savedProfile
+        }
     }
 
     /// Queues a confirmation sheet after CloudKit accepts an invitation. On a

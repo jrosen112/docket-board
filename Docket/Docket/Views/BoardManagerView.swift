@@ -402,14 +402,14 @@ struct BoardManagerView: View {
                         symbol: "pin.fill"
                     )
                     stat(
-                        value: "\(snapshot.participantNames.count)",
-                        label: snapshot.participantNames.count == 1 ? "PERSON" : "PEOPLE",
+                        value: "\(snapshot.participantCount)",
+                        label: snapshot.participantCount == 1 ? "PERSON" : "PEOPLE",
                         symbol: "person.2.fill"
                     )
 
                     Spacer(minLength: 0)
 
-                    if !snapshot.participantNames.isEmpty {
+                    if snapshot.participantCount > 0 {
                         Text(participantSummary(snapshot))
                             .font(DocketTheme.BoardManager.participantFont)
                             .foregroundStyle(palette.secondaryText)
@@ -538,12 +538,20 @@ struct BoardManagerView: View {
     private func compactSummary(_ snapshot: BoardManagementSnapshot, space: Space) -> String {
         let role = space.isOwned ? "Yours" : "Shared"
         let pins = "\(snapshot.itemCount) \(snapshot.itemCount == 1 ? "pin" : "pins")"
-        let people = "\(snapshot.participantNames.count) \(snapshot.participantNames.count == 1 ? "person" : "people")"
+        let people = "\(snapshot.participantCount) \(snapshot.participantCount == 1 ? "person" : "people")"
         return "\(role)  ·  \(pins)  ·  \(people)"
     }
 
     private func participantSummary(_ snapshot: BoardManagementSnapshot) -> String {
-        guard !snapshot.participantNames.isEmpty else { return "No participant profiles yet" }
+        guard !snapshot.participantNames.isEmpty else {
+            return snapshot.participantCount == 1
+                ? "1 iCloud participant"
+                : "\(snapshot.participantCount) iCloud participants"
+        }
+        if snapshot.participantNames.count < snapshot.participantCount {
+            let visible = snapshot.participantNames.prefix(3).joined(separator: ", ")
+            return "\(visible) +\(snapshot.participantCount - snapshot.participantNames.count)"
+        }
         if snapshot.participantNames.count <= 3 {
             return snapshot.participantNames.joined(separator: ", ")
         }

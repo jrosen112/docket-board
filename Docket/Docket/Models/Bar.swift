@@ -24,7 +24,7 @@ nonisolated struct Bar: SharedListItem {
     var status: ItemStatus
     var photoData: Data?
     var showsPhotoOnBoard: Bool
-    let addedBy: CKRecord.Reference
+    var addedBy: CKRecord.Reference
     let dateAdded: Date
     var category: ItemCategory { .bar }
     /// nil until first fetched from CloudKit; carries the change tag for edits.

@@ -73,7 +73,7 @@ nonisolated protocol SharedListItem: Identifiable {
     var photoData: Data? { get set }
     var showsPhotoOnBoard: Bool { get set }
     /// Reference to the UserProfile of whoever added the item.
-    var addedBy: CKRecord.Reference { get }
+    var addedBy: CKRecord.Reference { get set }
     var dateAdded: Date { get }
     var category: ItemCategory { get }
 
