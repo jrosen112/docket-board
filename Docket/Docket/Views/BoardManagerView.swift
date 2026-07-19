@@ -15,6 +15,13 @@ struct BoardManagerView: View {
     @State private var showingSharing = false
     @State private var showingCreateBoard = false
 
+    private static let relativeDateFormatter: RelativeDateTimeFormatter = {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .short
+        formatter.dateTimeStyle = .named
+        return formatter
+    }()
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -22,38 +29,59 @@ struct BoardManagerView: View {
                     .fill(DocketTheme.boardBackground)
                     .ignoresSafeArea()
 
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: DocketTheme.BoardManager.sectionSpacing) {
-                        intro
-
-                        if let errorMessage = store.errorMessage {
-                            ErrorBanner(message: errorMessage) {
-                                store.errorMessage = nil
-                            }
+                List {
+                    if let errorMessage = store.errorMessage {
+                        ErrorBanner(message: errorMessage) {
+                            store.errorMessage = nil
                         }
-
-                        sectionLabel("CURRENT BOARD")
-                        activeBoardCard(store.space)
-
-                        if !otherSpaces.isEmpty {
-                            sectionLabel("OTHER BOARDS")
-
-                            VStack(spacing: DocketTheme.BoardManager.rowSpacing) {
-                                ForEach(otherSpaces) { space in
-                                    boardRow(space)
-                                }
-                            }
-                        }
-
-                        createBoardButton
+                        .modifier(BoardManagerRow())
                     }
-                    .frame(maxWidth: DocketTheme.BoardManager.maxContentWidth)
-                    .padding(.horizontal, DocketTheme.BoardManager.horizontalPadding)
-                    .padding(.top, DocketTheme.BoardManager.topPadding)
-                    .padding(.bottom, DocketTheme.BoardManager.bottomPadding)
-                    .frame(maxWidth: .infinity)
+
+                    boardCard(store.space, isActive: true)
+                        .modifier(BoardManagerRow())
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            swipeButtons(for: store.space)
+                        }
+
+                    if !otherSpaces.isEmpty {
+                        Text("YOUR BOARDS")
+                            .font(DocketTheme.BoardManager.sectionLabelFont)
+                            .tracking(DocketTheme.BoardManager.sectionLabelTracking)
+                            .foregroundStyle(DocketTheme.BoardManager.sectionLabelColor)
+                            .accessibilityAddTraits(.isHeader)
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(EdgeInsets(
+                                top: DocketTheme.BoardManager.sectionLabelTopPadding,
+                                leading: DocketTheme.BoardManager.horizontalPadding
+                                    + DocketTheme.BoardManager.sectionLabelLeadingPadding,
+                                bottom: 0,
+                                trailing: DocketTheme.BoardManager.horizontalPadding
+                            ))
+
+                        ForEach(otherSpaces) { space in
+                            boardCard(space, isActive: false)
+                                .modifier(BoardManagerRow())
+                                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                    swipeButtons(for: space)
+                                }
+                        }
+                    }
                 }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
                 .scrollIndicators(.hidden)
+                .contentMargins(
+                    .top,
+                    DocketTheme.BoardManager.topPadding
+                        - DocketTheme.BoardManager.rowOverhangHeadroom,
+                    for: .scrollContent
+                )
+                .contentMargins(
+                    .bottom,
+                    DocketTheme.BoardManager.bottomPadding,
+                    for: .scrollContent
+                )
                 .refreshable { await reloadSnapshots() }
             }
             .navigationTitle("Boards")
@@ -64,6 +92,18 @@ struct BoardManagerView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
+                }
+
+                ToolbarSpacer(.flexible, placement: .bottomBar)
+
+                ToolbarItem(id: "docket.boards.new", placement: .bottomBar) {
+                    Button {
+                        showingCreateBoard = true
+                    } label: {
+                        Label("New Board", systemImage: "plus")
+                    }
+                    .docketPrimaryActionStyle()
+                    .disabled(isBusy)
                 }
             }
             .task(id: store.spaces.map(\.id)) {
@@ -115,341 +155,131 @@ struct BoardManagerView: View {
                     deleteCandidate = nil
                 }
             } message: { space in
-                Text(
-                    "This permanently deletes every pin and removes the board for all participants. This can’t be undone."
-                )
+                Text("Deletes every pin for all participants. This can't be undone.")
             }
         }
         .tint(DocketTheme.brass)
         .presentationDetents([.large])
     }
 
-    private var intro: some View {
-        HStack(alignment: .bottom, spacing: DocketTheme.BoardManager.introSpacing) {
-            VStack(alignment: .leading, spacing: DocketTheme.BoardManager.introTextSpacing) {
-                Text("YOUR COLLECTION")
-                    .font(DocketTheme.BoardManager.eyebrowFont)
-                    .tracking(DocketTheme.BoardManager.eyebrowTracking)
-                    .foregroundStyle(DocketTheme.brass)
-
-                Text("Pick up where you left off.")
-                    .font(DocketTheme.BoardManager.headingFont)
-                    .foregroundStyle(DocketTheme.cream)
-
-                Text("Switch boards, bring someone in, or make room for a new plan.")
-                    .font(DocketTheme.BoardManager.supportingFont)
-                    .foregroundStyle(DocketTheme.BoardManager.supportingColor)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 0)
-
-            VStack(spacing: 1) {
-                Text("\(store.spaces.count)")
-                    .font(DocketTheme.BoardManager.countFont)
-                Text(store.spaces.count == 1 ? "BOARD" : "BOARDS")
-                    .font(DocketTheme.BoardManager.countLabelFont)
-                    .tracking(DocketTheme.BoardManager.countLabelTracking)
-            }
-            .foregroundStyle(DocketTheme.cream)
-            .frame(
-                width: DocketTheme.BoardManager.countBadgeSize,
-                height: DocketTheme.BoardManager.countBadgeSize
-            )
-            .background(DocketTheme.cream.opacity(0.08), in: Circle())
-            .overlay(Circle().stroke(DocketTheme.cream.opacity(0.1)))
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(store.spaces.count) \(store.spaces.count == 1 ? "board" : "boards")")
-        }
-    }
-
-    private func sectionLabel(_ title: String) -> some View {
-        Text(title)
-            .font(DocketTheme.BoardManager.sectionLabelFont)
-            .tracking(DocketTheme.BoardManager.sectionLabelTracking)
-            .foregroundStyle(DocketTheme.BoardManager.sectionLabelColor)
-            .padding(.leading, DocketTheme.BoardManager.sectionLabelLeadingPadding)
-            .accessibilityAddTraits(.isHeader)
-    }
-
-    private func activeBoardCard(_ space: Space) -> some View {
+    private func boardCard(_ space: Space, isActive: Bool) -> some View {
         let snapshot = snapshots[space.id]
 
-        return VStack(alignment: .leading, spacing: DocketTheme.BoardManager.activeCardSpacing) {
-            HStack(alignment: .top, spacing: DocketTheme.BoardManager.cardHeaderSpacing) {
-                VStack(alignment: .leading, spacing: DocketTheme.BoardManager.titleSpacing) {
-                    HStack(spacing: DocketTheme.BoardManager.statusSpacing) {
-                        Image(systemName: "circle.fill")
-                            .font(DocketTheme.BoardManager.liveDotFont)
-                        Text("ACTIVE NOW")
-                            .font(DocketTheme.BoardManager.activeLabelFont)
-                            .tracking(DocketTheme.BoardManager.activeLabelTracking)
-                    }
-                    .foregroundStyle(DocketTheme.BoardManager.activeColor)
-
-                    Text(space.title)
-                        .font(DocketTheme.BoardManager.activeTitleFont)
-                        .foregroundStyle(palette.primaryText)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Label(
-                        space.isOwned ? "Owned by you" : "Shared with you",
-                        systemImage: space.isOwned ? "person.fill" : "person.2.fill"
-                    )
-                    .font(DocketTheme.BoardManager.roleFont)
-                    .foregroundStyle(palette.secondaryText)
-                }
-
-                Spacer(minLength: DocketTheme.BoardManager.cardHeaderSpacing)
-                boardMenu(for: space)
-            }
-
-            Divider()
-                .overlay(palette.divider)
-
-            activeMetadata(snapshot)
-
-            HStack(spacing: DocketTheme.BoardManager.actionSpacing) {
-                Button {
-                    openBoard(space)
-                } label: {
-                    Label("Back to Board", systemImage: "arrow.up.right")
-                        .frame(maxWidth: .infinity)
-                }
-                .docketPrimaryActionStyle()
-                .disabled(isBusy)
-
-                Button {
-                    openPeople(for: space)
-                } label: {
-                    if preparingShareID == space.id {
-                        ProgressView()
-                    } else {
-                        Label("People", systemImage: "person.2")
-                    }
-                }
-                .docketSecondaryActionStyle()
-                .disabled(isBusy)
-            }
-        }
-        .padding(DocketTheme.BoardManager.activeCardPadding)
-        .background(
-            palette.raisedPaper,
-            in: RoundedRectangle(
-                cornerRadius: DocketTheme.BoardManager.activeCardCornerRadius,
-                style: .continuous
-            )
-        )
-        .overlay(alignment: .top) {
-            Circle()
-                .fill(DocketTheme.brass)
-                .frame(
-                    width: DocketTheme.BoardManager.pinSize,
-                    height: DocketTheme.BoardManager.pinSize
-                )
-                .shadow(color: .black.opacity(0.28), radius: 2, y: 1)
-                .offset(y: DocketTheme.BoardManager.pinOffsetY)
-        }
-        .overlay {
-            RoundedRectangle(
-                cornerRadius: DocketTheme.BoardManager.activeCardCornerRadius,
-                style: .continuous
-            )
-            .stroke(DocketTheme.brass.opacity(0.22), lineWidth: 1)
-        }
-        .shadow(
-            color: palette.shadow,
-            radius: DocketTheme.BoardManager.activeShadowRadius,
-            y: DocketTheme.BoardManager.activeShadowY
-        )
-        .opacity(deletingBoardID == space.id ? 0.55 : 1)
-    }
-
-    private func boardRow(_ space: Space) -> some View {
-        let snapshot = snapshots[space.id]
-
-        return HStack(spacing: DocketTheme.BoardManager.rowContentSpacing) {
+        return HStack(alignment: .top, spacing: DocketTheme.BoardManager.cardHeaderSpacing) {
             Button {
                 openBoard(space)
             } label: {
-                HStack(spacing: DocketTheme.BoardManager.rowContentSpacing) {
-                    Image(systemName: space.isOwned ? "rectangle.stack.fill" : "person.2.fill")
-                        .font(DocketTheme.BoardManager.rowIconFont)
-                        .foregroundStyle(DocketTheme.brass)
-                        .frame(
-                            width: DocketTheme.BoardManager.rowIconSize,
-                            height: DocketTheme.BoardManager.rowIconSize
+                VStack(alignment: .leading, spacing: DocketTheme.BoardManager.titleSpacing) {
+                    Text(space.title)
+                        .font(
+                            isActive
+                                ? DocketTheme.BoardManager.activeTitleFont
+                                : DocketTheme.BoardManager.rowTitleFont
                         )
-                        .background(
-                            DocketTheme.brass.opacity(0.12),
-                            in: RoundedRectangle(
-                                cornerRadius: DocketTheme.BoardManager.rowIconCornerRadius,
-                                style: .continuous
-                            )
-                        )
+                        .foregroundStyle(palette.primaryText)
+                        .lineLimit(isActive ? 2 : 1)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .multilineTextAlignment(.leading)
 
-                    VStack(alignment: .leading, spacing: DocketTheme.BoardManager.rowTextSpacing) {
-                        Text(space.title)
-                            .font(DocketTheme.BoardManager.rowTitleFont)
-                            .foregroundStyle(palette.primaryText)
-                            .lineLimit(1)
+                    metadataLine(for: snapshot, space: space)
 
-                        compactMetadata(for: snapshot, space: space)
-                    }
-
-                    Spacer(minLength: 0)
-
-                    if switchingBoardID == space.id {
-                        ProgressView()
-                            .tint(DocketTheme.brass)
-                    } else {
-                        Image(systemName: "chevron.right")
-                            .font(DocketTheme.BoardManager.chevronFont)
-                            .foregroundStyle(palette.mutedText)
+                    if !isActive, let latest = snapshot?.latestUpdate {
+                        latestUpdateLine(latest)
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(.rect)
             }
             .buttonStyle(.plain)
             .disabled(isBusy)
 
-            boardMenu(for: space)
+            if switchingBoardID == space.id || preparingShareID == space.id {
+                ProgressView()
+                    .tint(DocketTheme.brass)
+            }
         }
-        .padding(DocketTheme.BoardManager.rowPadding)
+        .padding(
+            isActive
+                ? DocketTheme.BoardManager.activeCardPadding
+                : DocketTheme.BoardManager.rowPadding
+        )
         .background(
             palette.raisedPaper,
             in: RoundedRectangle(
-                cornerRadius: DocketTheme.BoardManager.rowCornerRadius,
+                cornerRadius: cardCornerRadius(isActive: isActive),
                 style: .continuous
             )
         )
         .overlay {
             RoundedRectangle(
-                cornerRadius: DocketTheme.BoardManager.rowCornerRadius,
-                style: .continuous
-            )
-            .stroke(palette.divider, lineWidth: 1)
-        }
-        .shadow(
-            color: palette.shadow.opacity(DocketTheme.BoardManager.rowShadowOpacity),
-            radius: DocketTheme.BoardManager.rowShadowRadius,
-            y: DocketTheme.BoardManager.rowShadowY
-        )
-        .opacity(deletingBoardID == space.id ? 0.55 : 1)
-    }
-
-    private var createBoardButton: some View {
-        Button {
-            showingCreateBoard = true
-        } label: {
-            HStack(spacing: DocketTheme.BoardManager.createSpacing) {
-                Image(systemName: "plus")
-                    .font(DocketTheme.BoardManager.createIconFont)
-                    .frame(
-                        width: DocketTheme.BoardManager.createIconSize,
-                        height: DocketTheme.BoardManager.createIconSize
-                    )
-                    .background(DocketTheme.brass.opacity(0.14), in: Circle())
-
-                VStack(alignment: .leading, spacing: DocketTheme.BoardManager.createTextSpacing) {
-                    Text("Start a new board")
-                        .font(DocketTheme.BoardManager.createTitleFont)
-                        .foregroundStyle(DocketTheme.cream)
-                    Text("Give a fresh set of plans its own place.")
-                        .font(DocketTheme.BoardManager.createSupportingFont)
-                        .foregroundStyle(DocketTheme.BoardManager.supportingColor)
-                }
-
-                Spacer(minLength: 0)
-
-                Image(systemName: "arrow.right")
-                    .font(DocketTheme.BoardManager.chevronFont)
-            }
-            .foregroundStyle(DocketTheme.brass)
-            .padding(DocketTheme.BoardManager.createPadding)
-            .contentShape(.rect)
-        }
-        .buttonStyle(.plain)
-        .background(DocketTheme.cream.opacity(0.045), in: RoundedRectangle(
-            cornerRadius: DocketTheme.BoardManager.createCornerRadius,
-            style: .continuous
-        ))
-        .overlay {
-            RoundedRectangle(
-                cornerRadius: DocketTheme.BoardManager.createCornerRadius,
+                cornerRadius: cardCornerRadius(isActive: isActive),
                 style: .continuous
             )
             .stroke(
-                DocketTheme.brass.opacity(0.38),
-                style: StrokeStyle(
-                    lineWidth: DocketTheme.BoardManager.createBorderWidth,
-                    dash: DocketTheme.BoardManager.createBorderDash
-                )
+                isActive ? DocketTheme.brass.opacity(0.22) : palette.divider,
+                lineWidth: 1
             )
         }
-        .disabled(isBusy)
-    }
-
-    @ViewBuilder
-    private func activeMetadata(_ snapshot: BoardManagementSnapshot?) -> some View {
-        if let snapshot {
-            if snapshot.isAvailable {
-                HStack(spacing: DocketTheme.BoardManager.statSpacing) {
-                    stat(
-                        value: "\(snapshot.itemCount)",
-                        label: snapshot.itemCount == 1 ? "PIN" : "PINS",
-                        symbol: "pin.fill"
+        .overlay {
+            if isActive {
+                Circle()
+                    .fill(DocketTheme.brass)
+                    .frame(
+                        width: DocketTheme.BoardManager.pinSize,
+                        height: DocketTheme.BoardManager.pinSize
                     )
-                    stat(
-                        value: "\(snapshot.participantCount)",
-                        label: snapshot.participantCount == 1 ? "PERSON" : "PEOPLE",
-                        symbol: "person.2.fill"
-                    )
-
-                    Spacer(minLength: 0)
-
-                    if snapshot.participantCount > 0 {
-                        Text(participantSummary(snapshot))
-                            .font(DocketTheme.BoardManager.participantFont)
-                            .foregroundStyle(palette.secondaryText)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.trailing)
-                    }
-                }
+                    .shadow(color: .black.opacity(0.28), radius: 2, y: 1)
+                    .frame(maxHeight: .infinity, alignment: .top)
+                    .offset(y: DocketTheme.BoardManager.pinOffsetY)
             } else {
-                unavailableMetadata
+                WashiTape(boardKey: space.id)
             }
-        } else if isLoading {
-            loadingMetadata
         }
+        .shadow(
+            color: isActive
+                ? palette.shadow
+                : palette.shadow.opacity(DocketTheme.BoardManager.rowShadowOpacity),
+            radius: isActive
+                ? DocketTheme.BoardManager.activeShadowRadius
+                : DocketTheme.BoardManager.rowShadowRadius,
+            y: isActive
+                ? DocketTheme.BoardManager.activeShadowY
+                : DocketTheme.BoardManager.rowShadowY
+        )
+        .opacity(deletingBoardID == space.id ? 0.55 : 1)
+        .frame(maxWidth: DocketTheme.BoardManager.maxContentWidth)
+        .frame(maxWidth: .infinity)
     }
 
-    private func stat(value: String, label: String, symbol: String) -> some View {
-        HStack(spacing: DocketTheme.BoardManager.statContentSpacing) {
-            Image(systemName: symbol)
-                .font(DocketTheme.BoardManager.statIconFont)
-                .foregroundStyle(DocketTheme.brass)
-
-            VStack(alignment: .leading, spacing: 0) {
-                Text(value)
-                    .font(DocketTheme.BoardManager.statValueFont)
-                    .foregroundStyle(palette.primaryText)
-                Text(label)
-                    .font(DocketTheme.BoardManager.statLabelFont)
-                    .tracking(DocketTheme.BoardManager.statLabelTracking)
-                    .foregroundStyle(palette.mutedText)
-            }
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(value) \(label.lowercased())")
+    private func cardCornerRadius(isActive: Bool) -> CGFloat {
+        isActive
+            ? DocketTheme.BoardManager.activeCardCornerRadius
+            : DocketTheme.BoardManager.rowCornerRadius
     }
 
     @ViewBuilder
-    private func compactMetadata(for snapshot: BoardManagementSnapshot?, space: Space) -> some View {
+    private func swipeButtons(for space: Space) -> some View {
+        if space.isOwned, store.spaces.count > 1 {
+            Button(role: .destructive) {
+                deleteCandidate = space
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+
+        Button {
+            openPeople(for: space)
+        } label: {
+            Label("People", systemImage: "person.2")
+        }
+        .tint(DocketTheme.brass)
+    }
+
+    @ViewBuilder
+    private func metadataLine(for snapshot: BoardManagementSnapshot?, space: Space) -> some View {
         if let snapshot {
             if snapshot.isAvailable {
-                Text(compactSummary(snapshot, space: space))
+                Text(summary(for: snapshot))
                     .font(DocketTheme.BoardManager.metadataFont)
                     .foregroundStyle(palette.secondaryText)
                     .lineLimit(1)
@@ -462,7 +292,7 @@ struct BoardManagerView: View {
             HStack(spacing: DocketTheme.BoardManager.loadingSpacing) {
                 ProgressView()
                     .controlSize(.mini)
-                Text("Loading details…")
+                Text("Loading…")
             }
             .font(DocketTheme.BoardManager.metadataFont)
             .foregroundStyle(palette.secondaryText)
@@ -473,58 +303,20 @@ struct BoardManagerView: View {
         }
     }
 
-    private var loadingMetadata: some View {
-        HStack(spacing: DocketTheme.BoardManager.loadingSpacing) {
-            ProgressView()
-            Text("Loading board details…")
-        }
-        .font(DocketTheme.BoardManager.metadataFont)
-        .foregroundStyle(palette.secondaryText)
-    }
-
-    private var unavailableMetadata: some View {
-        Label("Board details are temporarily unavailable", systemImage: "icloud.slash")
-            .font(DocketTheme.BoardManager.metadataFont)
-            .foregroundStyle(DocketTheme.BoardManager.unavailableColor)
-    }
-
-    private func boardMenu(for space: Space) -> some View {
-        Menu {
-            Button {
-                openPeople(for: space)
-            } label: {
-                Label(
-                    space.isOwned ? "People & Invitations" : "People & Leave Board",
-                    systemImage: "person.2"
+    private func latestUpdateLine(_ latest: BoardLatestUpdate) -> some View {
+        HStack(spacing: DocketTheme.BoardManager.latestSpacing) {
+            Circle()
+                .fill(latest.category.accent)
+                .frame(
+                    width: DocketTheme.BoardManager.latestDotSize,
+                    height: DocketTheme.BoardManager.latestDotSize
                 )
-            }
 
-            if space.isOwned {
-                Divider()
-                Button(role: .destructive) {
-                    deleteCandidate = space
-                } label: {
-                    Label("Delete Board", systemImage: "trash")
-                }
-                .disabled(store.spaces.count <= 1)
-            }
-        } label: {
-            if preparingShareID == space.id {
-                ProgressView()
-            } else {
-                Image(systemName: "ellipsis")
-                    .font(DocketTheme.BoardManager.menuFont)
-                    .foregroundStyle(palette.secondaryText)
-                    .frame(
-                        width: DocketTheme.BoardManager.menuSize,
-                        height: DocketTheme.BoardManager.menuSize
-                    )
-                    .background(palette.divider.opacity(0.55), in: Circle())
-                    .contentShape(Circle())
-            }
+            Text(latestSummary(latest))
+                .font(DocketTheme.BoardManager.metadataFont)
+                .foregroundStyle(palette.secondaryText)
+                .lineLimit(1)
         }
-        .disabled(isBusy)
-        .accessibilityLabel("More options for \(space.title)")
     }
 
     private var otherSpaces: [Space] {
@@ -535,28 +327,46 @@ struct BoardManagerView: View {
         switchingBoardID != nil || preparingShareID != nil || deletingBoardID != nil
     }
 
-    private func compactSummary(_ snapshot: BoardManagementSnapshot, space: Space) -> String {
-        let role = space.isOwned ? "Yours" : "Shared"
-        let pins = "\(snapshot.itemCount) \(snapshot.itemCount == 1 ? "pin" : "pins")"
-        let people = "\(snapshot.participantCount) \(snapshot.participantCount == 1 ? "person" : "people")"
-        return "\(role)  ·  \(pins)  ·  \(people)"
+    private func summary(for snapshot: BoardManagementSnapshot) -> String {
+        let pins = switch snapshot.itemCount {
+        case 0: "No pins yet"
+        case 1: "1 pin"
+        default: "\(snapshot.itemCount) pins"
+        }
+        return "\(pins) · \(companionSummary(snapshot))"
     }
 
-    private func participantSummary(_ snapshot: BoardManagementSnapshot) -> String {
-        guard !snapshot.participantNames.isEmpty else {
-            return snapshot.participantCount == 1
-                ? "1 iCloud participant"
-                : "\(snapshot.participantCount) iCloud participants"
+    /// Names the other people on the board ("with Sarah"), falling back to a
+    /// count when CloudKit hasn't surfaced display names.
+    private func companionSummary(_ snapshot: BoardManagementSnapshot) -> String {
+        guard snapshot.participantCount > 1 else { return "just you" }
+        let ownName = store.currentProfile?.displayName
+        let others = snapshot.participantNames.filter { $0 != ownName }
+        guard !others.isEmpty else {
+            return "\(snapshot.participantCount) people"
         }
-        if snapshot.participantNames.count < snapshot.participantCount {
-            let visible = snapshot.participantNames.prefix(3).joined(separator: ", ")
-            return "\(visible) +\(snapshot.participantCount - snapshot.participantNames.count)"
+        let firstNames = others.map { name in
+            name.split(separator: " ").first.map(String.init) ?? name
         }
-        if snapshot.participantNames.count <= 3 {
-            return snapshot.participantNames.joined(separator: ", ")
+        switch firstNames.count {
+        case 1: return "with \(firstNames[0])"
+        case 2: return "with \(firstNames[0]) & \(firstNames[1])"
+        default: return "with \(firstNames[0]) +\(firstNames.count - 1)"
         }
-        let visible = snapshot.participantNames.prefix(3).joined(separator: ", ")
-        return "\(visible) +\(snapshot.participantNames.count - 3)"
+    }
+
+    private func latestSummary(_ latest: BoardLatestUpdate) -> String {
+        var summary = "Latest update: \(latest.title)"
+        if let author = latest.authorName,
+           author != store.currentProfile?.displayName,
+           let first = author.split(separator: " ").first {
+            summary += " by \(first)"
+        }
+        let when = Self.relativeDateFormatter.localizedString(
+            for: latest.date,
+            relativeTo: .now
+        )
+        return "\(summary) · \(when)"
     }
 
     private func reloadSnapshots() async {
@@ -601,6 +411,23 @@ struct BoardManagerView: View {
             }
             deletingBoardID = nil
         }
+    }
+}
+
+/// Shared row chrome for Board Manager's transparent, separator-free list:
+/// clear background plus symmetric headroom so card decorations (pin, tape)
+/// can overhang without clipping.
+private struct BoardManagerRow: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(
+                top: DocketTheme.BoardManager.rowOverhangHeadroom,
+                leading: DocketTheme.BoardManager.horizontalPadding,
+                bottom: DocketTheme.BoardManager.rowOverhangHeadroom,
+                trailing: DocketTheme.BoardManager.horizontalPadding
+            ))
     }
 }
 

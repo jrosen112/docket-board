@@ -160,74 +160,93 @@ nonisolated enum DocketTheme {
         static let horizontalPadding: CGFloat = 18
         static let topPadding: CGFloat = 22
         static let bottomPadding: CGFloat = 36
-        static let sectionSpacing: CGFloat = 15
-        static let introSpacing: CGFloat = 16
-        static let introTextSpacing: CGFloat = 6
-        static let eyebrowFont: Font = .caption2.weight(.bold)
-        static let eyebrowTracking: CGFloat = 1.5
-        static let headingFont: Font = DocketTheme.display(28)
-        static let supportingFont: Font = .subheadline
-        static let supportingColor = DocketTheme.cream.opacity(0.62)
-        static let countFont: Font = DocketTheme.display(22)
-        static let countLabelFont: Font = .system(size: 8, weight: .bold)
-        static let countLabelTracking: CGFloat = 0.8
-        static let countBadgeSize: CGFloat = 58
-        static let sectionLabelFont: Font = .caption2.weight(.bold)
-        static let sectionLabelTracking: CGFloat = 1.25
-        static let sectionLabelColor = DocketTheme.cream.opacity(0.5)
-        static let sectionLabelLeadingPadding: CGFloat = 3
-        static let activeCardSpacing: CGFloat = 16
+        static let sectionSpacing: CGFloat = 16
+        static let cardHeaderSpacing: CGFloat = 12
+        static let titleSpacing: CGFloat = 5
         static let activeCardPadding: CGFloat = 20
         static let activeCardCornerRadius: CGFloat = 16
-        static let cardHeaderSpacing: CGFloat = 12
-        static let titleSpacing: CGFloat = 6
-        static let statusSpacing: CGFloat = 6
-        static let liveDotFont: Font = .system(size: 7, weight: .bold)
-        static let activeLabelFont: Font = .caption2.weight(.bold)
-        static let activeLabelTracking: CGFloat = 1.2
-        static let activeColor = Color(hex: 0x668C63)
         static let activeTitleFont: Font = DocketTheme.display(27)
-        static let roleFont: Font = .caption.weight(.medium)
-        static let actionSpacing: CGFloat = 10
         static let pinSize: CGFloat = 13
         static let pinOffsetY: CGFloat = -6
         static let activeShadowRadius: CGFloat = 10
         static let activeShadowY: CGFloat = 6
-        static let statSpacing: CGFloat = 20
-        static let statContentSpacing: CGFloat = 7
-        static let statIconFont: Font = .caption.weight(.bold)
-        static let statValueFont: Font = DocketTheme.display(19)
-        static let statLabelFont: Font = .system(size: 8, weight: .bold)
-        static let statLabelTracking: CGFloat = 0.7
-        static let participantFont: Font = .caption
-        static let rowSpacing: CGFloat = 9
-        static let rowContentSpacing: CGFloat = 12
-        static let rowPadding: CGFloat = 13
+        static let rowPadding: CGFloat = 15
         static let rowCornerRadius: CGFloat = 13
-        static let rowIconSize: CGFloat = 42
-        static let rowIconCornerRadius: CGFloat = 11
-        static let rowIconFont: Font = .subheadline.weight(.semibold)
-        static let rowTextSpacing: CGFloat = 4
-        static let rowTitleFont: Font = DocketTheme.display(18)
-        static let chevronFont: Font = .caption.weight(.bold)
+        static let rowTitleFont: Font = DocketTheme.display(19)
         static let rowShadowOpacity: Double = 0.45
         static let rowShadowRadius: CGFloat = 4
         static let rowShadowY: CGFloat = 2
         static let metadataFont: Font = .caption
-        static let menuFont: Font = .body.weight(.semibold)
-        static let menuSize: CGFloat = 38
         static let loadingSpacing: CGFloat = 7
-        static let createSpacing: CGFloat = 13
-        static let createPadding: CGFloat = 16
-        static let createCornerRadius: CGFloat = 14
-        static let createIconSize: CGFloat = 38
-        static let createIconFont: Font = .subheadline.weight(.bold)
-        static let createTextSpacing: CGFloat = 3
-        static let createTitleFont: Font = .headline
-        static let createSupportingFont: Font = .caption
-        static let createBorderWidth: CGFloat = 1
-        static let createBorderDash: [CGFloat] = [6, 5]
+        static let sectionLabelFont: Font = .caption2.weight(.bold)
+        static let sectionLabelTracking: CGFloat = 1.25
+        static let sectionLabelColor = DocketTheme.cream.opacity(0.5)
+        static let sectionLabelLeadingPadding: CGFloat = 3
+        static let sectionLabelTopPadding: CGFloat = 10
+        static let latestSpacing: CGFloat = 6
+        static let latestDotSize: CGFloat = 6
+        /// Extra transparent height inside each list row so the tape strips
+        /// and brass pin can overhang the card without being clipped by the
+        /// row's bounds.
+        static let rowOverhangHeadroom: CGFloat = 8
         static let unavailableColor = Color(hex: 0xE8B36A)
+    }
+
+    enum WashiTape {
+        /// One strip's placement along a card's top edge. `xFraction` locates
+        /// the strip center across the card width; `xNudge` shifts it inward
+        /// in points (corner strips use it to stay on screen); `yCenter` is
+        /// relative to the card's top edge; ±45° reads as corner tape.
+        struct Strip {
+            let xFraction: CGFloat
+            let xNudge: CGFloat
+            let yCenter: CGFloat
+            let rotationDegrees: Double
+        }
+
+        static let width: CGFloat = 54
+        static let height: CGFloat = 16
+        static let cornerRadius: CGFloat = 1.5
+        static let opacity: Double = 0.55
+
+        /// Hand-tuned layouts of one or two strips whose x positions are far
+        /// enough apart to never overlap at any card width. Picked per board
+        /// via `arrangement(for:)`, salted separately from the color hash so
+        /// same-color boards can still hang differently.
+        static let arrangements: [[Strip]] = [
+            [Strip(xFraction: 0.15, xNudge: 0, yCenter: 1, rotationDegrees: -4),
+             Strip(xFraction: 0.85, xNudge: 0, yCenter: 1, rotationDegrees: 3)],
+            [Strip(xFraction: 0.5, xNudge: 0, yCenter: 1, rotationDegrees: -2)],
+            [Strip(xFraction: 0.3, xNudge: 0, yCenter: 1, rotationDegrees: 3)],
+            [Strip(xFraction: 0, xNudge: 12, yCenter: 3, rotationDegrees: -45),
+             Strip(xFraction: 0.78, xNudge: 0, yCenter: 1, rotationDegrees: -3)],
+            [Strip(xFraction: 0.22, xNudge: 0, yCenter: 1, rotationDegrees: 2),
+             Strip(xFraction: 0.68, xNudge: 0, yCenter: 1, rotationDegrees: -5)],
+            [Strip(xFraction: 0.28, xNudge: 0, yCenter: 1, rotationDegrees: -3),
+             Strip(xFraction: 1, xNudge: -12, yCenter: 3, rotationDegrees: 45)],
+            [Strip(xFraction: 0.64, xNudge: 0, yCenter: 1, rotationDegrees: 4)],
+        ]
+
+        /// Muted tape stock that sits on both navy and cream. Assigned per
+        /// board via `color(for:)` so each board keeps a stable identity.
+        static let colors: [Color] = [
+            Color(hex: 0xC96F4A), // terracotta
+            Color(hex: 0x7C9A5C), // moss
+            Color(hex: 0x9B6A8F), // dusty plum
+            Color(hex: 0x6B8CAE), // slate blue
+            Color(hex: 0x5F9EA0), // teal
+            Color(hex: 0xC08A2E), // amber
+        ]
+
+        static func color(for key: String) -> Color {
+            colors[DocketTheme.stableHash(for: key) % colors.count]
+        }
+
+        static func arrangement(for key: String) -> [Strip] {
+            arrangements[
+                DocketTheme.stableHash(for: key + "#tape-layout") % arrangements.count
+            ]
+        }
     }
 
     enum BoardSkeleton {
@@ -446,15 +465,19 @@ nonisolated enum DocketTheme {
     // MARK: Card rotation
 
     /// Deterministic per-card tilt in the range -1.5°…+1.5°, keyed by record
-    /// name so a card keeps its tilt across refreshes and launches. (Do NOT use
-    /// hashValue here — it's randomized per process.)
+    /// name so a card keeps its tilt across refreshes and launches.
     static func rotationDegrees(for key: String) -> Double {
+        Double(stableHash(for: key) % 300) / 100.0 - 1.5
+    }
+
+    /// djb2 over unicode scalars, masked non-negative — stable across
+    /// launches, unlike hashValue, which is randomized per process.
+    static func stableHash(for key: String) -> Int {
         var hash = 5381
         for scalar in key.unicodeScalars {
             hash = (hash &* 33) &+ Int(scalar.value)
         }
-        let bounded = (hash & 0x7FFF_FFFF) % 300
-        return Double(bounded) / 100.0 - 1.5
+        return hash & 0x7FFF_FFFF
     }
 }
 

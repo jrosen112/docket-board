@@ -24,11 +24,20 @@ nonisolated struct BoardProfileStats: Identifiable, Equatable {
     let itemCount: Int
 }
 
+/// The newest pin on a board, for Board Manager's one-line activity summary.
+nonisolated struct BoardLatestUpdate: Equatable, Sendable {
+    let title: String
+    let category: ItemCategory
+    let authorName: String?
+    let date: Date
+}
+
 nonisolated struct BoardManagementSnapshot: Identifiable, Equatable, Sendable {
     let space: Space
     let itemCount: Int
     let participantCount: Int
     let participantNames: [String]
+    let latestUpdate: BoardLatestUpdate?
     let isAvailable: Bool
 
     var id: String { space.id }

@@ -37,6 +37,19 @@ extension BoardStore {
                         let fallbackNames = Self.fallbackParticipantNames(
                             from: loaded.profiles
                         )
+                        let latest = loaded.items
+                            .max { $0.dateAdded < $1.dateAdded }
+                            .map { item in
+                                BoardLatestUpdate(
+                                    title: item.title,
+                                    category: item.category,
+                                    authorName: loaded.profiles.first {
+                                        $0.id.recordName
+                                            == item.addedBy.recordID.recordName
+                                    }?.displayName,
+                                    date: item.dateAdded
+                                )
+                            }
                         return BoardManagementSnapshot(
                             space: candidate,
                             itemCount: loaded.items.count,
@@ -44,6 +57,7 @@ extension BoardStore {
                                 ?? max(fallbackNames.count, 1),
                             participantNames: roster?.participantNames
                                 ?? fallbackNames,
+                            latestUpdate: latest,
                             isAvailable: true
                         )
                     } catch {
@@ -52,6 +66,7 @@ extension BoardStore {
                             itemCount: 0,
                             participantCount: 0,
                             participantNames: [],
+                            latestUpdate: nil,
                             isAvailable: false
                         )
                     }

@@ -1197,7 +1197,27 @@ final class BoardStoreTests: XCTestCase {
         XCTAssertEqual(snapshots[0].itemCount, 1)
         XCTAssertEqual(snapshots[0].participantCount, 1)
         XCTAssertEqual(snapshots[0].participantNames, ["Alice Nguyen"])
+        XCTAssertEqual(snapshots[0].latestUpdate?.title, "Heat")
+        XCTAssertEqual(snapshots[0].latestUpdate?.category, .movie)
+        XCTAssertEqual(snapshots[0].latestUpdate?.authorName, "Alice Nguyen")
         XCTAssertTrue(snapshots[0].isAvailable)
+    }
+
+    func testBoardManagementLatestUpdateIsNewestItem() async {
+        let alice = seedProfile(name: "Alice")
+        for (index, title) in ["Heat", "Ronin", "Thief", "Alien"].enumerated() {
+            seedMovie(
+                title,
+                addedBy: alice,
+                dateAdded: .now.addingTimeInterval(TimeInterval(index))
+            )
+        }
+        await store.bootstrap()
+
+        let snapshots = await store.loadBoardManagementSnapshots()
+
+        XCTAssertEqual(snapshots[0].itemCount, 4)
+        XCTAssertEqual(snapshots[0].latestUpdate?.title, "Alien")
     }
 
     func testBoardManagementUsesShareRosterInsteadOfProfileRecordCount() async {
