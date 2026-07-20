@@ -1,6 +1,6 @@
 # Docket — Implementation
 
-_Current as of 2026-07-15._
+_Current as of 2026-07-20._
 
 This document describes the app as it exists now. [CLAUDE.md](CLAUDE.md)
 contains the original product brief and working agreement; where its old
@@ -24,7 +24,9 @@ The current app supports:
 - Optional pinned map snapshots on place cards, alongside the existing photo
   and paper-only card treatments.
 - TMDB movie lookup that fills titles, release years, runtimes, and posters.
-- Add, inline detail editing, deletion, conflict detection, and attribution.
+- Add, inline detail editing, detail-toolbar and long-press deletion with a
+  standard destructive confirmation alert, conflict detection, and
+  attribution.
 - Multi-select category/status filtering over a two-column masonry board.
 - Rich long-press quick looks with category facts, notes, attribution, and
   direct entry into the current detail editor.
@@ -293,15 +295,23 @@ views.
 - `ItemDetailView` resolves a record ID against live store data so edits update
   the visible detail without replacing the navigation destination. Context-menu
   Edit navigates here with edit mode already active; the legacy form sheet has
-  been removed.
+  been removed. Its bottom toolbar includes a trash action outside edit mode;
+  deletion requires a standard system alert, dismisses the detail after the
+  shared record is removed, and keeps the screen open with user-facing feedback
+  if CloudKit fails.
 - Saves replace the Save label with progress, dismiss keyboard focus, prevent
   interactive dismissal while in flight, and retain inline failure feedback.
 - Stable item IDs plus asymmetric transitions animate filtered/deleted cards
   out, visible/new cards in, and remaining cards into new masonry positions.
   A newly created card is revealed after its add sheet finishes dismissing.
+  Successful long-press deletion shows a transient `Deleted <title>` board
+  notice only after CloudKit confirms removal.
 - Board toolbar actions use their native single-layer glass containers. Add is
   the sole brass-prominent action, while the board switcher remains text-only.
   Bottom toolbar sheets retain matched transitions.
+- The checked-in asset catalog includes Docket's full-color 1024×1024 app icon
+  as an opaque RGB PNG. Xcode derives the required device sizes from that single
+  universal source.
 
 All reusable visual constants belong under `Views/Theme/`:
 
@@ -398,16 +408,18 @@ Important manual checks:
 6. Long-press a card. Verify the rich quick look, full address wrapping, and
    that Edit opens the current detail editor rather than a legacy form.
 7. Add and delete items. Verify save progress, post-dismiss success feedback,
-   and card insertion/removal animation.
+   the standard destructive alert from the detail toolbar, and card
+   insertion/removal animation.
 8. Enable airplane mode. Refresh should finish promptly, board switching should
    return to the previous board, and no technical CloudKit text should appear.
 
 ## Remaining work
 
-- Add HappyHour, Landmark, Hike, and Activity models/forms/detail views.
+- Add HappyHour, Recipe, Landmark, Hike, and Activity
+  models/forms/detail views.
 - Add profile-picture `CKAsset` support.
-- Add first-class board rename/delete management and reconcile local catalogs
-  after a participant leaves or an owner stops sharing.
+- Add first-class board renaming and reconcile local catalogs after a
+  participant leaves or an owner stops sharing.
 - Continue real-device testing for CloudKit sharing, push delivery, revoked
   access, notification permissions, and poor-network edge cases.
 - Prepare production CloudKit schema/deployment and TestFlight release work
@@ -418,6 +430,8 @@ Important manual checks:
 - Keep raw CloudKit; do not introduce a second auth system or backend casually.
 - Keep one custom zone per board and one zone-wide share per zone.
 - Keep category records typed rather than collapsing them into a generic item.
+- Until a compatibility requirement is introduced, prefer direct schema and
+  model changes over migration layers for unreleased data shapes.
 - Keep CloudKit system fields on decoded models for safe edits.
 - Keep data services injectable and store behavior testable without iCloud.
 - Keep presentation constants in `Views/Theme/` and screen views compositional.

@@ -7,8 +7,8 @@
 //  only state here is screen-local (sheet flags, filter selection).
 //
 
-import SwiftUI
 import CloudKit
+import SwiftUI
 
 struct BoardView: View {
     @Environment(BoardStore.self) private var store
@@ -25,6 +25,7 @@ struct BoardView: View {
     @State private var scrollNoteProgress: CGFloat = 0
     @State private var boardNotice: BoardNotice?
     @State private var pendingSave: PendingBoardSave?
+    @State private var deleteCandidate: BoardDeleteCandidate?
     @State private var revealingAddedItemID: CKRecord.ID?
     @State private var isAddedItemRevealed = true
 
@@ -40,6 +41,11 @@ struct BoardView: View {
 
     private var filteredItemIDs: [CKRecord.ID] {
         filteredItems.map(\.id)
+    }
+
+    private var deleteAlertTitle: String {
+        guard let deleteCandidate else { return "Delete Item?" }
+        return "Delete “" + deleteCandidate.title + "”?"
     }
 
     var body: some View {
@@ -85,12 +91,12 @@ struct BoardView: View {
                     initialCategory: target.category,
                     onSave: { beginSave($0, kind: .pinning) }
                 )
-                    .navigationTransition(
-                        .zoom(
-                            sourceID: BoardToolbarTransitionID.add,
-                            in: toolbarTransitionNamespace
-                        )
+                .navigationTransition(
+                    .zoom(
+                        sourceID: BoardToolbarTransitionID.add,
+                        in: toolbarTransitionNamespace
                     )
+                )
             }
             .sheet(isPresented: $showingSettings) {
                 SettingsView()
@@ -110,9 +116,27 @@ struct BoardView: View {
                     onSave: { beginSave($0, kind: .editing) },
                     startsEditing: target.startsEditing
                 )
-                    .navigationTransition(
-                        .zoom(sourceID: target.id, in: boardTransitionNamespace)
-                    )
+                .navigationTransition(
+                    .zoom(sourceID: target.id, in: boardTransitionNamespace)
+                )
+            }
+            .alert(
+                deleteAlertTitle,
+                isPresented: Binding(
+                    get: { deleteCandidate != nil },
+                    set: { if !$0 { deleteCandidate = nil } }
+                ),
+                presenting: deleteCandidate
+            ) { candidate in
+                Button("Delete", role: .destructive) {
+                    deleteCandidate = nil
+                    performDelete(candidate)
+                }
+                Button("Cancel", role: .cancel) {
+                    deleteCandidate = nil
+                }
+            } message: { _ in
+                Text("This removes the item from the shared board for everyone. This can't be undone.")
             }
             .task(id: store.itemNavigationRequest?.id) {
                 guard let request = store.itemNavigationRequest else { return }
@@ -220,7 +244,7 @@ struct BoardView: View {
                 Label("Edit", systemImage: "pencil")
             }
             Button(role: .destructive) {
-                Task { await store.delete(item) }
+                deleteCandidate = BoardDeleteCandidate(item: item)
             } label: {
                 Label("Delete", systemImage: "trash")
             }
@@ -252,6 +276,19 @@ struct BoardView: View {
             dateAdded: .now,
             category: category
         )
+    }
+
+    private func performDelete(_ candidate: BoardDeleteCandidate) {
+        Task { @MainActor in
+            guard case .deleted = await store.delete(candidate.item) else { return }
+            withAnimation(DocketDetailTheme.Edit.modeAnimation) {
+                boardNotice = BoardNotice(
+                    message: "Deleted \(candidate.title)",
+                    systemImage: "trash",
+                    dismissalID: UUID()
+                )
+            }
+        }
     }
 
     private func refreshBoard() async {
@@ -325,7 +362,7 @@ struct BoardView: View {
             if save.requiresRebase {
                 _ = await store.refresh()
                 guard let latest = store.items.first(where: { $0.id == save.item.id }),
-                      let rebased = ItemDraft(item: save.item).applying(to: latest)
+                    let rebased = ItemDraft(item: save.item).applying(to: latest)
                 else {
                     presentSaveFailure(for: save, requiresRebase: true)
                     return
@@ -442,23 +479,23 @@ struct BoardView: View {
             }
         }
         #if DEBUG
-        ToolbarItem(placement: .topBarTrailing) {
-            Menu {
-                Button {
-                    Task { await store.seedSampleData() }
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button {
+                        Task { await store.seedSampleData() }
+                    } label: {
+                        Label("Seed sample data", systemImage: "sparkles")
+                    }
+                    Button(role: .destructive) {
+                        Task { await store.deleteSampleData() }
+                    } label: {
+                        Label("Delete sample data", systemImage: "trash")
+                    }
                 } label: {
-                    Label("Seed sample data", systemImage: "sparkles")
+                    Image(systemName: "ellipsis.circle")
+                        .foregroundStyle(DocketTheme.brass.opacity(0.7))
                 }
-                Button(role: .destructive) {
-                    Task { await store.deleteSampleData() }
-                } label: {
-                    Label("Delete sample data", systemImage: "trash")
-                }
-            } label: {
-                Image(systemName: "ellipsis.circle")
-                    .foregroundStyle(DocketTheme.brass.opacity(0.7))
             }
-        }
         #endif
     }
 }
@@ -472,6 +509,16 @@ private struct AddTarget: Identifiable {
     let id: CKRecord.ID
     let dateAdded: Date
     let category: ItemCategory
+}
+
+private struct BoardDeleteCandidate {
+    let item: any SharedListItem
+    let title: String
+
+    init(item: any SharedListItem) {
+        self.item = item
+        self.title = item.title
+    }
 }
 
 private struct BoardNotice: Identifiable {

@@ -34,7 +34,15 @@ enum ItemStatus: String, CaseIterable {
 }
 ```
 
-Category types: `Restaurant`, `Bar`, `HappyHour`, `Landmark`, `Movie`, `Hike`, `Activity` — each conforms to `SharedListItem` plus its own category-specific fields (e.g. `Hike` has `distanceMiles`/`elevationGainFt`/`difficulty`; `Movie` has `runtime`/`streamingService`/`releaseYear`). Keep field naming consistent across types (e.g. always `location`, never mix `Location`/`location`) since CloudKit schema is case-sensitive and will silently create duplicate fields on a typo.
+Current category types are `Restaurant`, `Bar`, and `Movie`. Planned typed
+categories include `HappyHour`, `Recipe`, `Landmark`, `Hike`, and `Activity`.
+Each conforms to `SharedListItem` plus its own category-specific fields (e.g.
+`Hike` can have `distanceMiles`/`elevationGainFt`/`difficulty`; `Movie` has
+`runtime`/`streamingService`/`releaseYear`). Keep field naming consistent across
+types (e.g. always `location`, never mix `Location`/`location`) since CloudKit
+schema is case-sensitive and will silently create duplicate fields on a typo.
+The project does not currently require backward-compatible migrations for
+unreleased model/schema changes.
 
 ## Design Direction — "The Board"
 Pinned corkboard aesthetic, not a plain list. Reference: two-column masonry grid, variable card height by content (photo-bearing categories like Hike/Landmark/Restaurant/Activity get taller cards; text-only categories like HappyHour/Movie stay short), color-coded accent per category, slight per-card rotation for a tactile feel.
@@ -53,16 +61,31 @@ Current interaction details:
   board notice.
 - Stable card IDs drive animated filter, add, delete, refresh, and masonry
   position changes.
+- Long-press Delete requires a native destructive alert and confirms successful
+  removal with a transient `Deleted <title>` board notice.
 
 ## Implementation Status
 
 Built: CloudKit zones/sharing, multi-board switching, typed Restaurant/Bar/Movie
 records, masonry board, multi-select filtering, typed add/detail editing,
-conflict handling, silent push reconciliation, local notifications, and current
-board interaction polish. See `IMPLEMENTATION.md` for authoritative details.
+structured MapKit locations and maps, photo/map card treatments, item and board
+deletion, board management, conflict handling, silent push reconciliation,
+local notifications, and current board interaction polish. The asset catalog
+also contains the production app icon. See `IMPLEMENTATION.md` for
+authoritative details.
 
-Next: MapKit search/map support, Happy Hour/Landmark/Hike/Activity record types,
-photos, profile images, board management, and production/TestFlight work.
+Next: Happy Hour/Recipe/Landmark/Hike/Activity record types, profile images,
+board renaming, additional real-device CloudKit testing, and
+production/TestFlight work.
+
+## Local Commands
+
+The root `Justfile` is the canonical command interface. Install `just` with
+`brew install just`, then run `just` to list all recipes. Common commands are
+`just build`, `just test`, `just test-one <Class[/method]>`, `just format`,
+`just format-check`, and `just verify`. Simulator and DerivedData defaults can
+be overridden with `DOCKET_SIMULATOR`, `DOCKET_SIMULATOR_OS`, and
+`DOCKET_DERIVED_DATA`.
 
 ## Explicitly Out of Scope for Phase 1
 - Custom auth beyond Apple ID + CloudKit sharing
