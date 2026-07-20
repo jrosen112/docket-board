@@ -20,6 +20,9 @@ The current app supports:
 - Joining, switching between, and leaving shared boards.
 - Owner-only membership management; participants collaborate on board content.
 - Restaurant, Bar, and Movie items with category-specific fields.
+- MapKit place search and structured addresses for Restaurants and Bars.
+- Optional pinned map snapshots on place cards, alongside the existing photo
+  and paper-only card treatments.
 - TMDB movie lookup that fills titles, release years, runtimes, and posters.
 - Add, inline detail editing, deletion, conflict detection, and attribution.
 - Multi-select category/status filtering over a two-column masonry board.
@@ -120,6 +123,22 @@ archive so change tags survive round-trips and concurrent writes produce a real
 
 `Support/ItemDraft.swift` is the shared, tested conversion path for both new
 items and inline edits.
+
+Restaurants and Bars store an optional `ItemLocation` rather than freeform
+location text. A location retains the MapKit place name and identifier,
+formatted address variants, city/region metadata, and a CloudKit-native
+coordinate. The add and edit flows resolve place-name or address searches with
+`MKLocalSearch`. No device-location permission is needed because Docket does
+not request the user's current position.
+
+Place cards can show a generated `MKMapSnapshotter` image centered on the saved
+coordinate with a visible pin. Snapshots are cached in memory and are not
+uploaded to CloudKit. Photo, map, and paper-only are mutually exclusive board
+card treatments; selecting one never deletes an uploaded photo or location.
+Place detail screens also show an interactive pinned map between the hero and
+particulars, with pan/zoom gestures, a saved-place recenter control, and an
+Apple Maps handoff. Detail addresses include city, state/region, and postal
+code, omitting the country only for US locations.
 
 Movie records can also retain a TMDB movie ID. While adding or editing a movie,
 the user can search TMDB, select a result, and fill its title, release year,
@@ -266,6 +285,11 @@ views.
   transition captures without changing masonry spacing.
 - `DetailViews/` contains the typed Restaurant, Bar, and Movie detail screens,
   the new-item screen, and their shared inline-editing components.
+- Restaurant and Bar location rows open a MapKit-backed search sheet. Choosing
+  the first location defaults a card without a photo to the map treatment; the
+  On the Board selector can switch between map, photo, and no image. Saved
+  fields prefer the compact street address because the title already identifies
+  the venue.
 - `ItemDetailView` resolves a record ID against live store data so edits update
   the visible detail without replacing the navigation destination. Context-menu
   Edit navigates here with edit mode already active; the legacy form sheet has
@@ -323,14 +347,21 @@ treated as a server-side secret.
 
 ## Tests and verification
 
-The repository currently contains **100 unit tests**:
+The root `Justfile` is the canonical command interface. Install its runner with
+`brew install just`, then use `just` to list recipes. The common workflows are
+`just build`, `just test`, `just test-one <Class[/method]>`, `just format`,
+`just format-check`, and `just verify`. Tests default to an iPhone 17 Pro on the
+latest installed simulator runtime. Override that with `DOCKET_SIMULATOR` and
+`DOCKET_SIMULATOR_OS`; `DOCKET_DERIVED_DATA` controls the `/tmp` build location.
 
-- `BoardStoreTests`: 48
-- `ModelConversionTests`: 9
+The repository currently contains **114 unit tests**:
+
+- `BoardStoreTests`: 59
+- `ModelConversionTests`: 11
 - `DocketThemeTests`: 7
 - `BoardFilterTests`: 11
 - `SpaceTests`: 4
-- `ItemDraftTests`: 5
+- `ItemDraftTests`: 6
 - `RecordDecoderTests`: 3
 - `UserFacingErrorTests`: 3
 - `CloudKitFetchAccumulatorTests`: 2
@@ -344,11 +375,9 @@ remote-add notification decisions, offline refresh/switch handling, error-copy
 sanitization, multi-select OR/AND filter behavior, selection counts and clearing,
 skeleton timing, refresh counts, and sample-data safety.
 
-A compile-only generic iOS build succeeded on 2026-07-14. The new filter tests
-compile, but a focused XCTest execution could not install on the current Mac
-because that device is absent from the iOS provisioning profile. Run the full
-suite from the signed simulator configuration before treating all 72 as a new
-passing baseline.
+The signed simulator build and complete unit-test target pass on the configured
+iPhone 17 Pro simulator. The Justfile's focused-test workflow has also been
+exercised end to end.
 
 Build and test commands are allowed, but automated sessions should not launch
 the app. Live CloudKit sharing and notification behavior require Jared's manual
@@ -375,8 +404,6 @@ Important manual checks:
 
 ## Remaining work
 
-- Implement MapKit search/autocomplete, coordinates, and a map view for
-  location-based categories.
 - Add HappyHour, Landmark, Hike, and Activity models/forms/detail views.
 - Add profile-picture `CKAsset` support.
 - Add first-class board rename/delete management and reconcile local catalogs

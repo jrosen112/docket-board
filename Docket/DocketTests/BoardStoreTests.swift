@@ -728,8 +728,29 @@ final class BoardStoreTests: XCTestCase {
         XCTAssertEqual(addResult, .saved)
         XCTAssertEqual(store.items.map(\.title), ["Past Lives"])
 
-        await store.delete(store.items[0])
+        let deleteResult = await store.delete(store.items[0])
+        XCTAssertEqual(deleteResult, .deleted)
         XCTAssertTrue(store.items.isEmpty)
+    }
+
+    func testDeleteFailureKeepsItemAndReturnsMessage() async {
+        await store.createProfile(firstName: "Jared", lastName: "R")
+        let movie = Movie(
+            id: store.newItemID(),
+            title: "Past Lives",
+            addedBy: store.currentProfile!.reference
+        )
+        let saveResult = await store.save(movie)
+        XCTAssertEqual(saveResult, .saved)
+        mock.deleteError = CKError(.networkFailure)
+
+        let result = await store.delete(store.items[0])
+
+        guard case let .failed(message) = result else {
+            return XCTFail("Expected delete to fail")
+        }
+        XCTAssertFalse(message.isEmpty)
+        XCTAssertEqual(store.items.map(\.title), ["Past Lives"])
     }
 
     func testEditingItemUpdatesInPlaceWithoutDuplicating() async {

@@ -22,9 +22,13 @@ nonisolated func cardSubtitle(for item: any SharedListItem) -> String? {
     let parts: [String?]
     switch item {
     case let restaurant as Restaurant:
-        parts = [restaurant.cuisine, restaurant.priceRange?.rawValue, restaurant.location]
+        parts = [
+            restaurant.cuisine,
+            restaurant.priceRange?.rawValue,
+            restaurant.location?.boardLabel,
+        ]
     case let bar as Bar:
-        parts = [bar.barType.map { $0.rawValue.capitalized }, bar.location]
+        parts = [bar.barType.map { $0.rawValue.capitalized }, bar.location?.boardLabel]
     case let movie as Movie:
         parts = [
             movie.releaseYear.map(String.init),
@@ -67,13 +71,18 @@ nonisolated func quickLookFacts(for item: any SharedListItem) -> [ItemQuickLookF
     switch item {
     case let restaurant as Restaurant:
         return [
-            fact("location", "Location", restaurant.location, prefersFullWidth: true),
+            fact(
+                "location",
+                "Location",
+                restaurant.location?.detailAddress,
+                prefersFullWidth: true
+            ),
             fact("cuisine", "Cuisine", restaurant.cuisine),
             fact("price", "Price", restaurant.priceRange?.rawValue),
         ].compactMap(\.self)
     case let bar as Bar:
         return [
-            fact("location", "Location", bar.location, prefersFullWidth: true),
+            fact("location", "Location", bar.location?.detailAddress, prefersFullWidth: true),
             fact("vibe", "Vibe", bar.barType?.rawValue.capitalized),
         ].compactMap(\.self)
     case let movie as Movie:

@@ -32,14 +32,12 @@ struct RestaurantDetailView: View {
 
     private var editingFields: some View {
         Group {
-            DetailEditField(
-                symbol: "mappin.and.ellipse",
-                label: "Location",
-                placeholder: "Add a location",
-                field: .location,
+            LocationEditRow(
+                suggestedQuery: draft.title,
                 accent: restaurant.category.accent,
-                text: $draft.location,
-                focusedField: focusedField
+                location: $draft.location,
+                showsMapOnBoard: $draft.showsMapOnBoard,
+                showsPhotoOnBoard: $draft.showsPhotoOnBoard
             )
             DetailEditField(
                 symbol: "takeoutbag.and.cup.and.straw.fill",
@@ -69,7 +67,7 @@ struct RestaurantDetailView: View {
             fact(
                 symbol: "mappin.and.ellipse",
                 label: "Location",
-                value: restaurant.location,
+                value: restaurant.location?.detailAddress,
                 placeholder: "Add location",
                 field: .location
             )

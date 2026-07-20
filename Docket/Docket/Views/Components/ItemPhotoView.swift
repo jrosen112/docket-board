@@ -21,6 +21,7 @@ struct ItemPhotoImage: View {
 struct ItemPhotoEditor: View {
     @Binding var photoData: Data?
     @Binding var showsPhotoOnBoard: Bool
+    @Binding var showsMapOnBoard: Bool
 
     let accent: Color
 
@@ -154,7 +155,10 @@ struct ItemPhotoEditor: View {
             let isFirstPhoto = photoData == nil
             withAnimation(DocketDetailTheme.Edit.modeAnimation) {
                 photoData = preparedData
-                if isFirstPhoto { showsPhotoOnBoard = true }
+                if isFirstPhoto {
+                    showsPhotoOnBoard = true
+                    showsMapOnBoard = false
+                }
             }
         } catch {
             errorMessage = "That photo couldn't be loaded. Please try again."

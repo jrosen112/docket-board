@@ -56,7 +56,9 @@ struct NewItemView: View {
                     isEditing: true,
                     hasKeyboardFocus: focusedField != nil,
                     canSave: draft.isValid,
+                    isDeleting: false,
                     onEdit: {},
+                    onDelete: nil,
                     onCancel: { dismiss() },
                     onSave: submitSave
                 )

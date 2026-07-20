@@ -14,6 +14,9 @@ struct ItemDetailView: View {
     @State private var editBase: DetailEditBase?
     @State private var isToolbarVisible = true
     @State private var appliedInitialEditMode = false
+    @State private var isShowingDeleteConfirmation = false
+    @State private var isDeleting = false
+    @State private var deleteErrorMessage: String?
 
     private var item: (any SharedListItem)? {
         store.items.first { $0.id == itemID }
@@ -28,17 +31,43 @@ struct ItemDetailView: View {
                     .toolbarVisibility(.visible, for: .navigationBar)
                     .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
                     .toolbarColorScheme(.dark, for: .navigationBar)
-                    .navigationBarBackButtonHidden(isEditing)
+                    .navigationBarBackButtonHidden(isEditing || isDeleting)
                     .toolbar {
                         DetailBottomToolbar(
                             isVisible: isToolbarVisible,
                             isEditing: isEditing,
                             hasKeyboardFocus: focusedField != nil,
                             canSave: draft.isValid,
+                            isDeleting: isDeleting,
                             onEdit: { beginEditing(item, field: .title) },
+                            onDelete: { isShowingDeleteConfirmation = true },
                             onCancel: cancelEditing,
                             onSave: submitSave
                         )
+                    }
+                    .alert(
+                        "Delete “\(item.title)”?",
+                        isPresented: $isShowingDeleteConfirmation
+                    ) {
+                        Button("Delete", role: .destructive) {
+                            submitDelete(item)
+                        }
+                        Button("Cancel", role: .cancel) {}
+                    } message: {
+                        Text("This removes the item from the shared board for everyone. This can't be undone.")
+                    }
+                    .alert(
+                        "Couldn't Delete Item",
+                        isPresented: Binding(
+                            get: { deleteErrorMessage != nil },
+                            set: { if !$0 { deleteErrorMessage = nil } }
+                        )
+                    ) {
+                        Button("OK", role: .cancel) {
+                            deleteErrorMessage = nil
+                        }
+                    } message: {
+                        Text(deleteErrorMessage ?? "Please try again.")
                     }
                     .onAppear {
                         isToolbarVisible = true
@@ -137,14 +166,32 @@ struct ItemDetailView: View {
         dismiss()
     }
 
+    private func submitDelete(_ item: any SharedListItem) {
+        guard !isDeleting else { return }
+        focusedField = nil
+        isDeleting = true
+
+        Task { @MainActor in
+            switch await store.delete(item) {
+            case .deleted:
+                dismiss()
+            case let .failed(message):
+                store.errorMessage = nil
+                isDeleting = false
+                deleteErrorMessage = message
+            }
+        }
+    }
+
     private func focus(_ field: ItemDraftField) {
         Task { @MainActor in
             try? await Task.sleep(for: DocketDetailTheme.Edit.focusDelay)
             guard isEditing else { return }
             switch field {
-            case .title, .location, .cuisine, .runtime, .streamingService, .releaseYear, .notes:
+            case .title, .cuisine, .runtime, .streamingService, .releaseYear, .notes:
                 focusedField = field
-            case .status, .priceRange, .barType, .photo, .showsPhotoOnBoard:
+            case .status, .location, .priceRange, .barType, .photo,
+                    .showsPhotoOnBoard, .showsMapOnBoard:
                 focusedField = nil
             }
         }

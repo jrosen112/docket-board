@@ -36,7 +36,16 @@ nonisolated enum Schema {
         static let showsPhotoOnBoard = "showsPhotoOnBoard"
 
         // MARK: Location-based categories
-        static let location = "location"
+        static let locationName = "locationName"
+        static let locationFullAddress = "locationFullAddress"
+        static let locationShortAddress = "locationShortAddress"
+        static let locationCity = "locationCity"
+        static let locationCityWithContext = "locationCityWithContext"
+        static let locationCountry = "locationCountry"
+        static let locationCountryCode = "locationCountryCode"
+        static let locationCoordinate = "locationCoordinate" // CLLocation
+        static let locationMapItemIdentifier = "locationMapItemIdentifier"
+        static let showsMapOnBoard = "showsMapOnBoard"
 
         // MARK: UserProfile
         static let firstName = "firstName"

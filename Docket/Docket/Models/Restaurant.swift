@@ -2,8 +2,7 @@
 //  Restaurant.swift
 //  Docket
 //
-//  A place to eat. Location-based category (location is a plain text field for
-//  now; MKLocalSearch autocomplete + coordinates come later).
+//  A place to eat.
 //
 
 import CloudKit
@@ -16,7 +15,7 @@ nonisolated enum PriceRange: String, CaseIterable, Codable {
     case splurge = "$$$$"
 }
 
-nonisolated struct Restaurant: SharedListItem {
+nonisolated struct Restaurant: LocatedListItem {
     let id: CKRecord.ID
     var title: String
     var notes: String?
@@ -30,7 +29,8 @@ nonisolated struct Restaurant: SharedListItem {
     var systemFields: Data?
 
     // Restaurant-specific
-    var location: String?
+    var location: ItemLocation?
+    var showsMapOnBoard: Bool
     var cuisine: String?
     var priceRange: PriceRange?
 
@@ -43,7 +43,8 @@ nonisolated struct Restaurant: SharedListItem {
         dateAdded: Date = .now,
         photoData: Data? = nil,
         showsPhotoOnBoard: Bool = false,
-        location: String? = nil,
+        location: ItemLocation? = nil,
+        showsMapOnBoard: Bool = false,
         cuisine: String? = nil,
         priceRange: PriceRange? = nil
     ) {
@@ -56,6 +57,7 @@ nonisolated struct Restaurant: SharedListItem {
         self.photoData = photoData
         self.showsPhotoOnBoard = showsPhotoOnBoard
         self.location = location
+        self.showsMapOnBoard = showsMapOnBoard
         self.cuisine = cuisine
         self.priceRange = priceRange
     }
@@ -75,7 +77,9 @@ nonisolated struct Restaurant: SharedListItem {
         self.photoData = shared.photoData
         self.showsPhotoOnBoard = shared.showsPhotoOnBoard
         self.systemFields = shared.systemFields
-        self.location = record[Schema.Field.location] as? String
+        self.location = ItemLocation(record: record)
+        self.showsMapOnBoard = self.location != nil
+            && (record[Schema.Field.showsMapOnBoard] as? Bool ?? false)
         self.cuisine = record[Schema.Field.cuisine] as? String
         if let raw = record[Schema.Field.priceRange] as? String {
             self.priceRange = PriceRange(rawValue: raw)
@@ -89,7 +93,7 @@ nonisolated struct Restaurant: SharedListItem {
             addedBy: addedBy, dateAdded: dateAdded,
             photoData: photoData, showsPhotoOnBoard: showsPhotoOnBoard
         )
-        record[Schema.Field.location] = location
+        record.applyLocationFields(location: location, showsMapOnBoard: showsMapOnBoard)
         record[Schema.Field.cuisine] = cuisine
         record[Schema.Field.priceRange] = priceRange?.rawValue
         return record

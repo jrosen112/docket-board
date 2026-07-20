@@ -13,6 +13,29 @@ nonisolated enum ItemDraftField: Hashable {
     case notes
     case photo
     case showsPhotoOnBoard
+    case showsMapOnBoard
+}
+
+nonisolated enum BoardCardMedia: String, CaseIterable, Hashable {
+    case none
+    case photo
+    case map
+
+    var label: String {
+        switch self {
+        case .none: "None"
+        case .photo: "Photo"
+        case .map: "Map"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .none: "rectangle.slash"
+        case .photo: "photo.fill"
+        case .map: "map.fill"
+        }
+    }
 }
 
 nonisolated struct ItemDraft {
@@ -22,8 +45,9 @@ nonisolated struct ItemDraft {
     var status: ItemStatus = .wantToGo
     var photoData: Data?
     var showsPhotoOnBoard = false
+    var showsMapOnBoard = false
 
-    var location = ""
+    var location: ItemLocation?
     var cuisine = ""
     var priceRange: PriceRange?
     var barType: BarType?
@@ -33,6 +57,22 @@ nonisolated struct ItemDraft {
     var tmdbID: Int?
 
     var isValid: Bool { !title.trimmed.isEmpty }
+
+    var supportsLocation: Bool {
+        category == .restaurant || category == .bar
+    }
+
+    var boardCardMedia: BoardCardMedia {
+        get {
+            if showsPhotoOnBoard, photoData != nil { return .photo }
+            if showsMapOnBoard, location != nil, supportsLocation { return .map }
+            return .none
+        }
+        set {
+            showsPhotoOnBoard = newValue == .photo && photoData != nil
+            showsMapOnBoard = newValue == .map && location != nil && supportsLocation
+        }
+    }
 
     init(category: ItemCategory = .restaurant) {
         self.category = category
@@ -48,11 +88,13 @@ nonisolated struct ItemDraft {
 
         switch item {
         case let restaurant as Restaurant:
-            location = restaurant.location ?? ""
+            location = restaurant.location
+            showsMapOnBoard = restaurant.showsMapOnBoard
             cuisine = restaurant.cuisine ?? ""
             priceRange = restaurant.priceRange
         case let bar as Bar:
-            location = bar.location ?? ""
+            location = bar.location
+            showsMapOnBoard = bar.showsMapOnBoard
             barType = bar.barType
         case let movie as Movie:
             runtime = movie.runtimeMinutes.map(String.init) ?? ""
@@ -67,14 +109,16 @@ nonisolated struct ItemDraft {
     /// Applies editable fields while preserving record identity, attribution,
     /// creation date, and CloudKit system fields from the fetched model.
     func applying(to existing: any SharedListItem) -> (any SharedListItem)? {
+        let boardMedia = boardCardMedia
         switch existing {
         case var restaurant as Restaurant:
             restaurant.title = title.trimmed
             restaurant.notes = notes.orNil
             restaurant.status = status
             restaurant.photoData = photoData
-            restaurant.showsPhotoOnBoard = showsPhotoOnBoard
-            restaurant.location = location.orNil
+            restaurant.showsPhotoOnBoard = boardMedia == .photo
+            restaurant.location = location
+            restaurant.showsMapOnBoard = boardMedia == .map
             restaurant.cuisine = cuisine.orNil
             restaurant.priceRange = priceRange
             return restaurant
@@ -83,8 +127,9 @@ nonisolated struct ItemDraft {
             bar.notes = notes.orNil
             bar.status = status
             bar.photoData = photoData
-            bar.showsPhotoOnBoard = showsPhotoOnBoard
-            bar.location = location.orNil
+            bar.showsPhotoOnBoard = boardMedia == .photo
+            bar.location = location
+            bar.showsMapOnBoard = boardMedia == .map
             bar.barType = barType
             return bar
         case var movie as Movie:
@@ -92,7 +137,7 @@ nonisolated struct ItemDraft {
             movie.notes = notes.orNil
             movie.status = status
             movie.photoData = photoData
-            movie.showsPhotoOnBoard = showsPhotoOnBoard
+            movie.showsPhotoOnBoard = boardMedia == .photo
             movie.runtimeMinutes = Int(runtime)
             movie.streamingService = streamingService.orNil
             movie.releaseYear = Int(releaseYear)
@@ -108,7 +153,8 @@ nonisolated struct ItemDraft {
         addedBy: CKRecord.Reference,
         dateAdded: Date = .now
     ) -> (any SharedListItem)? {
-        switch category {
+        let boardMedia = boardCardMedia
+        return switch category {
         case .restaurant:
             Restaurant(
                 id: id,
@@ -118,8 +164,9 @@ nonisolated struct ItemDraft {
                 addedBy: addedBy,
                 dateAdded: dateAdded,
                 photoData: photoData,
-                showsPhotoOnBoard: showsPhotoOnBoard,
-                location: location.orNil,
+                showsPhotoOnBoard: boardMedia == .photo,
+                location: location,
+                showsMapOnBoard: boardMedia == .map,
                 cuisine: cuisine.orNil,
                 priceRange: priceRange
             )
@@ -132,8 +179,9 @@ nonisolated struct ItemDraft {
                 addedBy: addedBy,
                 dateAdded: dateAdded,
                 photoData: photoData,
-                showsPhotoOnBoard: showsPhotoOnBoard,
-                location: location.orNil,
+                showsPhotoOnBoard: boardMedia == .photo,
+                location: location,
+                showsMapOnBoard: boardMedia == .map,
                 barType: barType
             )
         case .movie:
@@ -145,7 +193,7 @@ nonisolated struct ItemDraft {
                 addedBy: addedBy,
                 dateAdded: dateAdded,
                 photoData: photoData,
-                showsPhotoOnBoard: showsPhotoOnBoard,
+                showsPhotoOnBoard: boardMedia == .photo,
                 runtimeMinutes: Int(runtime),
                 streamingService: streamingService.orNil,
                 releaseYear: Int(releaseYear),

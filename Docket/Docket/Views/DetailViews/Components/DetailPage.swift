@@ -28,6 +28,25 @@ struct DetailPage<Details: View>: View {
                     VStack(spacing: DocketDetailTheme.Page.sectionSpacing) {
                         hero
 
+                        if let itemLocation, !isEditing {
+                            LocationDetailMapView(location: itemLocation)
+                                .frame(height: 218)
+                                .clipShape(
+                                    RoundedRectangle(
+                                        cornerRadius: DocketDetailTheme.Card.cornerRadius,
+                                        style: .continuous
+                                    )
+                                )
+                                .overlay {
+                                    RoundedRectangle(
+                                        cornerRadius: DocketDetailTheme.Card.cornerRadius,
+                                        style: .continuous
+                                    )
+                                    .stroke(DocketTheme.cream.opacity(0.22), lineWidth: 1)
+                                }
+                                .shadow(color: .black.opacity(0.24), radius: 6, y: 4)
+                        }
+
                         DetailSectionCard(
                             title: "The particulars",
                             symbol: symbol,
@@ -69,8 +88,8 @@ struct DetailPage<Details: View>: View {
                         }
                         .accessibilityAddTraits(isEditing ? [] : .isButton)
 
-                        if isEditing || item.photoData != nil {
-                            boardPhotoSection
+                        if isEditing || item.photoData != nil || itemLocation != nil {
+                            boardAppearanceSection
                         }
 
                         if let saveErrorMessage {
@@ -110,6 +129,7 @@ struct DetailPage<Details: View>: View {
                 ItemPhotoEditor(
                     photoData: $draft.photoData,
                     showsPhotoOnBoard: $draft.showsPhotoOnBoard,
+                    showsMapOnBoard: $draft.showsMapOnBoard,
                     accent: accent
                 )
             } else if let photoData = item.photoData {
@@ -246,46 +266,61 @@ struct DetailPage<Details: View>: View {
         )
     }
 
-    private var boardPhotoSection: some View {
+    private var itemLocation: ItemLocation? {
+        (item as? any LocatedListItem)?.location
+    }
+
+    private var availableBoardMedia: [BoardCardMedia] {
+        var options: [BoardCardMedia] = [.none]
+        if draft.photoData != nil { options.append(.photo) }
+        if draft.supportsLocation, draft.location != nil { options.append(.map) }
+        return options
+    }
+
+    private var currentBoardMedia: BoardCardMedia {
+        if item.showsPhotoOnBoard, item.photoData != nil { return .photo }
+        if let locatedItem = item as? any LocatedListItem,
+           locatedItem.showsMapOnBoard,
+           locatedItem.location != nil {
+            return .map
+        }
+        return .none
+    }
+
+    private var boardAppearanceSection: some View {
         DetailSectionCard(
             title: "On the board",
             symbol: "rectangle.grid.2x2.fill",
             accent: accent,
-            rotationDegrees: sectionRotation(for: "board-photo")
+            rotationDegrees: sectionRotation(for: "board-appearance")
         ) {
             if isEditing {
-                Toggle(isOn: $draft.showsPhotoOnBoard) {
-                    VStack(alignment: .leading, spacing: DocketDetailTheme.Photo.toggleTextSpacing) {
-                        Text("Show photo on board card")
-                            .font(DocketDetailTheme.Fact.valueFont)
-                            .foregroundStyle(palette.primaryText)
-                        Text(
-                            draft.photoData == nil
-                                ? "Add a photo above to turn this on."
-                                : "The card uses a compact, edge-to-edge crop."
+                VStack(alignment: .leading, spacing: 10) {
+                    Picker(
+                        "Board card image",
+                        selection: Binding(
+                            get: { draft.boardCardMedia },
+                            set: { draft.boardCardMedia = $0 }
                         )
+                    ) {
+                        ForEach(availableBoardMedia, id: \.self) { media in
+                            Label(media.label, systemImage: media.symbol).tag(media)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    Text(boardMediaHelp)
                         .font(DocketDetailTheme.Photo.supportingFont)
                         .foregroundStyle(palette.mutedText)
-                    }
                 }
-                .tint(accent)
-                .disabled(draft.photoData == nil)
             } else {
                 HStack(spacing: DocketDetailTheme.Fact.rowSpacing) {
-                    Image(
-                        systemName: item.showsPhotoOnBoard
-                            ? "photo.fill.on.rectangle.fill"
-                            : "rectangle.slash"
-                    )
+                    Image(systemName: currentBoardMedia.symbol)
                     .font(DocketDetailTheme.Fact.symbolFont)
                     .foregroundStyle(accent)
                     .frame(width: DocketDetailTheme.Fact.symbolWidth)
 
-                    Text(
-                        item.showsPhotoOnBoard
-                            ? "Photo shown on board card"
-                            : "Photo kept in details only"
-                    )
+                    Text(boardMediaStatus)
                     .font(DocketDetailTheme.Fact.valueFont)
                     .foregroundStyle(palette.primaryText)
 
@@ -295,9 +330,33 @@ struct DetailPage<Details: View>: View {
                         .foregroundStyle(palette.mutedText)
                 }
                 .contentShape(Rectangle())
-                .onTapGesture { onEdit(.showsPhotoOnBoard) }
+                .onTapGesture {
+                    onEdit(currentBoardMedia == .map ? .showsMapOnBoard : .showsPhotoOnBoard)
+                }
                 .accessibilityAddTraits(.isButton)
             }
+        }
+    }
+
+    private var boardMediaHelp: String {
+        switch draft.boardCardMedia {
+        case .none:
+            if draft.photoData == nil && draft.location == nil {
+                return "Add a photo or choose a location to give this card an image."
+            }
+            return "The board card will use the paper-only layout."
+        case .photo:
+            return "The card uses a compact, edge-to-edge photo crop."
+        case .map:
+            return "The card shows a map centered on the saved location."
+        }
+    }
+
+    private var boardMediaStatus: String {
+        switch currentBoardMedia {
+        case .none: "No image shown on board card"
+        case .photo: "Photo shown on board card"
+        case .map: "Map shown on board card"
         }
     }
 

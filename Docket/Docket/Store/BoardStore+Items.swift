@@ -41,13 +41,17 @@ extension BoardStore {
         }
     }
 
-    func delete(_ item: any SharedListItem) async {
+    @discardableResult
+    func delete(_ item: any SharedListItem) async -> StoreDeleteResult {
         do {
             try await requireNetwork()
             try await service.delete(item.id)
             items.removeAll { $0.id == item.id }
+            return .deleted
         } catch {
-            errorMessage = Self.message(for: error)
+            let message = Self.message(for: error)
+            errorMessage = message
+            return .failed(message: message)
         }
     }
 

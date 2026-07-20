@@ -18,6 +18,18 @@ final class ModelConversionTests: XCTestCase {
         action: .none
     )
     private let fixedDate = Date(timeIntervalSince1970: 1_000_000)
+    private let location = ItemLocation(
+        name: "Tartine Manufactory",
+        fullAddress: "595 Alabama St, San Francisco, CA 94110, United States",
+        shortAddress: "595 Alabama St",
+        city: "San Francisco",
+        cityWithContext: "San Francisco, CA",
+        country: "United States",
+        countryCode: "US",
+        latitude: 37.7615,
+        longitude: -122.4115,
+        mapItemIdentifier: "tartine-map-item"
+    )
 
     // MARK: Restaurant
 
@@ -32,7 +44,8 @@ final class ModelConversionTests: XCTestCase {
             dateAdded: fixedDate,
             photoData: photoData,
             showsPhotoOnBoard: true,
-            location: "San Francisco",
+            location: location,
+            showsMapOnBoard: true,
             cuisine: "Bakery",
             priceRange: .moderate
         )
@@ -50,6 +63,7 @@ final class ModelConversionTests: XCTestCase {
         XCTAssertEqual(decoded.photoData, photoData)
         XCTAssertTrue(decoded.showsPhotoOnBoard)
         XCTAssertEqual(decoded.location, original.location)
+        XCTAssertTrue(decoded.showsMapOnBoard)
         XCTAssertEqual(decoded.cuisine, original.cuisine)
         XCTAssertEqual(decoded.priceRange, original.priceRange)
     }
@@ -63,7 +77,7 @@ final class ModelConversionTests: XCTestCase {
             status: .wantToGo,
             addedBy: addedBy,
             dateAdded: fixedDate,
-            location: "SF Mission",
+            location: location,
             barType: .cocktail
         )
 
@@ -71,8 +85,37 @@ final class ModelConversionTests: XCTestCase {
         XCTAssertEqual(decoded.title, original.title)
         XCTAssertEqual(decoded.status, original.status)
         XCTAssertEqual(decoded.location, original.location)
+        XCTAssertFalse(decoded.showsMapOnBoard)
         XCTAssertEqual(decoded.barType, original.barType)
         XCTAssertNil(decoded.notes)
+    }
+
+    func testUSLocationAddressPresentation() {
+        XCTAssertEqual(location.streetAddress, "595 Alabama St")
+        XCTAssertEqual(
+            location.detailAddress,
+            "595 Alabama St, San Francisco, CA 94110"
+        )
+    }
+
+    func testInternationalLocationAddressPresentationKeepsCountry() {
+        let internationalLocation = ItemLocation(
+            name: "Dishoom",
+            fullAddress: "12 Upper St, London N1 0PQ, United Kingdom",
+            shortAddress: "London",
+            city: "London",
+            cityWithContext: "London, United Kingdom",
+            country: "United Kingdom",
+            countryCode: "GB",
+            latitude: 51.533,
+            longitude: -0.105
+        )
+
+        XCTAssertEqual(internationalLocation.streetAddress, "12 Upper St")
+        XCTAssertEqual(
+            internationalLocation.detailAddress,
+            "12 Upper St, London N1 0PQ, United Kingdom"
+        )
     }
 
     // MARK: Movie

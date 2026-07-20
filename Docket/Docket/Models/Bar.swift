@@ -2,7 +2,7 @@
 //  Bar.swift
 //  Docket
 //
-//  A place to drink. Location-based category (plain text location for now).
+//  A place to drink.
 //
 
 import CloudKit
@@ -17,7 +17,7 @@ nonisolated enum BarType: String, CaseIterable, Codable {
     case rooftop
 }
 
-nonisolated struct Bar: SharedListItem {
+nonisolated struct Bar: LocatedListItem {
     let id: CKRecord.ID
     var title: String
     var notes: String?
@@ -31,7 +31,8 @@ nonisolated struct Bar: SharedListItem {
     var systemFields: Data?
 
     // Bar-specific
-    var location: String?
+    var location: ItemLocation?
+    var showsMapOnBoard: Bool
     var barType: BarType?
 
     init(
@@ -43,7 +44,8 @@ nonisolated struct Bar: SharedListItem {
         dateAdded: Date = .now,
         photoData: Data? = nil,
         showsPhotoOnBoard: Bool = false,
-        location: String? = nil,
+        location: ItemLocation? = nil,
+        showsMapOnBoard: Bool = false,
         barType: BarType? = nil
     ) {
         self.id = id
@@ -55,6 +57,7 @@ nonisolated struct Bar: SharedListItem {
         self.photoData = photoData
         self.showsPhotoOnBoard = showsPhotoOnBoard
         self.location = location
+        self.showsMapOnBoard = showsMapOnBoard
         self.barType = barType
     }
 
@@ -73,7 +76,9 @@ nonisolated struct Bar: SharedListItem {
         self.photoData = shared.photoData
         self.showsPhotoOnBoard = shared.showsPhotoOnBoard
         self.systemFields = shared.systemFields
-        self.location = record[Schema.Field.location] as? String
+        self.location = ItemLocation(record: record)
+        self.showsMapOnBoard = self.location != nil
+            && (record[Schema.Field.showsMapOnBoard] as? Bool ?? false)
         if let raw = record[Schema.Field.barType] as? String {
             self.barType = BarType(rawValue: raw)
         }
@@ -86,7 +91,7 @@ nonisolated struct Bar: SharedListItem {
             addedBy: addedBy, dateAdded: dateAdded,
             photoData: photoData, showsPhotoOnBoard: showsPhotoOnBoard
         )
-        record[Schema.Field.location] = location
+        record.applyLocationFields(location: location, showsMapOnBoard: showsMapOnBoard)
         record[Schema.Field.barType] = barType?.rawValue
         return record
     }

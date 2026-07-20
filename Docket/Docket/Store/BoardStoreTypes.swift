@@ -12,6 +12,11 @@ nonisolated enum StoreSaveResult: Equatable {
     case failed(message: String)
 }
 
+nonisolated enum StoreDeleteResult: Equatable {
+    case deleted
+    case failed(message: String)
+}
+
 nonisolated enum ICloudRestoreResult: Equatable {
     case restored(boardCount: Int)
     case notFound

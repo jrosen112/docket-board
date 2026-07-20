@@ -16,6 +16,7 @@ nonisolated final class MockSpaceService: SpaceDataService, @unchecked Sendable 
     var records: [CKRecord.ID: CKRecord] = [:]
     var loadError: Error?
     var saveError: Error?
+    var deleteError: Error?
     var loadErrorAfterSave: Error?
     var loadDelayNanoseconds: UInt64 = 0
     var accountUserID = CKRecord.ID(recordName: "mock-icloud-user")
@@ -73,6 +74,7 @@ nonisolated final class MockSpaceService: SpaceDataService, @unchecked Sendable 
     }
 
     func delete(_ recordID: CKRecord.ID) async throws {
+        if let deleteError { throw deleteError }
         records[recordID] = nil
     }
 

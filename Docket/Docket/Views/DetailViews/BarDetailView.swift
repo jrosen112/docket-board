@@ -23,14 +23,12 @@ struct BarDetailView: View {
             onEdit: onEdit
         ) {
             if isEditing {
-                DetailEditField(
-                    symbol: "mappin.and.ellipse",
-                    label: "Location",
-                    placeholder: "Add a location",
-                    field: .location,
+                LocationEditRow(
+                    suggestedQuery: draft.title,
                     accent: bar.category.accent,
-                    text: $draft.location,
-                    focusedField: focusedField
+                    location: $draft.location,
+                    showsMapOnBoard: $draft.showsMapOnBoard,
+                    showsPhotoOnBoard: $draft.showsPhotoOnBoard
                 )
                 DetailEditPickerRow(
                     symbol: "sparkles",
@@ -47,7 +45,7 @@ struct BarDetailView: View {
                 DetailFactRow(
                     symbol: "mappin.and.ellipse",
                     label: "Location",
-                    value: bar.location ?? "Add location",
+                    value: bar.location?.detailAddress ?? "Add location",
                     accent: bar.category.accent,
                     isPlaceholder: bar.location == nil,
                     onTap: { onEdit(.location) }

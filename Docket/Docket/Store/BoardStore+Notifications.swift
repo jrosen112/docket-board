@@ -210,12 +210,17 @@ extension BoardStore {
         switch item {
         case let restaurant as Restaurant:
             fields += [
-                restaurant.location ?? "",
+                locationFingerprint(restaurant.location),
+                restaurant.showsMapOnBoard ? "1" : "0",
                 restaurant.cuisine ?? "",
                 restaurant.priceRange?.rawValue ?? ""
             ]
         case let bar as Bar:
-            fields += [bar.location ?? "", bar.barType?.rawValue ?? ""]
+            fields += [
+                locationFingerprint(bar.location),
+                bar.showsMapOnBoard ? "1" : "0",
+                bar.barType?.rawValue ?? ""
+            ]
         case let movie as Movie:
             fields += [
                 movie.runtimeMinutes.map(String.init) ?? "",
@@ -237,5 +242,21 @@ extension BoardStore {
             hash &*= 1_099_511_628_211
         }
         return String(hash, radix: 16)
+    }
+
+    private func locationFingerprint(_ location: ItemLocation?) -> String {
+        guard let location else { return "" }
+        return [
+            location.name,
+            location.fullAddress,
+            location.shortAddress ?? "",
+            location.city ?? "",
+            location.cityWithContext ?? "",
+            location.country ?? "",
+            location.countryCode ?? "",
+            String(location.latitude),
+            String(location.longitude),
+            location.mapItemIdentifier ?? "",
+        ].joined(separator: "\u{1E}")
     }
 }

@@ -57,6 +57,23 @@ struct BoardCard: View {
                     )
                 )
                 .accessibilityHidden(true)
+            } else if let location = boardMapLocation {
+                GeometryReader { geometry in
+                    LocationMapSnapshotView(location: location)
+                        .frame(
+                            width: geometry.size.width,
+                            height: DocketTheme.BoardCard.photoHeight
+                        )
+                        .clipped()
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: DocketTheme.BoardCard.photoHeight)
+                .clipShape(
+                    RoundedRectangle(
+                        cornerRadius: DocketTheme.BoardCard.photoCornerRadius,
+                        style: .continuous
+                    )
+                )
             }
 
             Text(item.title)
@@ -103,6 +120,13 @@ struct BoardCard: View {
             PinDot().offset(y: -5)
         }
         .rotationEffect(.degrees(DocketTheme.rotationDegrees(for: item.id.recordName)))
+    }
+
+    private var boardMapLocation: ItemLocation? {
+        guard let locatedItem = item as? any LocatedListItem,
+              locatedItem.showsMapOnBoard
+        else { return nil }
+        return locatedItem.location
     }
 
     private func moviePosterCard(_ photoData: Data) -> some View {

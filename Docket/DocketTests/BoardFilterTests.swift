@@ -16,6 +16,18 @@ final class BoardFilterTests: XCTestCase {
         action: .none
     )
 
+    private let chicagoLocation = ItemLocation(
+        name: "Little Goat Diner",
+        fullAddress: "820 W Randolph St, Chicago, IL 60607, United States",
+        shortAddress: "820 W Randolph St",
+        city: "Chicago",
+        cityWithContext: "West Loop, Chicago",
+        country: "United States",
+        countryCode: "US",
+        latitude: 41.8846,
+        longitude: -87.6486
+    )
+
     private var items: [any SharedListItem] {
         [
             Restaurant(id: CKRecord.ID(recordName: "r1"), title: "Tartine",
@@ -105,7 +117,7 @@ final class BoardFilterTests: XCTestCase {
             notes: "Order the pancakes",
             status: .planned,
             addedBy: addedBy,
-            location: "West Loop",
+            location: chicagoLocation,
             cuisine: "American",
             priceRange: .moderate
         )

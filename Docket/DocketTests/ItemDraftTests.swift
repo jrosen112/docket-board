@@ -8,6 +8,32 @@ final class ItemDraftTests: XCTestCase {
         action: .none
     )
 
+    private let oldLocation = ItemLocation(
+        name: "Old Place",
+        fullAddress: "1 Old St, Chicago, IL 60601, United States",
+        shortAddress: "1 Old St",
+        city: "Chicago",
+        cityWithContext: "Chicago, IL",
+        country: "United States",
+        countryCode: "US",
+        latitude: 41.88,
+        longitude: -87.63,
+        mapItemIdentifier: "old-place"
+    )
+
+    private let newLocation = ItemLocation(
+        name: "New Place",
+        fullAddress: "2 New St, Chicago, IL 60601, United States",
+        shortAddress: "2 New St",
+        city: "Chicago",
+        cityWithContext: "Chicago, IL",
+        country: "United States",
+        countryCode: "US",
+        latitude: 41.881,
+        longitude: -87.631,
+        mapItemIdentifier: "new-place"
+    )
+
     func testApplyingDraftPreservesCloudKitIdentityAndMetadata() throws {
         let dateAdded = Date(timeIntervalSince1970: 123_456)
         let fetched = try XCTUnwrap(Restaurant(record: Restaurant(
@@ -15,15 +41,16 @@ final class ItemDraftTests: XCTestCase {
             title: "Before",
             addedBy: addedBy,
             dateAdded: dateAdded,
-            location: "Old location"
+            location: oldLocation
         ).toRecord()))
         var draft = ItemDraft(item: fetched)
         draft.title = "After"
-        draft.location = "New location"
+        draft.location = newLocation
+        draft.showsMapOnBoard = true
         draft.cuisine = "Thai"
         draft.priceRange = .moderate
         draft.photoData = Data([0xCA, 0xFE])
-        draft.showsPhotoOnBoard = true
+        draft.boardCardMedia = .map
 
         let edited = try XCTUnwrap(draft.applying(to: fetched) as? Restaurant)
 
@@ -32,11 +59,13 @@ final class ItemDraftTests: XCTestCase {
         XCTAssertEqual(edited.dateAdded, dateAdded)
         XCTAssertEqual(edited.systemFields, fetched.systemFields)
         XCTAssertEqual(edited.title, "After")
-        XCTAssertEqual(edited.location, "New location")
+        XCTAssertEqual(edited.location, newLocation)
+        XCTAssertTrue(edited.showsMapOnBoard)
         XCTAssertEqual(edited.cuisine, "Thai")
         XCTAssertEqual(edited.priceRange, .moderate)
         XCTAssertEqual(edited.photoData, draft.photoData)
-        XCTAssertTrue(edited.showsPhotoOnBoard)
+        XCTAssertFalse(edited.showsPhotoOnBoard)
+        XCTAssertTrue(edited.showsMapOnBoard)
     }
 
     func testDraftCanFillPreviouslyMissingMovieFields() throws {
@@ -65,7 +94,8 @@ final class ItemDraftTests: XCTestCase {
         var draft = ItemDraft()
         draft.category = .bar
         draft.title = "  Trick Dog  "
-        draft.location = "Mission"
+        draft.location = newLocation
+        draft.showsMapOnBoard = true
         draft.barType = .cocktail
         let id = CKRecord.ID(recordName: "bar-1")
         let dateAdded = Date(timeIntervalSince1970: 456_789)
@@ -77,7 +107,8 @@ final class ItemDraftTests: XCTestCase {
         XCTAssertEqual(bar.id, id)
         XCTAssertEqual(bar.dateAdded, dateAdded)
         XCTAssertEqual(bar.title, "Trick Dog")
-        XCTAssertEqual(bar.location, "Mission")
+        XCTAssertEqual(bar.location, newLocation)
+        XCTAssertTrue(bar.showsMapOnBoard)
         XCTAssertEqual(bar.barType, .cocktail)
     }
 
@@ -101,5 +132,23 @@ final class ItemDraftTests: XCTestCase {
 
         XCTAssertEqual(draft.photoData, photoData)
         XCTAssertTrue(draft.showsPhotoOnBoard)
+    }
+
+    func testBoardCardMediaKeepsPhotoAndMapMutuallyExclusive() {
+        var draft = ItemDraft(category: .restaurant)
+        draft.location = newLocation
+        draft.photoData = Data([0x01])
+
+        draft.boardCardMedia = .map
+        XCTAssertTrue(draft.showsMapOnBoard)
+        XCTAssertFalse(draft.showsPhotoOnBoard)
+
+        draft.boardCardMedia = .photo
+        XCTAssertFalse(draft.showsMapOnBoard)
+        XCTAssertTrue(draft.showsPhotoOnBoard)
+
+        draft.boardCardMedia = .none
+        XCTAssertFalse(draft.showsMapOnBoard)
+        XCTAssertFalse(draft.showsPhotoOnBoard)
     }
 }
