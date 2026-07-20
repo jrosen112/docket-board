@@ -5,8 +5,9 @@
 //  The board's filter logic (pure, no UI).
 //
 
-import XCTest
 import CloudKit
+import XCTest
+
 @testable import Docket
 
 final class BoardFilterTests: XCTestCase {
@@ -30,14 +31,18 @@ final class BoardFilterTests: XCTestCase {
 
     private var items: [any SharedListItem] {
         [
-            Restaurant(id: CKRecord.ID(recordName: "r1"), title: "Tartine",
-                       status: .wantToGo, addedBy: addedBy),
-            Bar(id: CKRecord.ID(recordName: "b1"), title: "Trick Dog",
+            Restaurant(
+                id: CKRecord.ID(recordName: "r1"), title: "Tartine",
+                status: .wantToGo, addedBy: addedBy),
+            Bar(
+                id: CKRecord.ID(recordName: "b1"), title: "Trick Dog",
                 status: .planned, addedBy: addedBy),
-            Movie(id: CKRecord.ID(recordName: "m1"), title: "Heat",
-                  status: .completed, addedBy: addedBy),
-            Movie(id: CKRecord.ID(recordName: "m2"), title: "Past Lives",
-                  status: .wantToGo, addedBy: addedBy),
+            Movie(
+                id: CKRecord.ID(recordName: "m1"), title: "Heat",
+                status: .completed, addedBy: addedBy),
+            Movie(
+                id: CKRecord.ID(recordName: "m2"), title: "Past Lives",
+                status: .wantToGo, addedBy: addedBy),
         ]
     }
 
@@ -134,5 +139,20 @@ final class BoardFilterTests: XCTestCase {
 
         XCTAssertTrue(itemMatchesBoardSearch(movie, query: "hEaT"))
         XCTAssertTrue(itemMatchesBoardSearch(movie, query: "  \n  "))
+    }
+
+    func testBoardSearchFindsRecipeSourceIngredientsAndInstructions() {
+        let recipe = Recipe(
+            id: CKRecord.ID(recordName: "search-recipe"),
+            title: "Crispy Chicken",
+            addedBy: addedBy,
+            sourceURL: "https://www.tiktok.com/@cook/video/123",
+            ingredients: ["Gochujang", "Chicken thighs"],
+            instructions: ["Roast until caramelized"]
+        )
+
+        XCTAssertTrue(itemMatchesBoardSearch(recipe, query: "tiktok"))
+        XCTAssertTrue(itemMatchesBoardSearch(recipe, query: "gochujang"))
+        XCTAssertTrue(itemMatchesBoardSearch(recipe, query: "caramelized"))
     }
 }

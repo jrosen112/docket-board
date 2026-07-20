@@ -8,6 +8,7 @@ struct ItemDetailView: View {
 
     let itemID: CKRecord.ID
     let onSave: (any SharedListItem) -> Void
+    let onDelete: (String) -> Void
     var startsEditing = false
     @State private var isEditing = false
     @State private var draft = ItemDraft()
@@ -133,6 +134,17 @@ struct ItemDetailView: View {
                 focusedField: $focusedField,
                 onEdit: edit
             )
+        case let recipe as Recipe:
+            RecipeDetailView(
+                recipe: recipe,
+                addedBy: addedBy,
+                isEditing: isEditing,
+                allowsCategorySelection: false,
+                saveErrorMessage: nil,
+                draft: $draft,
+                focusedField: $focusedField,
+                onEdit: edit
+            )
         default:
             ContentUnavailableView("Unsupported item", systemImage: "questionmark")
         }
@@ -159,7 +171,7 @@ struct ItemDetailView: View {
         // Always apply to the record fetched when editing began. Its CloudKit
         // change tag is what lets the server detect a participant's newer edit.
         guard let base = editBase?.item,
-              let edited = draft.applying(to: base)
+            let edited = draft.applying(to: base)
         else { return }
         focusedField = nil
         onSave(edited)
@@ -174,8 +186,9 @@ struct ItemDetailView: View {
         Task { @MainActor in
             switch await store.delete(item) {
             case .deleted:
+                onDelete(item.title)
                 dismiss()
-            case let .failed(message):
+            case .failed(let message):
                 store.errorMessage = nil
                 isDeleting = false
                 deleteErrorMessage = message
@@ -188,10 +201,11 @@ struct ItemDetailView: View {
             try? await Task.sleep(for: DocketDetailTheme.Edit.focusDelay)
             guard isEditing else { return }
             switch field {
-            case .title, .cuisine, .runtime, .streamingService, .releaseYear, .notes:
+            case .title, .cuisine, .sourceURL, .ingredients, .instructions,
+                .runtime, .streamingService, .releaseYear, .notes:
                 focusedField = field
             case .status, .location, .priceRange, .barType, .photo,
-                    .showsPhotoOnBoard, .showsMapOnBoard:
+                .showsPhotoOnBoard, .showsMapOnBoard:
                 focusedField = nil
             }
         }

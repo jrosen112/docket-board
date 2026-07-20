@@ -107,6 +107,17 @@ struct NewItemView: View {
                 focusedField: $focusedField,
                 onEdit: { _ in }
             )
+        case let recipe as Recipe:
+            RecipeDetailView(
+                recipe: recipe,
+                addedBy: addedBy,
+                isEditing: true,
+                allowsCategorySelection: true,
+                saveErrorMessage: nil,
+                draft: $draft,
+                focusedField: $focusedField,
+                onEdit: { _ in }
+            )
         default:
             ContentUnavailableView("Unsupported category", systemImage: "questionmark")
         }
@@ -114,11 +125,11 @@ struct NewItemView: View {
 
     private func submitSave() {
         guard let profile = store.currentProfile,
-              let item = draft.makeNew(
+            let item = draft.makeNew(
                 id: itemID,
                 addedBy: profile.reference,
                 dateAdded: dateAdded
-              )
+            )
         else { return }
 
         focusedField = nil

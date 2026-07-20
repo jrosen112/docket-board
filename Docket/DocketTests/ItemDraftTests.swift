@@ -1,5 +1,6 @@
 import CloudKit
 import XCTest
+
 @testable import Docket
 
 final class ItemDraftTests: XCTestCase {
@@ -36,13 +37,15 @@ final class ItemDraftTests: XCTestCase {
 
     func testApplyingDraftPreservesCloudKitIdentityAndMetadata() throws {
         let dateAdded = Date(timeIntervalSince1970: 123_456)
-        let fetched = try XCTUnwrap(Restaurant(record: Restaurant(
-            id: CKRecord.ID(recordName: "restaurant-1"),
-            title: "Before",
-            addedBy: addedBy,
-            dateAdded: dateAdded,
-            location: oldLocation
-        ).toRecord()))
+        let fetched = try XCTUnwrap(
+            Restaurant(
+                record: Restaurant(
+                    id: CKRecord.ID(recordName: "restaurant-1"),
+                    title: "Before",
+                    addedBy: addedBy,
+                    dateAdded: dateAdded,
+                    location: oldLocation
+                ).toRecord()))
         var draft = ItemDraft(item: fetched)
         draft.title = "After"
         draft.location = newLocation
@@ -150,5 +153,57 @@ final class ItemDraftTests: XCTestCase {
         draft.boardCardMedia = .none
         XCTAssertFalse(draft.showsMapOnBoard)
         XCTAssertFalse(draft.showsPhotoOnBoard)
+    }
+
+    func testRecipeDraftBuildsStructuredListsAndGallery() throws {
+        var draft = ItemDraft(category: .recipe)
+        draft.title = "  Tomato Pasta  "
+        draft.sourceURL = "https://www.instagram.com/reel/pasta"
+        draft.ingredients = "- 1 lb tomatoes\n• Olive oil\n\n* Salt"
+        draft.instructions = "1. Roast the tomatoes\n2) Toss with pasta"
+        draft.photoData = Data([0x01])
+        draft.additionalPhotoData = (2...7).map { Data([$0]) }
+        draft.boardCardMedia = .photo
+
+        let recipe = try XCTUnwrap(
+            draft.makeNew(
+                id: CKRecord.ID(recordName: "recipe-draft"),
+                addedBy: addedBy
+            ) as? Recipe
+        )
+
+        XCTAssertEqual(recipe.title, "Tomato Pasta")
+        XCTAssertEqual(recipe.ingredients, ["1 lb tomatoes", "Olive oil", "Salt"])
+        XCTAssertEqual(recipe.instructions, ["Roast the tomatoes", "Toss with pasta"])
+        XCTAssertEqual(recipe.allPhotoData.count, Recipe.maximumPhotoCount)
+        XCTAssertTrue(recipe.showsPhotoOnBoard)
+    }
+
+    func testRecipeDraftCarriesAndEditsRecipeFields() throws {
+        let recipe = Recipe(
+            id: CKRecord.ID(recordName: "recipe-edit"),
+            title: "Soup",
+            addedBy: addedBy,
+            sourceURL: "https://example.com/soup",
+            ingredients: ["Stock"],
+            instructions: ["Simmer"],
+            additionalPhotoData: [Data([0x02])]
+        )
+        var draft = ItemDraft(item: recipe)
+
+        XCTAssertEqual(draft.ingredients, "Stock")
+        XCTAssertEqual(draft.instructions, "Simmer")
+        XCTAssertEqual(draft.additionalPhotoData, [Data([0x02])])
+
+        draft.ingredients += "\nNoodles"
+        let edited = try XCTUnwrap(draft.applying(to: recipe) as? Recipe)
+        XCTAssertEqual(edited.ingredients, ["Stock", "Noodles"])
+        XCTAssertEqual(edited.sourceURL, "https://example.com/soup")
+    }
+
+    func testRecipeUsesCookingSpecificStatusLabels() {
+        XCTAssertEqual(ItemStatus.wantToGo.label(for: .recipe), "Want to make")
+        XCTAssertEqual(ItemStatus.completed.label(for: .recipe), "Made")
+        XCTAssertEqual(ItemStatus.wantToGo.label(for: .restaurant), "Want to go")
     }
 }

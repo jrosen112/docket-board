@@ -19,7 +19,9 @@ The current app supports:
 - Inviting people to an owned board with Apple's native CloudKit sharing UI.
 - Joining, switching between, and leaving shared boards.
 - Owner-only membership management; participants collaborate on board content.
-- Restaurant, Bar, and Movie items with category-specific fields.
+- Restaurant, Bar, Recipe, and Movie items with category-specific fields.
+- Recipe source links (including Instagram and TikTok), structured shopping
+  lists and instructions, and up to five detail-carousel photos.
 - MapKit place search and structured addresses for Restaurants and Bars.
 - Optional pinned map snapshots on place cards, alongside the existing photo
   and paper-only card treatments.
@@ -110,8 +112,8 @@ before the shared zone is fully visible.
 ### Models
 
 `Models/SharedListItem.swift` defines the common board surface. Restaurant,
-Bar, and Movie are separate CloudKit record types with their own fields rather
-than variants of one generic record.
+Bar, Recipe, and Movie are separate CloudKit record types with their own fields
+rather than variants of one generic record.
 
 Every item stores `addedBy` as a `CKRecord.Reference` to a `UserProfile` in the
 same shared zone. Profiles are first-class records and the current device's
@@ -148,6 +150,15 @@ runtime, and poster. Poster bytes are prepared through the existing photo path
 and saved as the movie's CloudKit asset, so collaborators do not need to call
 TMDB to see the chosen art. Existing manually entered movie fields remain fully
 editable, and older movie records safely decode without a TMDB ID.
+
+Recipe records store an optional original source URL, ordered ingredient and
+instruction lists, and up to five prepared photos. Instagram and TikTok URLs
+open directly from the detail screen. Ingredients render as an in-session
+checklist for shopping/cooking, instructions render as numbered steps, and the
+general notes field remains separate for personal tweaks. The first photo is
+the optional board-card cover; detail and edit screens page through the full
+gallery. Four explicit additional `CKAsset` fields keep gallery ordering stable
+without introducing child-record lifecycle complexity.
 
 `Support/BoardFilter.swift` stores selected categories and statuses as sets.
 An empty set means “all” for that dimension. Selections are ORed within one
@@ -255,7 +266,8 @@ views.
   category/status labels, and category-specific card details. Search terms are
   ANDed together and compose with the existing category/status filters.
 - Tapping Add keeps the fast Restaurant-first flow. Long-pressing it opens a
-  native category menu for starting directly with Restaurant, Bar, or Movie.
+  native category menu for starting directly with Restaurant, Bar, Recipe, or
+  Movie.
 - Tapping the board title opens `BoardManagerView`, a full board-management
   sheet with current/ownership state, pin counts, participant profile names,
   switching, creation, native CloudKit People controls, and owner-only board
@@ -285,7 +297,7 @@ views.
   fields receive full-width wrapping; compact facts share aligned columns.
 - Board cards preserve their pin/shadow overflow in context-menu and matched
   transition captures without changing masonry spacing.
-- `DetailViews/` contains the typed Restaurant, Bar, and Movie detail screens,
+- `DetailViews/` contains the typed Restaurant, Bar, Recipe, and Movie detail screens,
   the new-item screen, and their shared inline-editing components.
 - Restaurant and Bar location rows open a MapKit-backed search sheet. Choosing
   the first location defaults a card without a photo to the map treatment; the
@@ -412,10 +424,13 @@ Important manual checks:
    insertion/removal animation.
 8. Enable airplane mode. Refresh should finish promptly, board switching should
    return to the previous board, and no technical CloudKit text should appear.
+9. Add a Recipe with an Instagram or TikTok URL, multiline ingredients and
+   instructions, and several photos. Verify the source opens, checklist toggles
+   stay responsive, the carousel pages, and the chosen cover appears on board.
 
 ## Remaining work
 
-- Add HappyHour, Recipe, Landmark, Hike, and Activity
+- Add HappyHour, Landmark, Hike, and Activity
   models/forms/detail views.
 - Add profile-picture `CKAsset` support.
 - Add first-class board renaming and reconcile local catalogs after a

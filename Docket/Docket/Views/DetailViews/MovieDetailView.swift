@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct MovieDetailView: View {
+    @Environment(\.docketSurfacePalette) private var palette
+
     let movie: Movie
     let addedBy: String
     let isEditing: Bool
@@ -115,13 +117,13 @@ struct MovieDetailView: View {
 
                             Text("Movie information")
                                 .font(DocketDetailTheme.Fact.labelFont)
-                                .foregroundStyle(DocketDetailTheme.Fact.labelColor)
+                                .foregroundStyle(palette.secondaryText)
 
                             Spacer(minLength: DocketDetailTheme.Fact.valueMinimumSpacing)
 
                             Text("View on TMDB")
                                 .font(DocketDetailTheme.Fact.valueFont)
-                                .foregroundStyle(DocketDetailTheme.Fact.valueColor)
+                                .foregroundStyle(palette.primaryText)
                         }
                         .padding(.vertical, DocketDetailTheme.Fact.verticalPadding)
                     }
@@ -145,15 +147,16 @@ struct MovieDetailView: View {
             draft.runtime = String(runtimeMinutes)
         }
         if let posterData = selection.posterData,
-           let preparedPoster = ItemPhotoProcessor.preparedData(from: posterData) {
+            let preparedPoster = ItemPhotoProcessor.preparedData(from: posterData)
+        {
             draft.photoData = preparedPoster
             draft.showsPhotoOnBoard = true
         }
     }
 }
 
-private extension Movie {
-    var tmdbURL: URL? {
+extension Movie {
+    fileprivate var tmdbURL: URL? {
         guard let tmdbID else { return nil }
         return URL(string: "https://www.themoviedb.org/movie/\(tmdbID)")
     }

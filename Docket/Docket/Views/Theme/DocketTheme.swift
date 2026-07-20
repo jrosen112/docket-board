@@ -62,6 +62,10 @@ nonisolated enum DocketTheme {
         static let transitionCaptureInset: CGFloat = 10
         static let photoHeight: CGFloat = 104
         static let photoCornerRadius: CGFloat = 4
+        static let categoryFooterSpacing: CGFloat = 8
+        static let categoryFooterTextSpacing: CGFloat = 5
+        static let categoryBadgeSize: CGFloat = 32
+        static let categoryBadgeSymbolFont: Font = .system(size: 14, weight: .bold)
         /// TMDB posters are delivered at roughly 2:3, so matching the card to
         /// that ratio keeps the artwork visible instead of turning it into a
         /// short landscape crop.
@@ -82,10 +86,6 @@ nonisolated enum DocketTheme {
             Color.black.opacity(0.22),
             Color.black.opacity(0.9),
         ]
-        static let movieBadgeSpacing: CGFloat = 7
-        static let movieBadgeInset: CGFloat = 9
-        static let movieBadgeFont: Font = .system(size: 8, weight: .bold)
-        static let movieBadgeTracking: CGFloat = 0.9
         static let movieBadgeHorizontalPadding: CGFloat = 7
         static let movieBadgeVerticalPadding: CGFloat = 5
         static let movieBadgeBackground = Color.black.opacity(0.52)
@@ -214,28 +214,36 @@ nonisolated enum DocketTheme {
         /// via `arrangement(for:)`, salted separately from the color hash so
         /// same-color boards can still hang differently.
         static let arrangements: [[Strip]] = [
-            [Strip(xFraction: 0.15, xNudge: 0, yCenter: 1, rotationDegrees: -4),
-             Strip(xFraction: 0.85, xNudge: 0, yCenter: 1, rotationDegrees: 3)],
+            [
+                Strip(xFraction: 0.15, xNudge: 0, yCenter: 1, rotationDegrees: -4),
+                Strip(xFraction: 0.85, xNudge: 0, yCenter: 1, rotationDegrees: 3),
+            ],
             [Strip(xFraction: 0.5, xNudge: 0, yCenter: 1, rotationDegrees: -2)],
             [Strip(xFraction: 0.3, xNudge: 0, yCenter: 1, rotationDegrees: 3)],
-            [Strip(xFraction: 0, xNudge: 12, yCenter: 3, rotationDegrees: -45),
-             Strip(xFraction: 0.78, xNudge: 0, yCenter: 1, rotationDegrees: -3)],
-            [Strip(xFraction: 0.22, xNudge: 0, yCenter: 1, rotationDegrees: 2),
-             Strip(xFraction: 0.68, xNudge: 0, yCenter: 1, rotationDegrees: -5)],
-            [Strip(xFraction: 0.28, xNudge: 0, yCenter: 1, rotationDegrees: -3),
-             Strip(xFraction: 1, xNudge: -12, yCenter: 3, rotationDegrees: 45)],
+            [
+                Strip(xFraction: 0, xNudge: 12, yCenter: 3, rotationDegrees: -45),
+                Strip(xFraction: 0.78, xNudge: 0, yCenter: 1, rotationDegrees: -3),
+            ],
+            [
+                Strip(xFraction: 0.22, xNudge: 0, yCenter: 1, rotationDegrees: 2),
+                Strip(xFraction: 0.68, xNudge: 0, yCenter: 1, rotationDegrees: -5),
+            ],
+            [
+                Strip(xFraction: 0.28, xNudge: 0, yCenter: 1, rotationDegrees: -3),
+                Strip(xFraction: 1, xNudge: -12, yCenter: 3, rotationDegrees: 45),
+            ],
             [Strip(xFraction: 0.64, xNudge: 0, yCenter: 1, rotationDegrees: 4)],
         ]
 
         /// Muted tape stock that sits on both navy and cream. Assigned per
         /// board via `color(for:)` so each board keeps a stable identity.
         static let colors: [Color] = [
-            Color(hex: 0xC96F4A), // terracotta
-            Color(hex: 0x7C9A5C), // moss
-            Color(hex: 0x9B6A8F), // dusty plum
-            Color(hex: 0x6B8CAE), // slate blue
-            Color(hex: 0x5F9EA0), // teal
-            Color(hex: 0xC08A2E), // amber
+            Color(hex: 0xC96F4A),  // terracotta
+            Color(hex: 0x7C9A5C),  // moss
+            Color(hex: 0x9B6A8F),  // dusty plum
+            Color(hex: 0x6B8CAE),  // slate blue
+            Color(hex: 0x5F9EA0),  // teal
+            Color(hex: 0xC08A2E),  // amber
         ]
 
         static func color(for key: String) -> Color {
@@ -487,13 +495,14 @@ nonisolated extension ItemCategory {
     /// Color-coded accent per category, tuned to sit on cream card stock.
     var accent: Color {
         switch self {
-        case .restaurant: Color(hex: 0xC96F4A) // terracotta
-        case .bar: Color(hex: 0x9B6A8F)        // dusty plum
+        case .restaurant: Color(hex: 0xC96F4A)  // terracotta
+        case .bar: Color(hex: 0x9B6A8F)  // dusty plum
+        case .recipe: Color(hex: 0x91AF84)  // soft sage
         case .happyHour: Color(hex: 0xC08A2E)  // amber
-        case .landmark: Color(hex: 0x6B8CAE)   // slate blue
-        case .movie: Color(hex: 0xB85C5C)      // muted red
-        case .hike: Color(hex: 0x7C9A5C)       // moss green
-        case .activity: Color(hex: 0x5F9EA0)   // teal
+        case .landmark: Color(hex: 0x6B8CAE)  // slate blue
+        case .movie: Color(hex: 0xB85C5C)  // muted red
+        case .hike: Color(hex: 0x7C9A5C)  // moss green
+        case .activity: Color(hex: 0x5F9EA0)  // teal
         }
     }
 }
@@ -502,8 +511,8 @@ nonisolated extension ItemStatus {
     /// Chip color, dark enough to read on cream.
     var chipColor: Color {
         switch self {
-        case .wantToGo: Color(hex: 0xA6762E)   // dark brass
-        case .planned: Color(hex: 0x4A7B7C)    // teal
+        case .wantToGo: Color(hex: 0xA6762E)  // dark brass
+        case .planned: Color(hex: 0x4A7B7C)  // teal
         case .completed: Color(hex: 0x6B7B4A)  // olive
         }
     }

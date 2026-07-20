@@ -21,6 +21,7 @@ nonisolated enum Schema {
         static let userProfile = "UserProfile"
         static let restaurant = "Restaurant"
         static let bar = "Bar"
+        static let recipe = "Recipe"
         static let movie = "Movie"
     }
 
@@ -30,9 +31,9 @@ nonisolated enum Schema {
         static let title = "title"
         static let notes = "notes"
         static let status = "status"
-        static let addedBy = "addedBy"          // CKRecord.Reference -> UserProfile
+        static let addedBy = "addedBy"  // CKRecord.Reference -> UserProfile
         static let dateAdded = "dateAdded"
-        static let itemPhoto = "itemPhoto"      // CKAsset
+        static let itemPhoto = "itemPhoto"  // CKAsset
         static let showsPhotoOnBoard = "showsPhotoOnBoard"
 
         // MARK: Location-based categories
@@ -43,7 +44,7 @@ nonisolated enum Schema {
         static let locationCityWithContext = "locationCityWithContext"
         static let locationCountry = "locationCountry"
         static let locationCountryCode = "locationCountryCode"
-        static let locationCoordinate = "locationCoordinate" // CLLocation
+        static let locationCoordinate = "locationCoordinate"  // CLLocation
         static let locationMapItemIdentifier = "locationMapItemIdentifier"
         static let showsMapOnBoard = "showsMapOnBoard"
 
@@ -54,7 +55,7 @@ nonisolated enum Schema {
         /// Unlike creator metadata, this has the same representation after a
         /// reinstall and in both private and shared database scopes.
         static let accountRecordName = "accountRecordName"
-        static let profilePicture = "profilePicture"   // CKAsset (added with photo work)
+        static let profilePicture = "profilePicture"  // CKAsset (added with photo work)
 
         // MARK: Restaurant
         static let cuisine = "cuisine"
@@ -62,6 +63,22 @@ nonisolated enum Schema {
 
         // MARK: Bar
         static let barType = "barType"
+
+        // MARK: Recipe
+        static let sourceURL = "sourceURL"
+        static let ingredients = "ingredients"
+        static let instructions = "instructions"
+        static let recipePhoto2 = "recipePhoto2"
+        static let recipePhoto3 = "recipePhoto3"
+        static let recipePhoto4 = "recipePhoto4"
+        static let recipePhoto5 = "recipePhoto5"
+
+        static let additionalRecipePhotos = [
+            recipePhoto2,
+            recipePhoto3,
+            recipePhoto4,
+            recipePhoto5,
+        ]
 
         // MARK: Movie
         static let runtimeMinutes = "runtimeMinutes"

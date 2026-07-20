@@ -5,8 +5,9 @@
 //  The record-type → model dispatch that the service relies on.
 //
 
-import XCTest
 import CloudKit
+import XCTest
+
 @testable import Docket
 
 final class RecordDecoderTests: XCTestCase {
@@ -45,6 +46,18 @@ final class RecordDecoderTests: XCTestCase {
         let decoded = try XCTUnwrap(RecordDecoder.item(from: bar))
         XCTAssertEqual(decoded.category, .bar)
         XCTAssertTrue(decoded is Bar)
+    }
+
+    func testRecipeDispatchesToRecipe() throws {
+        let record = Recipe(
+            id: CKRecord.ID(recordName: "recipe-1"),
+            title: "Tomato Pasta",
+            addedBy: addedBy
+        ).toRecord()
+
+        let decoded = try XCTUnwrap(RecordDecoder.item(from: record))
+        XCTAssertEqual(decoded.category, .recipe)
+        XCTAssertTrue(decoded is Recipe)
     }
 
     func testMalformedKnownTypeIsDropped() {

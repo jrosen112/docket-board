@@ -22,6 +22,15 @@ nonisolated enum ItemStatus: String, CaseIterable, Codable {
         case .completed: "Done"
         }
     }
+
+    func label(for category: ItemCategory) -> String {
+        guard category == .recipe else { return label }
+        return switch self {
+        case .wantToGo: "Want to make"
+        case .planned: "Planned"
+        case .completed: "Made"
+        }
+    }
 }
 
 /// Every category in the app. Only a subset is implemented in Phase 1; the rest
@@ -29,6 +38,7 @@ nonisolated enum ItemStatus: String, CaseIterable, Codable {
 nonisolated enum ItemCategory: String, CaseIterable, Codable {
     case restaurant
     case bar
+    case recipe
     case happyHour
     case landmark
     case movie
@@ -37,12 +47,13 @@ nonisolated enum ItemCategory: String, CaseIterable, Codable {
 
     /// Categories implemented in the Phase 1 subset — the single list the add
     /// form and filter bar both read.
-    static let supported: [ItemCategory] = [.restaurant, .bar, .movie]
+    static let supported: [ItemCategory] = [.restaurant, .bar, .recipe, .movie]
 
     var label: String {
         switch self {
         case .restaurant: "Restaurant"
         case .bar: "Bar"
+        case .recipe: "Recipe"
         case .happyHour: "Happy Hour"
         case .landmark: "Landmark"
         case .movie: "Movie"
@@ -56,6 +67,7 @@ nonisolated enum ItemCategory: String, CaseIterable, Codable {
         switch self {
         case .restaurant: Schema.RecordType.restaurant
         case .bar: Schema.RecordType.bar
+        case .recipe: Schema.RecordType.recipe
         case .movie: Schema.RecordType.movie
         // Not yet implemented in the Phase 1 subset.
         case .happyHour, .landmark, .hike, .activity: rawValue.prefix(1).uppercased() + rawValue.dropFirst()
@@ -133,7 +145,8 @@ nonisolated struct SharedFields {
         self.dateAdded = dateAdded
         let photoData = ItemPhotoAsset.data(from: record[Schema.Field.itemPhoto] as? CKAsset)
         self.photoData = photoData
-        self.showsPhotoOnBoard = photoData != nil
+        self.showsPhotoOnBoard =
+            photoData != nil
             && (record[Schema.Field.showsPhotoOnBoard] as? Bool ?? false)
         self.systemFields = record.systemFieldsData
     }
@@ -143,7 +156,7 @@ nonisolated struct SharedFields {
 /// The system temporary directory is appropriate here: CloudKit only needs
 /// the file for the duration of the upload, while fetched assets are copied
 /// back into the model as `Data` immediately during decoding.
-private nonisolated enum ItemPhotoAsset {
+nonisolated enum ItemPhotoAsset {
     static func make(from data: Data?) -> CKAsset? {
         guard let data else { return nil }
 
@@ -154,7 +167,8 @@ private nonisolated enum ItemPhotoAsset {
                 at: directory,
                 withIntermediateDirectories: true
             )
-            let fileURL = directory
+            let fileURL =
+                directory
                 .appendingPathComponent(UUID().uuidString)
                 .appendingPathExtension("jpg")
             try data.write(to: fileURL, options: .atomic)

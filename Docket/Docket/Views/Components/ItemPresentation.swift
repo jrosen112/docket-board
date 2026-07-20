@@ -35,6 +35,11 @@ nonisolated func cardSubtitle(for item: any SharedListItem) -> String? {
             movie.runtimeMinutes.map { "\($0) min" },
             movie.streamingService,
         ]
+    case let recipe as Recipe:
+        parts = [
+            recipe.ingredients.isEmpty ? nil : "\(recipe.ingredients.count) ingredients",
+            recipe.instructions.isEmpty ? nil : "\(recipe.instructions.count) steps",
+        ]
     default:
         parts = []
     }
@@ -52,12 +57,22 @@ nonisolated func itemMatchesBoardSearch(
     let terms = query.split(whereSeparator: \Character.isWhitespace).map(String.init)
     guard !terms.isEmpty else { return true }
 
+    let recipeText: String? =
+        if let recipe = item as? Recipe {
+            ([recipe.sourceURL] + recipe.ingredients + recipe.instructions)
+                .compactMap(\.self)
+                .joined(separator: " ")
+        } else {
+            nil
+        }
+
     let searchableText = [
         item.title,
         item.notes,
         item.category.label,
-        item.status.label,
+        item.status.label(for: item.category),
         cardSubtitle(for: item),
+        recipeText,
     ]
     .compactMap(\.self)
     .joined(separator: " ")
@@ -91,6 +106,20 @@ nonisolated func quickLookFacts(for item: any SharedListItem) -> [ItemQuickLookF
             fact("runtime", "Runtime", movie.runtimeMinutes.map { "\($0) min" }),
             fact("service", "Watch on", movie.streamingService),
         ].compactMap(\.self)
+    case let recipe as Recipe:
+        return [
+            fact("source", "Source", recipe.sourceURL, prefersFullWidth: true),
+            fact(
+                "ingredients",
+                "Shopping list",
+                recipe.ingredients.isEmpty ? nil : "\(recipe.ingredients.count) ingredients"
+            ),
+            fact(
+                "instructions",
+                "Method",
+                recipe.instructions.isEmpty ? nil : "\(recipe.instructions.count) steps"
+            ),
+        ].compactMap(\.self)
     default:
         return []
     }
@@ -101,6 +130,7 @@ nonisolated extension ItemCategory {
         switch self {
         case .restaurant: "fork.knife"
         case .bar: "wineglass.fill"
+        case .recipe: "book.pages.fill"
         case .movie: "film.fill"
         case .happyHour: "clock.badge.checkmark"
         case .landmark: "building.columns.fill"

@@ -108,7 +108,7 @@ struct BoardItemQuickLookView: View {
                 .foregroundStyle(accent)
 
             Spacer(minLength: 8)
-            StatusChip(status: item.status)
+            StatusChip(status: item.status, category: item.category)
         }
     }
 

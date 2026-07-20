@@ -7,8 +7,9 @@
 //  or network is needed.
 //
 
-import XCTest
 import CloudKit
+import XCTest
+
 @testable import Docket
 
 final class ModelConversionTests: XCTestCase {
@@ -140,6 +141,52 @@ final class ModelConversionTests: XCTestCase {
         XCTAssertEqual(decoded.streamingService, original.streamingService)
         XCTAssertEqual(decoded.releaseYear, original.releaseYear)
         XCTAssertEqual(decoded.tmdbID, original.tmdbID)
+    }
+
+    // MARK: Recipe
+
+    func testRecipeRoundTripPreservesCookableFieldsAndGallery() throws {
+        let cover = Data([0x01, 0x02])
+        let processPhoto = Data([0x03, 0x04])
+        let finishedPhoto = Data([0x05, 0x06])
+        let original = Recipe(
+            id: CKRecord.ID(recordName: "recipe-1"),
+            title: "Gochujang Chicken",
+            notes: "Double the sauce",
+            status: .planned,
+            addedBy: addedBy,
+            dateAdded: fixedDate,
+            photoData: cover,
+            showsPhotoOnBoard: true,
+            sourceURL: "https://www.instagram.com/reel/example",
+            ingredients: ["Chicken thighs", "Gochujang", "Honey"],
+            instructions: ["Whisk the sauce", "Roast the chicken"],
+            additionalPhotoData: [processPhoto, finishedPhoto]
+        )
+
+        let record = original.toRecord()
+        XCTAssertEqual(record.recordType, Schema.RecordType.recipe)
+
+        let decoded = try XCTUnwrap(Recipe(record: record))
+        XCTAssertEqual(decoded.title, original.title)
+        XCTAssertEqual(decoded.notes, original.notes)
+        XCTAssertEqual(decoded.status, original.status)
+        XCTAssertEqual(decoded.sourceURL, original.sourceURL)
+        XCTAssertEqual(decoded.ingredients, original.ingredients)
+        XCTAssertEqual(decoded.instructions, original.instructions)
+        XCTAssertEqual(decoded.allPhotoData, [cover, processPhoto, finishedPhoto])
+        XCTAssertTrue(decoded.showsPhotoOnBoard)
+    }
+
+    func testRecipeNormalizesSocialURLWithoutScheme() {
+        XCTAssertEqual(
+            Recipe.normalizedURL(from: "www.tiktok.com/@cook/video/123")?.absoluteString,
+            "https://www.tiktok.com/@cook/video/123"
+        )
+    }
+
+    func testRecipeRejectsNonWebSourceURL() {
+        XCTAssertNil(Recipe.normalizedURL(from: "javascript:alert(1)"))
     }
 
     // MARK: UserProfile

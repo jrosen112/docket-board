@@ -9,9 +9,10 @@ import SwiftUI
 
 struct StatusChip: View {
     let status: ItemStatus
+    var category: ItemCategory? = nil
 
     var body: some View {
-        Text(status.label)
+        Text(category.map { status.label(for: $0) } ?? status.label)
             .font(DocketTheme.StatusBadge.font)
             .lineLimit(1)
             .padding(.horizontal, DocketTheme.StatusBadge.horizontalPadding)

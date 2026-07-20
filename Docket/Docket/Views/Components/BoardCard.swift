@@ -9,8 +9,8 @@
 //  attached by the parent.
 //
 
-import SwiftUI
 import CloudKit
+import SwiftUI
 
 struct BoardCard: View {
     @Environment(\.docketSurfacePalette) private var palette
@@ -24,8 +24,9 @@ struct BoardCard: View {
     @ViewBuilder
     var body: some View {
         if item is Movie,
-           item.showsPhotoOnBoard,
-           let photoData = item.photoData {
+            item.showsPhotoOnBoard,
+            let photoData = item.photoData
+        {
             moviePosterCard(photoData)
         } else {
             paperCard
@@ -94,12 +95,20 @@ struct BoardCard: View {
                     .lineLimit(3)
             }
 
-            StatusChip(status: item.status)
-                .padding(.top, DocketTheme.StatusBadge.cardTopPadding)
+            HStack(alignment: .bottom, spacing: DocketTheme.BoardCard.categoryFooterSpacing) {
+                VStack(alignment: .leading, spacing: DocketTheme.BoardCard.categoryFooterTextSpacing) {
+                    StatusChip(status: item.status, category: item.category)
+                        .padding(.top, DocketTheme.StatusBadge.cardTopPadding)
 
-            Text("— \(addedBy)")
-                .font(.caption2.italic())
-                .foregroundStyle(palette.mutedText)
+                    Text("— \(addedBy)")
+                        .font(.caption2.italic())
+                        .foregroundStyle(palette.mutedText)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 0)
+                categoryBadge
+            }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -124,7 +133,7 @@ struct BoardCard: View {
 
     private var boardMapLocation: ItemLocation? {
         guard let locatedItem = item as? any LocatedListItem,
-              locatedItem.showsMapOnBoard
+            locatedItem.showsMapOnBoard
         else { return nil }
         return locatedItem.location
     }
@@ -160,48 +169,24 @@ struct BoardCard: View {
                         .lineLimit(2)
                 }
 
-                Text("— \(addedBy)")
-                    .font(DocketTheme.BoardCard.movieAuthorFont)
-                    .foregroundStyle(DocketTheme.BoardCard.movieMutedText)
-                    .lineLimit(1)
+                HStack(alignment: .bottom, spacing: DocketTheme.BoardCard.categoryFooterSpacing) {
+                    VStack(
+                        alignment: .leading,
+                        spacing: DocketTheme.BoardCard.categoryFooterTextSpacing
+                    ) {
+                        posterStatusChip
+
+                        Text("— \(addedBy)")
+                            .font(DocketTheme.BoardCard.movieAuthorFont)
+                            .foregroundStyle(DocketTheme.BoardCard.movieMutedText)
+                            .lineLimit(1)
+                    }
+
+                    Spacer(minLength: 0)
+                    categoryBadge
+                }
             }
             .padding(DocketTheme.BoardCard.movieContentPadding)
-        }
-        .overlay(alignment: .top) {
-            HStack(alignment: .center, spacing: DocketTheme.BoardCard.movieBadgeSpacing) {
-                Label("MOVIE", systemImage: "film.fill")
-                    .font(DocketTheme.BoardCard.movieBadgeFont)
-                    .tracking(DocketTheme.BoardCard.movieBadgeTracking)
-                    .foregroundStyle(DocketTheme.BoardCard.moviePrimaryText)
-                    .padding(.horizontal, DocketTheme.BoardCard.movieBadgeHorizontalPadding)
-                    .padding(.vertical, DocketTheme.BoardCard.movieBadgeVerticalPadding)
-                    .background(
-                        DocketTheme.BoardCard.movieBadgeBackground,
-                        in: Capsule()
-                    )
-
-                Spacer(minLength: 0)
-
-                HStack(spacing: DocketTheme.BoardCard.movieStatusSpacing) {
-                    Circle()
-                        .fill(item.status.chipColor)
-                        .frame(
-                            width: DocketTheme.BoardCard.movieStatusDotSize,
-                            height: DocketTheme.BoardCard.movieStatusDotSize
-                        )
-                    Text(item.status.label)
-                        .lineLimit(1)
-                }
-                .font(DocketTheme.BoardCard.movieStatusFont)
-                .foregroundStyle(DocketTheme.BoardCard.moviePrimaryText)
-                .padding(.horizontal, DocketTheme.BoardCard.movieBadgeHorizontalPadding)
-                .padding(.vertical, DocketTheme.BoardCard.movieBadgeVerticalPadding)
-                .background(
-                    DocketTheme.BoardCard.movieBadgeBackground,
-                    in: Capsule()
-                )
-            }
-            .padding(DocketTheme.BoardCard.movieBadgeInset)
         }
         .aspectRatio(DocketTheme.BoardCard.moviePosterAspectRatio, contentMode: .fit)
         .frame(maxWidth: .infinity)
@@ -223,6 +208,36 @@ struct BoardCard: View {
             PinDot().offset(y: -5)
         }
         .rotationEffect(.degrees(DocketTheme.rotationDegrees(for: item.id.recordName)))
+    }
+
+    private var categoryBadge: some View {
+        Image(systemName: item.category.symbol)
+            .font(DocketTheme.BoardCard.categoryBadgeSymbolFont)
+            .foregroundStyle(.white)
+            .frame(
+                width: DocketTheme.BoardCard.categoryBadgeSize,
+                height: DocketTheme.BoardCard.categoryBadgeSize
+            )
+            .background(accent, in: Circle())
+            .accessibilityHidden(true)
+    }
+
+    private var posterStatusChip: some View {
+        HStack(spacing: DocketTheme.BoardCard.movieStatusSpacing) {
+            Circle()
+                .fill(item.status.chipColor)
+                .frame(
+                    width: DocketTheme.BoardCard.movieStatusDotSize,
+                    height: DocketTheme.BoardCard.movieStatusDotSize
+                )
+            Text(item.status.label(for: item.category))
+                .lineLimit(1)
+        }
+        .font(DocketTheme.BoardCard.movieStatusFont)
+        .foregroundStyle(DocketTheme.BoardCard.moviePrimaryText)
+        .padding(.horizontal, DocketTheme.BoardCard.movieBadgeHorizontalPadding)
+        .padding(.vertical, DocketTheme.BoardCard.movieBadgeVerticalPadding)
+        .background(DocketTheme.BoardCard.movieBadgeBackground, in: Capsule())
     }
 }
 

@@ -114,6 +114,7 @@ struct BoardView: View {
                 ItemDetailView(
                     itemID: target.id,
                     onSave: { beginSave($0, kind: .editing) },
+                    onDelete: presentDeletedNotice(title:),
                     startsEditing: target.startsEditing
                 )
                 .navigationTransition(
@@ -281,13 +282,17 @@ struct BoardView: View {
     private func performDelete(_ candidate: BoardDeleteCandidate) {
         Task { @MainActor in
             guard case .deleted = await store.delete(candidate.item) else { return }
-            withAnimation(DocketDetailTheme.Edit.modeAnimation) {
-                boardNotice = BoardNotice(
-                    message: "Deleted \(candidate.title)",
-                    systemImage: "trash",
-                    dismissalID: UUID()
-                )
-            }
+            presentDeletedNotice(title: candidate.title)
+        }
+    }
+
+    private func presentDeletedNotice(title: String) {
+        withAnimation(DocketDetailTheme.Edit.modeAnimation) {
+            boardNotice = BoardNotice(
+                message: "Deleted \(title)",
+                systemImage: "trash",
+                dismissalID: UUID()
+            )
         }
     }
 

@@ -7,6 +7,9 @@ nonisolated enum ItemDraftField: Hashable {
     case cuisine
     case priceRange
     case barType
+    case sourceURL
+    case ingredients
+    case instructions
     case runtime
     case streamingService
     case releaseYear
@@ -51,6 +54,10 @@ nonisolated struct ItemDraft {
     var cuisine = ""
     var priceRange: PriceRange?
     var barType: BarType?
+    var sourceURL = ""
+    var ingredients = ""
+    var instructions = ""
+    var additionalPhotoData: [Data] = []
     var runtime = ""
     var streamingService = ""
     var releaseYear = ""
@@ -101,6 +108,11 @@ nonisolated struct ItemDraft {
             streamingService = movie.streamingService ?? ""
             releaseYear = movie.releaseYear.map(String.init) ?? ""
             tmdbID = movie.tmdbID
+        case let recipe as Recipe:
+            sourceURL = recipe.sourceURL ?? ""
+            ingredients = recipe.ingredients.joined(separator: "\n")
+            instructions = recipe.instructions.joined(separator: "\n")
+            additionalPhotoData = recipe.additionalPhotoData
         default:
             break
         }
@@ -143,6 +155,19 @@ nonisolated struct ItemDraft {
             movie.releaseYear = Int(releaseYear)
             movie.tmdbID = tmdbID
             return movie
+        case var recipe as Recipe:
+            recipe.title = title.trimmed
+            recipe.notes = notes.orNil
+            recipe.status = status
+            recipe.photoData = photoData
+            recipe.additionalPhotoData = Array(
+                additionalPhotoData.prefix(Recipe.maximumPhotoCount - 1)
+            )
+            recipe.showsPhotoOnBoard = boardMedia == .photo
+            recipe.sourceURL = sourceURL.orNil
+            recipe.ingredients = ingredientLines
+            recipe.instructions = instructionLines
+            return recipe
         default:
             return nil
         }
@@ -199,8 +224,40 @@ nonisolated struct ItemDraft {
                 releaseYear: Int(releaseYear),
                 tmdbID: tmdbID
             )
+        case .recipe:
+            Recipe(
+                id: id,
+                title: title.trimmed,
+                notes: notes.orNil,
+                status: status,
+                addedBy: addedBy,
+                dateAdded: dateAdded,
+                photoData: photoData,
+                showsPhotoOnBoard: boardMedia == .photo,
+                sourceURL: sourceURL.orNil,
+                ingredients: ingredientLines,
+                instructions: instructionLines,
+                additionalPhotoData: additionalPhotoData
+            )
         default:
             nil
         }
+    }
+
+    private var ingredientLines: [String] { listLines(from: ingredients) }
+    private var instructionLines: [String] { listLines(from: instructions) }
+
+    private func listLines(from value: String) -> [String] {
+        value.components(separatedBy: .newlines)
+            .map { line in
+                line.trimmed
+                    .replacingOccurrences(
+                        of: #"^(?:[-•*]|\d+[.)])\s*"#,
+                        with: "",
+                        options: .regularExpression
+                    )
+                    .trimmed
+            }
+            .filter { !$0.isEmpty }
     }
 }

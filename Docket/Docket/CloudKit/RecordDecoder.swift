@@ -17,6 +17,7 @@ nonisolated enum RecordDecoder {
         switch record.recordType {
         case Schema.RecordType.restaurant: Restaurant(record: record)
         case Schema.RecordType.bar: Bar(record: record)
+        case Schema.RecordType.recipe: Recipe(record: record)
         case Schema.RecordType.movie: Movie(record: record)
         default: nil
         }

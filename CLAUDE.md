@@ -34,8 +34,8 @@ enum ItemStatus: String, CaseIterable {
 }
 ```
 
-Current category types are `Restaurant`, `Bar`, and `Movie`. Planned typed
-categories include `HappyHour`, `Recipe`, `Landmark`, `Hike`, and `Activity`.
+Current category types are `Restaurant`, `Bar`, `Recipe`, and `Movie`. Planned
+typed categories include `HappyHour`, `Landmark`, `Hike`, and `Activity`.
 Each conforms to `SharedListItem` plus its own category-specific fields (e.g.
 `Hike` can have `distanceMiles`/`elevationGainFt`/`difficulty`; `Movie` has
 `runtime`/`streamingService`/`releaseYear`). Keep field naming consistent across
@@ -66,7 +66,7 @@ Current interaction details:
 
 ## Implementation Status
 
-Built: CloudKit zones/sharing, multi-board switching, typed Restaurant/Bar/Movie
+Built: CloudKit zones/sharing, multi-board switching, typed Restaurant/Bar/Recipe/Movie
 records, masonry board, multi-select filtering, typed add/detail editing,
 structured MapKit locations and maps, photo/map card treatments, item and board
 deletion, board management, conflict handling, silent push reconciliation,
@@ -74,7 +74,7 @@ local notifications, and current board interaction polish. The asset catalog
 also contains the production app icon. See `IMPLEMENTATION.md` for
 authoritative details.
 
-Next: Happy Hour/Recipe/Landmark/Hike/Activity record types, profile images,
+Next: Happy Hour/Landmark/Hike/Activity record types, profile images,
 board renaming, additional real-device CloudKit testing, and
 production/TestFlight work.
 

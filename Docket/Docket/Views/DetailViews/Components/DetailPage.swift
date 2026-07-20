@@ -126,12 +126,28 @@ struct DetailPage<Details: View>: View {
     private var hero: some View {
         VStack(alignment: .leading, spacing: DocketDetailTheme.Hero.contentSpacing) {
             if isEditing {
-                ItemPhotoEditor(
-                    photoData: $draft.photoData,
-                    showsPhotoOnBoard: $draft.showsPhotoOnBoard,
-                    showsMapOnBoard: $draft.showsMapOnBoard,
-                    accent: accent
-                )
+                if draft.category == .recipe {
+                    RecipePhotoCarouselEditor(
+                        photoData: $draft.photoData,
+                        additionalPhotoData: $draft.additionalPhotoData,
+                        showsPhotoOnBoard: $draft.showsPhotoOnBoard,
+                        showsMapOnBoard: $draft.showsMapOnBoard,
+                        accent: accent
+                    )
+                } else {
+                    ItemPhotoEditor(
+                        photoData: $draft.photoData,
+                        showsPhotoOnBoard: $draft.showsPhotoOnBoard,
+                        showsMapOnBoard: $draft.showsMapOnBoard,
+                        accent: accent
+                    )
+                }
+            } else if let recipe = item as? Recipe, !recipe.allPhotoData.isEmpty {
+                RecipePhotoCarousel(photos: recipe.allPhotoData)
+                    .contentShape(Rectangle())
+                    .onTapGesture { onEdit(.photo) }
+                    .accessibilityHint("Double tap to edit")
+                    .accessibilityAddTraits(.isButton)
             } else if let photoData = item.photoData {
                 ItemPhotoImage(data: photoData, contentMode: .fit)
                     .frame(maxWidth: .infinity)
@@ -187,14 +203,14 @@ struct DetailPage<Details: View>: View {
                 if isEditing {
                     Picker("Status", selection: $draft.status) {
                         ForEach(ItemStatus.allCases, id: \.self) { status in
-                            Text(status.label).tag(status)
+                            Text(status.label(for: draft.category)).tag(status)
                         }
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
                     .tint(draft.status.chipColor)
                 } else {
-                    StatusChip(status: item.status)
+                    StatusChip(status: item.status, category: item.category)
                         .contentShape(Rectangle())
                         .onTapGesture { onEdit(.status) }
                 }
@@ -280,8 +296,9 @@ struct DetailPage<Details: View>: View {
     private var currentBoardMedia: BoardCardMedia {
         if item.showsPhotoOnBoard, item.photoData != nil { return .photo }
         if let locatedItem = item as? any LocatedListItem,
-           locatedItem.showsMapOnBoard,
-           locatedItem.location != nil {
+            locatedItem.showsMapOnBoard,
+            locatedItem.location != nil
+        {
             return .map
         }
         return .none
@@ -316,13 +333,13 @@ struct DetailPage<Details: View>: View {
             } else {
                 HStack(spacing: DocketDetailTheme.Fact.rowSpacing) {
                     Image(systemName: currentBoardMedia.symbol)
-                    .font(DocketDetailTheme.Fact.symbolFont)
-                    .foregroundStyle(accent)
-                    .frame(width: DocketDetailTheme.Fact.symbolWidth)
+                        .font(DocketDetailTheme.Fact.symbolFont)
+                        .foregroundStyle(accent)
+                        .frame(width: DocketDetailTheme.Fact.symbolWidth)
 
                     Text(boardMediaStatus)
-                    .font(DocketDetailTheme.Fact.valueFont)
-                    .foregroundStyle(palette.primaryText)
+                        .font(DocketDetailTheme.Fact.valueFont)
+                        .foregroundStyle(palette.primaryText)
 
                     Spacer()
                     Image(systemName: "chevron.right")
