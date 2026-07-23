@@ -36,4 +36,17 @@ nonisolated enum RecordDecoder {
         }
         return (items, profiles)
     }
+
+    static func contents(from records: [CKRecord]) -> SpaceContents {
+        let partitioned = partition(records)
+        let reactions: [BoardReaction] = records.compactMap { record -> BoardReaction? in
+            guard record.recordType == Schema.RecordType.boardReaction else { return nil }
+            return BoardReaction(record: record)
+        }
+        return SpaceContents(
+            items: partitioned.items,
+            profiles: partitioned.profiles,
+            reactions: reactions
+        )
+    }
 }

@@ -67,4 +67,24 @@ final class RecordDecoderTests: XCTestCase {
         XCTAssertTrue(items.isEmpty)
         XCTAssertTrue(profiles.isEmpty)
     }
+
+    func testContentsDecodesReactionsAlongsideItemsAndProfiles() throws {
+        let itemID = CKRecord.ID(recordName: "m1")
+        let profileID = CKRecord.ID(recordName: "profile-1")
+        let reaction = BoardReaction(
+            id: BoardReaction.recordID(for: itemID, profileID: profileID),
+            itemID: itemID,
+            reactedBy: CKRecord.Reference(recordID: profileID, action: .none),
+            kind: .love,
+            dateAdded: Date(timeIntervalSince1970: 100)
+        )
+
+        let contents = RecordDecoder.contents(from: [reaction.toRecord()])
+
+        let decoded = try XCTUnwrap(contents.reactions.first)
+        XCTAssertEqual(decoded.itemID, itemID)
+        XCTAssertEqual(decoded.profileID, profileID)
+        XCTAssertEqual(decoded.kind, .love)
+        XCTAssertEqual(decoded.dateAdded, Date(timeIntervalSince1970: 100))
+    }
 }

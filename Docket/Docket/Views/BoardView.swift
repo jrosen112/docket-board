@@ -30,10 +30,12 @@ struct BoardView: View {
     @State private var moveCandidate: BoardMoveCandidate?
     @State private var physicalDeleteCandidates: [CKRecord.ID: BoardDeleteCandidate] = [:]
     @State private var locallyRemovedItemIDs: Set<CKRecord.ID> = []
-    @State private var revealingAddedItemID: CKRecord.ID?
-    @State private var isAddedItemRevealed = true
+    @State private var physicalInsertionItemID: CKRecord.ID?
+    @State private var physicalInsertionTrigger: UUID?
+    @State private var photoViewerTarget: BoardPhotoViewerTarget?
     @State private var diceRoll: DiceRoll?
     @State private var lastRandomItemID: CKRecord.ID?
+    @State private var reactionPopover: BoardReactionPopover?
 
     private var filteredItems: [any SharedListItem] {
         filter.apply(to: store.items).filter {
@@ -129,6 +131,9 @@ struct BoardView: View {
             .sheet(isPresented: $showingBoardManager) {
                 BoardManagerView()
             }
+            .fullScreenCover(item: $photoViewerTarget) { target in
+                BoardPhotoViewer(title: target.title, photos: target.photos)
+            }
             .navigationDestination(item: $detailTarget) { target in
                 ItemDetailView(
                     itemID: target.id,
@@ -151,6 +156,12 @@ struct BoardView: View {
                 detailTarget = DetailTarget(id: request.recordID)
                 store.consumeItemNavigationRequest(request.id)
             }
+        }
+        .overlayPreferenceValue(BoardReactionCardAnchorPreferenceKey.self) { anchors in
+            GeometryReader { geometry in
+                reactionPickerOverlay(anchors: anchors, geometry: geometry)
+            }
+            .ignoresSafeArea()
         }
     }
 
@@ -178,9 +189,10 @@ struct BoardView: View {
     }
 
     private var moveAlertPresenter: some View {
-        let title = moveCandidate.map {
-            "Move “\($0.item.title)” to “\($0.destination.title)”?"
-        } ?? "Move Item?"
+        let title =
+            moveCandidate.map {
+                "Move “\($0.item.title)” to “\($0.destination.title)”?"
+            } ?? "Move Item?"
 
         return Color.clear
             .alert(
@@ -281,20 +293,44 @@ struct BoardView: View {
 
     private func card(for item: any SharedListItem) -> some View {
         let captureInset = DocketTheme.BoardCard.transitionCaptureInset
+        let isPhysicallyInserting = physicalInsertionItemID == item.id
+        let photos = photoViewerPhotos(for: item)
 
-        return PhysicalCardRemovalView(
-            isRemoving: physicalDeleteCandidates[item.id] != nil,
-            direction: physicalDeleteDirection(for: item.id),
+        return PhysicalCardInsertionView(
+            isStaged: isPhysicallyInserting,
+            animationTrigger: isPhysicallyInserting ? physicalInsertionTrigger : nil,
+            direction: physicalInsertionDirection(for: item.id),
             onAnimationCompleted: {
-                finishPhysicalDeleteAnimation(for: item.id)
+                finishPhysicalInsertionAnimation(for: item.id)
             }
         ) {
-            BoardCard(
-                item: item,
-                subtitle: cardSubtitle(for: item),
-                addedBy: store.displayName(for: item),
-                showsPin: false
-            )
+            PhysicalCardRemovalView(
+                isRemoving: physicalDeleteCandidates[item.id] != nil,
+                direction: physicalDeleteDirection(for: item.id),
+                showsPin: !isPhysicallyInserting,
+                onAnimationCompleted: {
+                    finishPhysicalDeleteAnimation(for: item.id)
+                }
+            ) {
+                BoardCard(
+                    item: item,
+                    subtitle: cardSubtitle(for: item),
+                    addedBy: store.displayName(for: item),
+                    reactionGroups: store.reactionGroups(for: item),
+                    onReactionHold: {
+                        reactionPopover = BoardReactionPopover(
+                            itemID: item.id,
+                            mode: .attributions,
+                            tapLocation: nil
+                        )
+                    },
+                    showsPin: false
+                )
+                .anchorPreference(
+                    key: BoardReactionCardAnchorPreferenceKey.self,
+                    value: .bounds
+                ) { [item.id: $0] }
+            }
         }
         // Capture visual overflow from the pin, shadow, and card rotation.
         // MasonryLayout accounts for this inset without moving the paper.
@@ -308,12 +344,61 @@ struct BoardView: View {
             )
         )
         .matchedTransitionSource(id: item.id, in: boardTransitionNamespace)
-        .onTapGesture { detailTarget = DetailTarget(id: item.id) }
+        .gesture(
+            SpatialTapGesture(count: 2)
+                .exclusively(before: TapGesture(count: 1))
+                .onEnded { value in
+                    switch value {
+                    case .first(let tap):
+                        withAnimation(
+                            DocketTheme.BoardReaction.overlayPresentationAnimation
+                        ) {
+                            reactionPopover = BoardReactionPopover(
+                                itemID: item.id,
+                                mode: .picker,
+                                tapLocation: CGPoint(
+                                    x: tap.location.x - captureInset,
+                                    y: tap.location.y - captureInset
+                                )
+                            )
+                        }
+                    case .second:
+                        detailTarget = DetailTarget(id: item.id)
+                    }
+                }
+        )
+        .pinchToOpenPhotos(
+            isEnabled: !photos.isEmpty
+                && !isPhysicallyInserting
+                && physicalDeleteCandidates[item.id] == nil,
+            onOpen: {
+                photoViewerTarget = BoardPhotoViewerTarget(
+                    id: item.id,
+                    title: item.title,
+                    photos: photos
+                )
+            }
+        )
         .contextMenu {
             Button {
                 detailTarget = DetailTarget(id: item.id, startsEditing: true)
             } label: {
                 Label("Edit", systemImage: "pencil")
+            }
+            Menu {
+                ForEach(BoardReactionKind.allCases) { kind in
+                    Button {
+                        Task { await store.setReaction(kind, for: item) }
+                    } label: {
+                        Text(
+                            store.currentReaction(for: item) == kind
+                                ? "\(kind.rawValue) \(kind.label) ✓"
+                                : "\(kind.rawValue) \(kind.label)"
+                        )
+                    }
+                }
+            } label: {
+                Label("React", systemImage: "face.smiling")
             }
             if !otherBoards.isEmpty {
                 Menu {
@@ -356,19 +441,140 @@ struct BoardView: View {
                 addedBy: store.displayName(for: item)
             )
         }
-        .scaleEffect(
-            revealingAddedItemID == item.id && !isAddedItemRevealed
-                ? DocketTheme.BoardItems.insertionScale
-                : 1
+        .popover(
+            isPresented: reactionAttributionBinding(for: item.id),
+            attachmentAnchor: .rect(.bounds),
+            arrowEdge: .top
+        ) {
+            BoardReactionAttributionView(
+                title: item.title,
+                attributions: store.reactionAttributions(for: item)
+            )
+            .presentationCompactAdaptation(.popover)
+        }
+        .zIndex(
+            physicalDeleteCandidates[item.id] == nil && !isPhysicallyInserting
+                ? 0 : 10
         )
-        .opacity(revealingAddedItemID == item.id && !isAddedItemRevealed ? 0 : 1)
-        .zIndex(physicalDeleteCandidates[item.id] == nil ? 0 : 10)
         .transition(
-            .asymmetric(
-                insertion: .scale(scale: DocketTheme.BoardItems.insertionScale)
-                    .combined(with: .opacity),
-                removal: .scale(scale: DocketTheme.BoardItems.removalScale)
-                    .combined(with: .opacity)
+            isPhysicallyInserting
+                ? .identity
+                : .asymmetric(
+                    insertion: .scale(scale: DocketTheme.BoardItems.insertionScale)
+                        .combined(with: .opacity),
+                    removal: .scale(scale: DocketTheme.BoardItems.removalScale)
+                        .combined(with: .opacity)
+                )
+        )
+    }
+
+    private func reactionAttributionBinding(for itemID: CKRecord.ID) -> Binding<Bool> {
+        Binding(
+            get: {
+                reactionPopover?.itemID == itemID
+                    && reactionPopover?.mode == .attributions
+            },
+            set: { isPresented in
+                guard !isPresented, reactionPopover?.itemID == itemID else { return }
+                reactionPopover = nil
+            }
+        )
+    }
+
+    @ViewBuilder
+    private func reactionPickerOverlay(
+        anchors: [CKRecord.ID: Anchor<CGRect>],
+        geometry: GeometryProxy
+    ) -> some View {
+        ZStack {
+            if let target = reactionPopover,
+                target.mode == .picker,
+                let tapLocation = target.tapLocation,
+                let anchor = anchors[target.itemID],
+                let item = store.items.first(where: { $0.id == target.itemID })
+            {
+                let cardRect = geometry[anchor]
+                let placement = reactionPickerPlacement(
+                    cardRect: cardRect,
+                    tapLocation: tapLocation,
+                    containerSize: geometry.size
+                )
+
+                BoardReactionBackdropShape(
+                    cutoutRect: cardRect.insetBy(
+                        dx: -DocketTheme.BoardReaction.selectedCardCutoutPadding,
+                        dy: -DocketTheme.BoardReaction.selectedCardCutoutPadding
+                    ),
+                    cutoutCornerRadius:
+                        DocketTheme.BoardReaction.selectedCardCutoutCornerRadius
+                )
+                .fill(
+                    Color.black.opacity(DocketTheme.BoardReaction.backdropOpacity),
+                    style: FillStyle(eoFill: true)
+                )
+                .contentShape(Rectangle())
+                .onTapGesture(perform: dismissReactionPicker)
+                .transition(.boardReactionBackdrop)
+
+                BoardReactionPickerView(
+                    selectedKind: store.currentReaction(for: item),
+                    onSelect: { kind in
+                        dismissReactionPicker()
+                        Task { await store.setReaction(kind, for: item) }
+                    }
+                )
+                .fixedSize()
+                .position(placement.position)
+                .transition(.boardReactionPicker(translation: placement.translation))
+                .zIndex(1)
+            }
+        }
+    }
+
+    private func dismissReactionPicker() {
+        withAnimation(DocketTheme.BoardReaction.overlayDismissalAnimation) {
+            reactionPopover = nil
+        }
+    }
+
+    private func reactionPickerPlacement(
+        cardRect: CGRect,
+        tapLocation: CGPoint,
+        containerSize: CGSize
+    ) -> BoardReactionPickerPlacement {
+        let pickerSize = DocketTheme.BoardReaction.pickerOverlaySize
+        let halfWidth = pickerSize.width / 2
+        let halfHeight = pickerSize.height / 2
+        let margin = DocketTheme.BoardReaction.overlayScreenMargin
+        let globalTap = CGPoint(
+            x: cardRect.minX + tapLocation.x,
+            y: cardRect.minY + tapLocation.y
+        )
+        let x = min(
+            max(globalTap.x, halfWidth + margin),
+            containerSize.width - halfWidth - margin
+        )
+        let preferredY =
+            globalTap.y
+            + DocketTheme.BoardReaction.overlayTapSpacing
+            + halfHeight
+        let maximumY = containerSize.height - halfHeight - margin
+        let minimumY = halfHeight + margin
+        let y =
+            preferredY <= maximumY
+            ? preferredY
+            : max(
+                globalTap.y
+                    - DocketTheme.BoardReaction.overlayTapSpacing
+                    - halfHeight,
+                minimumY
+            )
+        let position = CGPoint(x: x, y: y)
+        return BoardReactionPickerPlacement(
+            position: position,
+            translation: CGSize(
+                width: globalTap.x - position.x,
+                height: globalTap.y - position.y
             )
         )
     }
@@ -437,6 +643,17 @@ struct BoardView: View {
         DocketTheme.stableHash(for: itemID.recordName + "#delete") % 2 == 0 ? -1 : 1
     }
 
+    private func physicalInsertionDirection(for itemID: CKRecord.ID) -> CGFloat {
+        DocketTheme.stableHash(for: itemID.recordName + "#insert") % 2 == 0 ? -1 : 1
+    }
+
+    private func photoViewerPhotos(for item: any SharedListItem) -> [Data] {
+        if let recipe = item as? Recipe {
+            return recipe.allPhotoData
+        }
+        return [item.photoData].compactMap(\.self)
+    }
+
     private func beginTransfer(
         _ item: any SharedListItem,
         to destination: Space,
@@ -470,17 +687,18 @@ struct BoardView: View {
             let minimumDelay = Task {
                 try? await Task.sleep(for: DocketTheme.RefreshPill.minimumSaveDuration)
             }
-            let result = switch transfer.stage {
-            case .copy:
-                await store.transfer(
-                    transfer.item,
-                    to: transfer.destination,
-                    kind: transfer.kind,
-                    destinationRecordID: transfer.destinationRecordID
-                )
-            case .removeSource:
-                await store.finishMove(transfer.item, from: transfer.source)
-            }
+            let result =
+                switch transfer.stage {
+                case .copy:
+                    await store.transfer(
+                        transfer.item,
+                        to: transfer.destination,
+                        kind: transfer.kind,
+                        destinationRecordID: transfer.destinationRecordID
+                    )
+                case .removeSource:
+                    await store.finishMove(transfer.item, from: transfer.source)
+                }
             await minimumDelay.value
 
             guard pendingTransfer?.id == transfer.id else { return }
@@ -509,7 +727,8 @@ struct BoardView: View {
                 withAnimation(DocketDetailTheme.Edit.modeAnimation) {
                     boardNotice = BoardNotice(
                         id: retry.id,
-                        message: "Copied to \(retry.destination.title), but couldn't remove the original — tap to retry",
+                        message:
+                            "Copied to \(retry.destination.title), but couldn't remove the original — tap to retry",
                         systemImage: "exclamationmark.arrow.trianglehead.2.clockwise.rotate.90",
                         isRetryable: true
                     )
@@ -553,23 +772,24 @@ struct BoardView: View {
         }
     }
 
-    private func revealAddedItem(_ itemID: CKRecord.ID) {
-        guard filteredItemIDs.contains(itemID) else { return }
-        revealingAddedItemID = itemID
-        isAddedItemRevealed = false
+    private func stagePhysicalInsertion(for itemID: CKRecord.ID) {
+        physicalInsertionItemID = itemID
+        physicalInsertionTrigger = nil
+    }
 
-        Task { @MainActor in
-            try? await Task.sleep(for: DocketTheme.BoardItems.revealDelay)
-            guard revealingAddedItemID == itemID else { return }
-
-            withAnimation(DocketTheme.BoardItems.changeAnimation) {
-                isAddedItemRevealed = true
-            }
-
-            try? await Task.sleep(for: DocketTheme.BoardItems.revealCleanupDelay)
-            guard revealingAddedItemID == itemID else { return }
-            revealingAddedItemID = nil
+    private func beginPhysicalInsertion(for itemID: CKRecord.ID) {
+        guard physicalInsertionItemID == itemID else { return }
+        guard filteredItemIDs.contains(itemID) else {
+            finishPhysicalInsertionAnimation(for: itemID)
+            return
         }
+        physicalInsertionTrigger = UUID()
+    }
+
+    private func finishPhysicalInsertionAnimation(for itemID: CKRecord.ID) {
+        guard physicalInsertionItemID == itemID else { return }
+        physicalInsertionItemID = nil
+        physicalInsertionTrigger = nil
     }
 
     private func beginSave(
@@ -601,6 +821,9 @@ struct BoardView: View {
 
     private func performSave(_ initialSave: PendingBoardSave) {
         pendingSave = initialSave
+        if initialSave.kind == .pinning {
+            stagePhysicalInsertion(for: initialSave.item.id)
+        }
         withAnimation(DocketDetailTheme.Edit.modeAnimation) {
             boardNotice = BoardNotice(
                 id: initialSave.id,
@@ -636,7 +859,12 @@ struct BoardView: View {
             let result = await store.save(save.item)
             await minimumDelay.value
 
-            guard pendingSave?.id == save.id else { return }
+            guard pendingSave?.id == save.id else {
+                if save.kind == .pinning {
+                    finishPhysicalInsertionAnimation(for: save.item.id)
+                }
+                return
+            }
             switch result {
             case .saved:
                 pendingSave = nil
@@ -649,7 +877,7 @@ struct BoardView: View {
                     )
                 }
                 if save.kind == .pinning {
-                    revealAddedItem(save.item.id)
+                    beginPhysicalInsertion(for: save.item.id)
                 }
             case .conflict:
                 presentSaveFailure(for: save, requiresRebase: true)
@@ -663,6 +891,9 @@ struct BoardView: View {
         for save: PendingBoardSave,
         requiresRebase: Bool
     ) {
+        if save.kind == .pinning {
+            finishPhysicalInsertionAnimation(for: save.item.id)
+        }
         pendingSave = PendingBoardSave(
             id: save.id,
             item: save.item,
@@ -782,6 +1013,119 @@ private struct DetailTarget: Identifiable, Hashable {
     var startsEditing = false
 }
 
+private struct BoardReactionPopover {
+    enum Mode: Equatable {
+        case picker
+        case attributions
+    }
+
+    let itemID: CKRecord.ID
+    let mode: Mode
+    let tapLocation: CGPoint?
+}
+
+private struct BoardReactionPickerPlacement {
+    let position: CGPoint
+    let translation: CGSize
+}
+
+private struct BoardReactionCardAnchorPreferenceKey: PreferenceKey {
+    static let defaultValue: [CKRecord.ID: Anchor<CGRect>] = [:]
+
+    static func reduce(
+        value: inout [CKRecord.ID: Anchor<CGRect>],
+        nextValue: () -> [CKRecord.ID: Anchor<CGRect>]
+    ) {
+        value.merge(nextValue(), uniquingKeysWith: { _, newest in newest })
+    }
+}
+
+private struct BoardReactionPickerTransitionModifier: ViewModifier {
+    let opacity: Double
+    let scale: CGFloat
+    let rotation: Double
+    let translation: CGSize
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(opacity)
+            .scaleEffect(scale)
+            .rotationEffect(.degrees(rotation))
+            .offset(translation)
+    }
+}
+
+private struct BoardReactionBackdropShape: Shape {
+    let cutoutRect: CGRect
+    let cutoutCornerRadius: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path(rect)
+        path.addRoundedRect(
+            in: cutoutRect,
+            cornerSize: CGSize(
+                width: cutoutCornerRadius,
+                height: cutoutCornerRadius
+            )
+        )
+        return path
+    }
+}
+
+extension AnyTransition {
+    fileprivate static func boardReactionPicker(translation: CGSize) -> AnyTransition {
+        .asymmetric(
+            insertion: .modifier(
+                active: BoardReactionPickerTransitionModifier(
+                    opacity: 0,
+                    scale: DocketTheme.BoardReaction.overlayInitialScale,
+                    rotation: DocketTheme.BoardReaction.overlayInitialRotation,
+                    translation: translation
+                ),
+                identity: BoardReactionPickerTransitionModifier(
+                    opacity: 1,
+                    scale: 1,
+                    rotation: 0,
+                    translation: .zero
+                )
+            )
+            .animation(DocketTheme.BoardReaction.overlayPresentationAnimation),
+            removal: .modifier(
+                active: BoardReactionPickerTransitionModifier(
+                    opacity: 0,
+                    scale: DocketTheme.BoardReaction.overlayDismissedScale,
+                    rotation: DocketTheme.BoardReaction.overlayDismissedRotation,
+                    translation: translation
+                ),
+                identity: BoardReactionPickerTransitionModifier(
+                    opacity: 1,
+                    scale: 1,
+                    rotation: 0,
+                    translation: .zero
+                )
+            )
+            .animation(DocketTheme.BoardReaction.overlayDismissalAnimation)
+        )
+    }
+
+    fileprivate static var boardReactionBackdrop: AnyTransition {
+        .asymmetric(
+            insertion: .opacity.animation(
+                DocketTheme.BoardReaction.backdropPresentationAnimation
+            ),
+            removal: .opacity.animation(
+                DocketTheme.BoardReaction.backdropDismissalAnimation
+            )
+        )
+    }
+}
+
+private struct BoardPhotoViewerTarget: Identifiable {
+    let id: CKRecord.ID
+    let title: String
+    let photos: [Data]
+}
+
 private struct DiceRoll: Identifiable {
     let id = UUID()
     let itemID: CKRecord.ID
@@ -896,15 +1240,15 @@ private struct PendingBoardTransfer {
     }
 }
 
-private extension BoardItemTransferKind {
-    var progressSymbol: String {
+extension BoardItemTransferKind {
+    fileprivate var progressSymbol: String {
         switch self {
         case .duplicate: "square.on.square"
         case .move: "arrow.right.square"
         }
     }
 
-    var successSymbol: String {
+    fileprivate var successSymbol: String {
         switch self {
         case .duplicate: "square.on.square.fill"
         case .move: "arrow.right.square.fill"

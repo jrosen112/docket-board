@@ -7,6 +7,7 @@ struct PhysicalCardRemovalView<Content: View>: View {
 
     let isRemoving: Bool
     let direction: CGFloat
+    var showsPin = true
     let onAnimationCompleted: () -> Void
     @ViewBuilder let content: () -> Content
 
@@ -26,14 +27,16 @@ struct PhysicalCardRemovalView<Content: View>: View {
                 .scaleEffect(phase == .falling ? DocketTheme.PhysicalDelete.fallScale : 1)
                 .opacity(phase == .falling ? 0 : 1)
 
-            BoardPinHead()
-                .scaleEffect(
-                    phase == .idle
-                        ? 1
-                        : DocketTheme.PhysicalDelete.pinLiftScale
-                )
-                .offset(y: pinVerticalOffset)
-                .opacity(phase == .falling ? 0 : 1)
+            if showsPin {
+                BoardPinHead()
+                    .scaleEffect(
+                        phase == .idle
+                            ? 1
+                            : DocketTheme.PhysicalDelete.pinLiftScale
+                    )
+                    .offset(y: pinVerticalOffset)
+                    .opacity(phase == .falling ? 0 : 1)
+            }
         }
         .compositingGroup()
         .allowsHitTesting(!isRemoving)

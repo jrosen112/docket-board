@@ -4,6 +4,7 @@ import Foundation
 private struct ProfileIdentityRepair {
     let items: [any SharedListItem]
     let profiles: [UserProfile]
+    let reactions: [BoardReaction]
     let profile: UserProfile
 }
 
@@ -23,39 +24,46 @@ extension BoardStore {
                 spaces.first(where: { $0.id == discoveredSpace.id }) ?? discoveredSpace
             }
 
-            var restored: [(
-                space: Space,
-                service: any SpaceDataService,
-                items: [any SharedListItem],
-                profiles: [UserProfile],
-                profile: UserProfile
-            )] = []
+            var restored:
+                [(
+                    space: Space,
+                    service: any SpaceDataService,
+                    items: [any SharedListItem],
+                    profiles: [UserProfile],
+                    reactions: [BoardReaction],
+                    profile: UserProfile
+                )] = []
             var firstLoadError: Error?
 
             for candidate in candidates {
                 let candidateService = makeService(candidate)
                 do {
                     let loaded = try await candidateService.loadEverything()
-                    guard let profile = profileForCurrentAccount(
-                        in: loaded.profiles,
-                        space: candidate,
-                        userRecordName: userRecordName
-                    ) else { continue }
+                    guard
+                        let profile = profileForCurrentAccount(
+                            in: loaded.profiles,
+                            space: candidate,
+                            userRecordName: userRecordName
+                        )
+                    else { continue }
                     let repair = try? await repairProfileIdentity(
                         items: loaded.items,
                         profiles: loaded.profiles,
+                        reactions: loaded.reactions,
                         preferredProfile: profile,
                         in: candidate,
                         using: candidateService,
                         userRecordName: userRecordName
                     )
-                    restored.append((
-                        candidate,
-                        candidateService,
-                        repair?.items ?? loaded.items,
-                        repair?.profiles ?? loaded.profiles,
-                        repair?.profile ?? profile
-                    ))
+                    restored.append(
+                        (
+                            candidate,
+                            candidateService,
+                            repair?.items ?? loaded.items,
+                            repair?.profiles ?? loaded.profiles,
+                            repair?.reactions ?? loaded.reactions,
+                            repair?.profile ?? profile
+                        ))
                 } catch {
                     if firstLoadError == nil { firstLoadError = error }
                 }
@@ -92,6 +100,7 @@ extension BoardStore {
             service = selected.service
             items = selected.items.sorted { $0.dateAdded > $1.dateAdded }
             profiles = selected.profiles
+            reactions = selected.reactions
             currentProfile = selected.profile
             rememberProfileTemplate(selected.profile)
             activeShare = nil
@@ -229,11 +238,13 @@ extension BoardStore {
                 let candidateService = makeService(candidate)
                 do {
                     let loaded = try await candidateService.loadEverything()
-                    guard let existingProfile = profileForCurrentAccount(
-                        in: loaded.profiles,
-                        space: candidate,
-                        userRecordName: userRecordName
-                    ) else {
+                    guard
+                        let existingProfile = profileForCurrentAccount(
+                            in: loaded.profiles,
+                            space: candidate,
+                            userRecordName: userRecordName
+                        )
+                    else {
                         failedBoardTitles.append(candidate.title)
                         continue
                     }
@@ -241,6 +252,7 @@ extension BoardStore {
                     let repair = try? await repairProfileIdentity(
                         items: loaded.items,
                         profiles: loaded.profiles,
+                        reactions: loaded.reactions,
                         preferredProfile: existingProfile,
                         in: candidate,
                         using: candidateService,
@@ -263,6 +275,7 @@ extension BoardStore {
                         if let repair {
                             items = repair.items.sorted { $0.dateAdded > $1.dateAdded }
                             profiles = repair.profiles
+                            reactions = repair.reactions
                         }
                         if let index = profiles.firstIndex(where: { $0.id == savedProfile.id }) {
                             profiles[index] = savedProfile
@@ -303,7 +316,8 @@ extension BoardStore {
             userRecordName: userRecordName
         )
         if let rememberedID = defaults.string(forKey: profileKey(for: space)),
-           let remembered = matches.first(where: { $0.id.recordName == rememberedID }) {
+            let remembered = matches.first(where: { $0.id.recordName == rememberedID })
+        {
             return remembered
         }
         let stamped = matches.filter { $0.accountRecordName == userRecordName }
@@ -329,10 +343,11 @@ extension BoardStore {
         // Trust a remembered legacy record only when it has no explicit,
         // contradictory account identity.
         if let rememberedID = defaults.string(forKey: profileKey(for: space)),
-           let remembered = candidates.first(where: { $0.id.recordName == rememberedID }),
-           remembered.accountRecordName == nil,
-           remembered.creatorUserRecordName == nil,
-           !matches.contains(where: { $0.id == remembered.id }) {
+            let remembered = candidates.first(where: { $0.id.recordName == rememberedID }),
+            remembered.accountRecordName == nil,
+            remembered.creatorUserRecordName == nil,
+            !matches.contains(where: { $0.id == remembered.id })
+        {
             matches.append(remembered)
         }
         return matches
@@ -342,11 +357,13 @@ extension BoardStore {
         guard currentProfile == nil, loadState == .loaded else { return }
         do {
             let userRecordName = try await service.accountUserRecordID().recordName
-            guard let profile = profileForCurrentAccount(
-                in: profiles,
-                space: space,
-                userRecordName: userRecordName
-            ) else { return }
+            guard
+                let profile = profileForCurrentAccount(
+                    in: profiles,
+                    space: space,
+                    userRecordName: userRecordName
+                )
+            else { return }
             defaults.set(profile.id.recordName, forKey: profileKey)
             currentProfile = profile
             rememberProfileTemplate(profile)
@@ -401,17 +418,21 @@ extension BoardStore {
         do {
             let accountRecordName = try await service.accountUserRecordID().recordName
             defaults.set(accountRecordName, forKey: Self.accountRecordNameKey)
-            guard let repair = try await repairProfileIdentity(
-                items: items,
-                profiles: profiles,
-                preferredProfile: selectedProfile,
-                in: space,
-                using: service,
-                userRecordName: accountRecordName
-            ) else { return }
+            guard
+                let repair = try await repairProfileIdentity(
+                    items: items,
+                    profiles: profiles,
+                    reactions: reactions,
+                    preferredProfile: selectedProfile,
+                    in: space,
+                    using: service,
+                    userRecordName: accountRecordName
+                )
+            else { return }
 
             items = repair.items.sorted { $0.dateAdded > $1.dateAdded }
             profiles = repair.profiles
+            reactions = repair.reactions
             replaceLoadedProfile(repair.profile)
             defaults.set(repair.profile.id.recordName, forKey: profileKey)
             remember(items: items, in: space)
@@ -424,6 +445,7 @@ extension BoardStore {
     private func repairProfileIdentity(
         items loadedItems: [any SharedListItem],
         profiles loadedProfiles: [UserProfile],
+        reactions loadedReactions: [BoardReaction],
         preferredProfile: UserProfile,
         in targetSpace: Space,
         using targetService: any SpaceDataService,
@@ -441,9 +463,10 @@ extension BoardStore {
         // migration candidate. An explicitly different account must never be
         // adopted merely because a stale UserDefaults key points to it.
         if let loadedPreferred = loadedProfiles.first(where: { $0.id == preferredProfile.id }),
-           loadedPreferred.accountRecordName == nil,
-           loadedPreferred.creatorUserRecordName == nil,
-           !accountProfiles.contains(where: { $0.id == loadedPreferred.id }) {
+            loadedPreferred.accountRecordName == nil,
+            loadedPreferred.creatorUserRecordName == nil,
+            !accountProfiles.contains(where: { $0.id == loadedPreferred.id })
+        {
             accountProfiles.append(loadedPreferred)
         }
         guard !accountProfiles.isEmpty else { return nil }
@@ -455,9 +478,11 @@ extension BoardStore {
             $0.accountRecordName == userRecordName
         }
         let canonicalPool = stamped.isEmpty ? accountProfiles : stamped
-        guard var canonical = canonicalPool.min(by: {
-            $0.id.recordName < $1.id.recordName
-        }) else { return nil }
+        guard
+            var canonical = canonicalPool.min(by: {
+                $0.id.recordName < $1.id.recordName
+            })
+        else { return nil }
         let duplicates = accountProfiles.filter { $0.id != canonical.id }
 
         if canonical.accountRecordName != userRecordName {
@@ -486,6 +511,37 @@ extension BoardStore {
             repairedItems.append(RecordDecoder.item(from: saved) ?? repaired)
         }
 
+        var repairedReactions = loadedReactions
+        for reaction in loadedReactions
+        where duplicateIDs.contains(reaction.profileID) {
+            if repairedReactions.contains(where: {
+                $0.id != reaction.id
+                    && $0.itemID == reaction.itemID
+                    && $0.profileID == canonical.id
+            }) {
+                try await targetService.delete(reaction.id)
+                repairedReactions.removeAll { $0.id == reaction.id }
+                continue
+            }
+
+            let replacement = BoardReaction(
+                id: BoardReaction.recordID(
+                    for: reaction.itemID,
+                    profileID: canonical.id
+                ),
+                itemID: reaction.itemID,
+                reactedBy: canonical.reference,
+                kind: reaction.kind,
+                dateAdded: reaction.dateAdded
+            )
+            let saved = try await targetService.save(replacement.toRecord())
+            let savedReaction = BoardReaction(record: saved) ?? replacement
+            try await targetService.delete(reaction.id)
+            if let index = repairedReactions.firstIndex(where: { $0.id == reaction.id }) {
+                repairedReactions[index] = savedReaction
+            }
+        }
+
         for duplicate in duplicates {
             try await targetService.delete(duplicate.id)
         }
@@ -501,6 +557,7 @@ extension BoardStore {
         return ProfileIdentityRepair(
             items: repairedItems,
             profiles: repairedProfiles,
+            reactions: repairedReactions,
             profile: canonical
         )
     }

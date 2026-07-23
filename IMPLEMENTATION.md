@@ -1,6 +1,6 @@
 # Docket — Implementation
 
-_Current as of 2026-07-22._
+_Current as of 2026-07-23._
 
 This document describes the app as it exists now. [CLAUDE.md](CLAUDE.md)
 contains the original product brief and working agreement; where its old
@@ -36,6 +36,8 @@ The current app supports:
 - Multi-select category/status filtering over a two-column masonry board.
 - Rich long-press quick looks with category facts, notes, attribution, and
   direct entry into the current detail editor.
+- iMessage-style reactions opened by double-tapping a card, with one tapback
+  per participant and a hold-to-view attribution popover on the card badge.
 - Visible save progress, reusable success/refresh notices, and animated board
   changes for filtering, additions, deletions, and refreshes.
 - Silent CloudKit change notifications and local notifications for items added
@@ -132,6 +134,14 @@ same shared zone. Profiles are first-class records and the current device's
 profile identity is remembered per board. A decoded profile also retains its
 CloudKit creator identity so the same iCloud user can reclaim it on another
 device without adding an app-specific account field.
+
+Each reaction is a separate `BoardReaction` record referencing both its item
+and participant profile. Its deterministic item/profile record name enforces
+one reaction per participant without making reaction writes conflict with item
+edits. Selecting another tapback replaces the existing record; selecting the
+same tapback removes it. Reaction records cascade when their item is deleted,
+and duplicate-profile repair rewrites reaction attribution before removing an
+obsolete profile.
 
 Decoded models archive CloudKit system fields. Edits rebuild records from that
 archive so change tags survive round-trips and concurrent writes produce a real
@@ -520,29 +530,32 @@ Important manual checks:
    Cancel, explicit apply, swipe-to-apply, and card reflow animations.
 6. Long-press a card. Verify the rich quick look, full address wrapping, and
    that Edit opens the current detail editor rather than a legacy form.
-7. Add and delete items. Verify save progress, post-dismiss success feedback,
+7. Double-tap a card and choose each reaction. Verify a top-right badge appears,
+   choosing another replaces yours, choosing yours again removes it, and
+   holding the badge shows every participant grouped under their reaction.
+8. Add and delete items. Verify save progress, post-dismiss success feedback,
    the standard destructive alert from the detail toolbar, and card
    insertion/removal animation.
-8. Enable airplane mode. Refresh should finish promptly, board switching should
+9. Enable airplane mode. Refresh should finish promptly, board switching should
    return to the previous board, and no technical CloudKit text should appear.
-9. Add a Recipe with an Instagram or TikTok URL, multiline ingredients and
+10. Add a Recipe with an Instagram or TikTok URL, multiline ingredients and
    instructions, and several photos. Verify the source opens, checklist toggles
    stay responsive, the carousel pages, and the chosen cover appears on board.
-10. Share a public Instagram Reel and a long-caption TikTok recipe. Verify that
+11. Share a public Instagram Reel and a long-caption TikTok recipe. Verify that
     URL-only shares recover the public caption when the platform exposes it;
     the generated recipe name, ingredients, and instructions are editable; a
     clean thumbnail is used when structured metadata exposes one, can be
     removed, and becomes the Recipe card cover; and multiple selected boards
     receive the saved recipe.
-11. Exercise social-import fallbacks with a private/login-gated post, no
+12. Exercise social-import fallbacks with a private/login-gated post, no
     network, and Apple Intelligence unavailable, disabled, or still
     downloading. Confirm that a short alert appears, the source URL/title are
     preserved where possible, and the manual editor remains usable without
     hanging.
-12. Repeat TikTok testing with both short and canonical links. Confirm an
+13. Repeat TikTok testing with both short and canonical links. Confirm an
     Instagram page that exposes only an overlay image can still import and save
     the recipe without requiring that image.
-13. Tap the top-bar dice with no filters and with filters/search active. Verify
+14. Tap the top-bar dice with no filters and with filters/search active. Verify
     the rolling overlay and haptics, the winner reveal, and navigation to the
     chosen item's detail screen.
 

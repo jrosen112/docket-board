@@ -60,7 +60,7 @@ extension BoardStore {
                     if let previousVersions {
                         editedItems = loaded.items.filter { item in
                             guard previousIDs.contains(item.id.recordName),
-                                  let previousVersion = previousVersions[item.id.recordName]
+                                let previousVersion = previousVersions[item.id.recordName]
                             else { return false }
                             return previousVersion != itemVersion(item)
                         }
@@ -94,13 +94,14 @@ extension BoardStore {
     }
 
     private func publishRemoteLoad(
-        _ loaded: (items: [any SharedListItem], profiles: [UserProfile])
+        _ loaded: SpaceContents
     ) {
         // Supersede any in-flight refresh: it started before this push-driven
         // fetch, so letting it publish would overwrite newer data with older.
         refreshGeneration += 1
         items = loaded.items.sorted { $0.dateAdded > $1.dateAdded }
         profiles = loaded.profiles
+        reactions = loaded.reactions
         reconcileCurrentProfile()
         errorMessage = nil
         loadState = .loaded
@@ -141,10 +142,12 @@ extension BoardStore {
             destinationItem = nil
         } else {
             title = "New activity on \(space.title)"
-            let additionText = additions.count == 1
+            let additionText =
+                additions.count == 1
                 ? "1 new pin"
                 : "\(additions.count) new pins"
-            let editText = edits.count == 1
+            let editText =
+                edits.count == 1
                 ? "1 update"
                 : "\(edits.count) updates"
             body = "\(additionText) and \(editText)."
@@ -167,9 +170,10 @@ extension BoardStore {
     func remember(items: [any SharedListItem], in space: Space) {
         remember(itemIDs: Set(items.map { $0.id.recordName }), in: space)
         defaults.set(
-            Dictionary(uniqueKeysWithValues: items.map {
-                ($0.id.recordName, itemVersion($0))
-            }),
+            Dictionary(
+                uniqueKeysWithValues: items.map {
+                    ($0.id.recordName, itemVersion($0))
+                }),
             forKey: rememberedItemVersionsKey(for: space)
         )
     }
@@ -207,7 +211,7 @@ extension BoardStore {
             String(item.boardPhotoPosition.x),
             String(item.boardPhotoPosition.y),
             item.addedBy.recordID.recordName,
-            String(item.dateAdded.timeIntervalSinceReferenceDate)
+            String(item.dateAdded.timeIntervalSinceReferenceDate),
         ]
         switch item {
         case let restaurant as Restaurant:
@@ -215,27 +219,27 @@ extension BoardStore {
                 locationFingerprint(restaurant.location),
                 restaurant.showsMapOnBoard ? "1" : "0",
                 restaurant.cuisines.joined(separator: "\u{1D}"),
-                restaurant.priceRange?.rawValue ?? ""
+                restaurant.priceRange?.rawValue ?? "",
             ]
         case let bar as Bar:
             fields += [
                 locationFingerprint(bar.location),
                 bar.showsMapOnBoard ? "1" : "0",
-                bar.barType?.rawValue ?? ""
+                bar.barType?.rawValue ?? "",
             ]
         case let movie as Movie:
             fields += [
                 movie.runtimeMinutes.map(String.init) ?? "",
                 movie.streamingService ?? "",
                 movie.releaseYear.map(String.init) ?? "",
-                movie.tmdbID.map(String.init) ?? ""
+                movie.tmdbID.map(String.init) ?? "",
             ]
         case let recipe as Recipe:
             fields += [
                 recipe.sourceURL ?? "",
                 recipe.cuisines.joined(separator: "\u{1D}"),
                 recipe.ingredients.joined(separator: "\u{1D}"),
-                recipe.instructions.joined(separator: "\u{1D}")
+                recipe.instructions.joined(separator: "\u{1D}"),
             ]
         default:
             break

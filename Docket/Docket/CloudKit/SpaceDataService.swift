@@ -15,6 +15,12 @@ nonisolated struct BoardParticipantRoster: Equatable, Sendable {
     let participantNames: [String]
 }
 
+nonisolated struct SpaceContents {
+    var items: [any SharedListItem]
+    let profiles: [UserProfile]
+    let reactions: [BoardReaction]
+}
+
 nonisolated protocol SpaceDataService: Sendable {
     /// The container, exposed for UICloudSharingController.
     var container: CKContainer { get }
@@ -29,7 +35,7 @@ nonisolated protocol SpaceDataService: Sendable {
     func accountUserRecordID() async throws -> CKRecord.ID
     /// All Docket-owned and Docket-shared zones available to this account.
     func discoverSpaces() async throws -> [Space]
-    func loadEverything() async throws -> (items: [any SharedListItem], profiles: [UserProfile])
+    func loadEverything() async throws -> SpaceContents
     @discardableResult
     func save(_ record: CKRecord) async throws -> CKRecord
     func delete(_ recordID: CKRecord.ID) async throws

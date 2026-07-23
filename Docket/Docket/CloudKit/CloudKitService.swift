@@ -35,7 +35,8 @@ actor CloudKitService: SpaceDataService {
         let container = CKContainer(identifier: containerIdentifier)
         self.container = container
         self.space = space
-        self.database = space.isOwned
+        self.database =
+            space.isOwned
             ? container.privateCloudDatabase
             : container.sharedCloudDatabase
     }
@@ -102,7 +103,7 @@ actor CloudKitService: SpaceDataService {
         in database: CKDatabase
     ) async -> String? {
         guard let shareID = zone.share?.recordID,
-              let share = try? await database.record(for: shareID) as? CKShare
+            let share = try? await database.record(for: shareID) as? CKShare
         else { return nil }
         return share[CKShare.SystemFieldKey.title] as? String
     }
@@ -145,8 +146,8 @@ actor CloudKitService: SpaceDataService {
     // MARK: - Reads
 
     /// One combined load of everything in the zone: category items + profiles.
-    func loadEverything() async throws -> (items: [any SharedListItem], profiles: [UserProfile]) {
-        RecordDecoder.partition(try await fetchAllRecords())
+    func loadEverything() async throws -> SpaceContents {
+        RecordDecoder.contents(from: try await fetchAllRecords())
     }
 
     /// Pulls every record currently in the zone via zone-changes (no schema
@@ -208,7 +209,8 @@ actor CloudKitService: SpaceDataService {
         // view the people list and leave the board.
         let zone = try await database.recordZone(for: zoneID)
         if let shareReference = zone.share,
-           let existing = try await database.record(for: shareReference.recordID) as? CKShare {
+            let existing = try await database.record(for: shareReference.recordID) as? CKShare
+        {
             return existing
         }
 
@@ -229,7 +231,7 @@ actor CloudKitService: SpaceDataService {
         try await ensureZone()
         let zone = try await database.recordZone(for: zoneID)
         guard let shareReference = zone.share,
-              let share = try await database.record(for: shareReference.recordID) as? CKShare
+            let share = try await database.record(for: shareReference.recordID) as? CKShare
         else { return nil }
 
         let participants = share.participants.filter {

@@ -9,9 +9,10 @@ extension BoardStore {
         SpaceStore.save(newSpace, in: defaults)
         spaces = SpaceStore.loadAll(from: defaults)
         let selectedSpace = spaces.first(where: { $0.id == newSpace.id }) ?? newSpace
-        let profileTemplate = currentProfile.map {
-            ProfileNameTemplate(firstName: $0.firstName, lastName: $0.lastName)
-        } ?? rememberedProfileTemplate()
+        let profileTemplate =
+            currentProfile.map {
+                ProfileNameTemplate(firstName: $0.firstName, lastName: $0.lastName)
+            } ?? rememberedProfileTemplate()
         if isSwitchingBoard, selectedSpace == space { return }
         guard selectedSpace != space else {
             space = selectedSpace
@@ -57,6 +58,7 @@ extension BoardStore {
         let previousService = service
         let previousItems = items
         let previousProfiles = profiles
+        let previousReactions = reactions
         let previousProfile = currentProfile
         let previousShare = activeShare
         let previousShareSpace = activeShareSpace
@@ -69,6 +71,7 @@ extension BoardStore {
         service = makeService(selectedSpace)
         items = []
         profiles = []
+        reactions = []
         currentProfile = nil
         activeShare = nil
         activeShareSpace = nil
@@ -96,6 +99,7 @@ extension BoardStore {
                 service = previousService
                 items = previousItems
                 profiles = previousProfiles
+                reactions = previousReactions
                 currentProfile = previousProfile
                 activeShare = previousShare
                 activeShareSpace = previousShareSpace
@@ -113,6 +117,7 @@ extension BoardStore {
             service = previousService
             items = previousItems
             profiles = previousProfiles
+            reactions = previousReactions
             currentProfile = previousProfile
             activeShare = previousShare
             activeShareSpace = previousShareSpace
@@ -168,12 +173,15 @@ extension BoardStore {
         // moment. Re-read once after saving so the caller's repair sees both
         // records immediately instead of waiting for the next foreground.
         if let confirmed = try? await targetService.loadEverything(),
-           space == targetSpace {
+            space == targetSpace
+        {
             items = confirmed.items.sorted { $0.dateAdded > $1.dateAdded }
             profiles = confirmed.profiles
-            currentProfile = confirmed.profiles.first {
-                $0.id == savedProfile.id
-            } ?? savedProfile
+            reactions = confirmed.reactions
+            currentProfile =
+                confirmed.profiles.first {
+                    $0.id == savedProfile.id
+                } ?? savedProfile
         }
     }
 
@@ -223,7 +231,7 @@ extension BoardStore {
             Duration.milliseconds(500),
             .seconds(1.5),
             .seconds(3),
-            .seconds(6)
+            .seconds(6),
         ] {
             do {
                 try await Task.sleep(for: delay)

@@ -47,6 +47,9 @@ final class BoardStore {
     var items: [any SharedListItem] = []
     /// All participants' profiles on this board, for displaying `addedBy`.
     var profiles: [UserProfile] = []
+    /// Tapbacks are separate records so reacting never conflicts with editing
+    /// the item itself.
+    var reactions: [BoardReaction] = []
     /// Whichever profile belongs to this device's user on this board.
     var currentProfile: UserProfile?
     /// Number of board items created by the profile selected on this device.
@@ -279,6 +282,7 @@ final class BoardStore {
         service = makeService(.default)
         items = []
         profiles = []
+        reactions = []
         currentProfile = nil
         activeShare = nil
         activeShareSpace = nil
@@ -298,6 +302,7 @@ final class BoardStore {
         refreshGeneration += 1
         items = []
         profiles = []
+        reactions = []
         currentProfile = nil
         activeShare = nil
         activeShareSpace = nil
@@ -361,6 +366,7 @@ final class BoardStore {
             guard generation == refreshGeneration else { return .superseded }
             items = loaded.items.sorted { $0.dateAdded > $1.dateAdded }
             profiles = loaded.profiles
+            reactions = loaded.reactions
             reconcileCurrentProfile()
             remember(items: loaded.items, in: space)
             errorMessage = nil

@@ -7,6 +7,7 @@
 //
 
 import CloudKit
+
 @testable import Docket
 
 nonisolated final class MockSpaceService: SpaceDataService, @unchecked Sendable {
@@ -45,7 +46,7 @@ nonisolated final class MockSpaceService: SpaceDataService, @unchecked Sendable 
         return discoveredSpaces
     }
 
-    func loadEverything() async throws -> (items: [any SharedListItem], profiles: [UserProfile]) {
+    func loadEverything() async throws -> SpaceContents {
         if loadDelayNanoseconds > 0 {
             try await Task.sleep(nanoseconds: loadDelayNanoseconds)
         }
@@ -56,7 +57,11 @@ nonisolated final class MockSpaceService: SpaceDataService, @unchecked Sendable 
             profile.creatorUserRecordName = profileCreatorRecordNames[profile.id]
             return profile
         }
-        return (decoded.items, profiles)
+        return SpaceContents(
+            items: decoded.items,
+            profiles: profiles,
+            reactions: Array(records.values).compactMap(BoardReaction.init(record:))
+        )
     }
 
     @discardableResult

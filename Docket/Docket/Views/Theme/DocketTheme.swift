@@ -98,6 +98,55 @@ nonisolated enum DocketTheme {
         static let movieStatusFont: Font = .system(size: 8, weight: .bold)
     }
 
+    enum BoardReaction {
+        static let emojiFont: Font = .system(size: 13)
+        static let countFont: Font = .system(size: 9, weight: .bold)
+        static let moreFont: Font = .system(size: 9, weight: .bold)
+        static let clusterSpacing: CGFloat = 2
+        static let clusterHorizontalPadding: CGFloat = 5
+        static let clusterVerticalPadding: CGFloat = 3
+        static let clusterOffsetX: CGFloat = 5
+        static let clusterOffsetY: CGFloat = -9
+        static let maximumVisibleKinds = 3
+        static let shadowOpacity = 0.24
+        static let shadowRadius: CGFloat = 2
+        static let shadowY: CGFloat = 1
+        static let holdDuration = 0.45
+        static let popoverSpacing: CGFloat = 14
+        static let popoverPadding: CGFloat = 16
+        static let popoverMaximumWidth: CGFloat = 330
+        static let pickerButtonSize: CGFloat = 42
+        static let pickerEmojiFont: Font = .system(size: 22)
+        static let pickerSpacing: CGFloat = 4
+        static let popoverTitleFont: Font = DocketTheme.display(17)
+        static let attributionNameFont: Font = .subheadline
+        static let backdropOpacity = 0.48
+        static let overlayTapSpacing: CGFloat = 18
+        static let overlayScreenMargin: CGFloat = 12
+        static let overlayInitialScale: CGFloat = 0.12
+        static let overlayInitialRotation = -3.5
+        static let overlayDismissedScale: CGFloat = 0.12
+        static let overlayDismissedRotation = 2.0
+        static let overlayShadowOpacity = 0.42
+        static let overlayShadowRadius: CGFloat = 12
+        static let overlayShadowY: CGFloat = 6
+        static let overlayPresentationAnimation = Animation.spring(
+            response: 0.18,
+            dampingFraction: 0.68
+        )
+        static let overlayDismissalAnimation = Animation.easeIn(duration: 0.11)
+        static let backdropPresentationAnimation = Animation.easeOut(duration: 0.12)
+        static let backdropDismissalAnimation = Animation.easeIn(duration: 0.1)
+        static let selectedCardCutoutPadding: CGFloat = 2
+        static let selectedCardCutoutCornerRadius: CGFloat = 12
+        static let pickerOverlaySize = CGSize(
+            width: CGFloat(BoardReactionKind.allCases.count) * pickerButtonSize
+                + CGFloat(BoardReactionKind.allCases.count - 1) * pickerSpacing
+                + popoverPadding * 2,
+            height: pickerButtonSize + popoverPadding * 2
+        )
+    }
+
     enum StatusBadge {
         static let horizontalPadding: CGFloat = 8
         static let verticalPadding: CGFloat = 3
@@ -349,12 +398,29 @@ nonisolated enum DocketTheme {
         static let removalScale = 0.96
         static let changeResponse: TimeInterval = 0.42
         static let changeDamping: CGFloat = 0.84
-        static let revealDelay: Duration = .milliseconds(30)
-        static let revealCleanupDelay: Duration = .milliseconds(550)
 
         static var changeAnimation: Animation {
             .spring(response: changeResponse, dampingFraction: changeDamping)
         }
+    }
+
+    enum PhysicalAdd {
+        static let arrivalDistance: CGFloat = -52
+        static let arrivalScale: CGFloat = 0.96
+        static let arrivalRotation: Double = 3.5
+        static let pinDropDistance: CGFloat = 28
+        static let pinImpactCardOffset: CGFloat = 2
+        static let pinImpactCardScale: CGFloat = 0.99
+        static let pinImpactScale: CGFloat = 1.24
+        static let stagingDelay: Duration = .milliseconds(40)
+        static let arrivalDelay: Duration = .milliseconds(360)
+        static let pinDropDuration: TimeInterval = 0.15
+        static let pinDropDelay: Duration = .milliseconds(150)
+        static let completionDelay: Duration = .milliseconds(180)
+        static let reducedMotionDuration: TimeInterval = 0.18
+        static let reducedMotionDelay: Duration = .milliseconds(180)
+        static let arrivalAnimation = Animation.spring(response: 0.38, dampingFraction: 0.8)
+        static let pinReboundAnimation = Animation.spring(response: 0.24, dampingFraction: 0.56)
     }
 
     enum PhysicalDelete {
@@ -391,6 +457,34 @@ nonisolated enum DocketTheme {
         static let refreshFrameInterval: TimeInterval = 1.0 / 30.0
         static let armingAnimation = Animation.snappy(duration: 0.18)
         static let resetAnimation = Animation.spring(response: 0.3, dampingFraction: 0.78)
+    }
+
+    enum PhotoViewer {
+        static let openThreshold: CGFloat = 1.12
+        static let cardPreviewResistance: CGFloat = 0.3
+        static let cardPreviewMaximumGrowth: CGFloat = 0.055
+        static let minimumZoomScale: CGFloat = 1
+        static let maximumZoomScale: CGFloat = 4
+        static let doubleTapZoomScale: CGFloat = 2
+        static let zoomedThreshold: CGFloat = 1.02
+        static let horizontalPadding: CGFloat = 18
+        static let topPadding: CGFloat = 10
+        static let bottomPadding: CGFloat = 18
+        static let controlSpacing: CGFloat = 12
+        static let closeButtonSize: CGFloat = 40
+        static let pageIndicatorSpacing: CGFloat = 6
+        static let pageIndicatorSize: CGFloat = 6
+        static let selectedPageIndicatorWidth: CGFloat = 18
+        static let pageIndicatorPadding: CGFloat = 9
+        static let cardPreviewResetAnimation = Animation.spring(
+            response: 0.28,
+            dampingFraction: 0.72
+        )
+        static let zoomResetAnimation = Animation.spring(
+            response: 0.3,
+            dampingFraction: 0.82
+        )
+        static let pageIndicatorAnimation = Animation.snappy(duration: 0.2)
     }
 
     enum RefreshPill {

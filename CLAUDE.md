@@ -60,6 +60,9 @@ Current interaction details:
   categories/statuses, and the two dimensions are ANDed together.
 - Long-press shows a rich quick look; its Edit action routes into the same
   typed detail editor used everywhere else.
+- Double-tap opens an iMessage-style reaction picker. Each participant can
+  leave one reaction per item; holding the top-right reaction badge shows who
+  added each tapback.
 - Save operations show progress and successful additions produce a transient
   board notice.
 - The top-bar dice runs an animated, haptic Pick for us roll over the current
@@ -87,7 +90,8 @@ records, masonry board, multi-select filtering, typed add/detail editing,
 structured MapKit locations and maps, photo/map card treatments, item and board
 deletion, board management, conflict handling, silent push reconciliation,
 local notifications, caption-to-Recipe sharing with generated cover photos and
-board selection, Pick for us dice, and current board interaction polish. The
+board selection, Pick for us dice, per-person item reactions, and current board
+interaction polish. The
 asset catalog also contains the production app icon. See `IMPLEMENTATION.md`
 for authoritative details.
 

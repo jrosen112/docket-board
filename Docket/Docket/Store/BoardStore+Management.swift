@@ -86,7 +86,8 @@ extension BoardStore {
     ) -> [String] {
         var namesByIdentity: [String: String] = [:]
         for profile in profiles where !profile.displayName.isEmpty {
-            let identity = profile.accountRecordName
+            let identity =
+                profile.accountRecordName
                 ?? profile.creatorUserRecordName
                 ?? profile.id.recordName
             namesByIdentity[identity] = profile.displayName
@@ -104,7 +105,7 @@ extension BoardStore {
             return false
         }
         guard spaces.count > 1,
-              let fallback = spaces.first(where: { $0 != targetSpace })
+            let fallback = spaces.first(where: { $0 != targetSpace })
         else {
             errorMessage = "Create another board before deleting your only board."
             return false
@@ -132,7 +133,8 @@ extension BoardStore {
     func finishLeavingBoard(_ targetSpace: Space) async {
         guard !targetSpace.isOwned, spaces.count > 1 else { return }
         if targetSpace == space,
-           let fallback = spaces.first(where: { $0 != targetSpace }) {
+            let fallback = spaces.first(where: { $0 != targetSpace })
+        {
             // The shared zone is already gone, so select a fallback directly
             // through normal switching before pruning the local membership.
             await switchTo(space: fallback)
@@ -189,6 +191,7 @@ extension BoardStore {
             defaults.set(newProfile.id.recordName, forKey: profileKey(for: newSpace))
             items = loaded.items.sorted { $0.dateAdded > $1.dateAdded }
             profiles = loaded.profiles
+            reactions = loaded.reactions
             reconcileCurrentProfile()
             remember(items: loaded.items, in: newSpace)
             activeShare = nil

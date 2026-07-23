@@ -23,6 +23,7 @@ nonisolated enum Schema {
         static let bar = "Bar"
         static let recipe = "Recipe"
         static let movie = "Movie"
+        static let boardReaction = "BoardReaction"
     }
 
     /// CKRecord field keys, shared and category-specific.
@@ -58,6 +59,12 @@ nonisolated enum Schema {
         /// reinstall and in both private and shared database scopes.
         static let accountRecordName = "accountRecordName"
         static let profilePicture = "profilePicture"  // CKAsset (added with photo work)
+
+        // MARK: BoardReaction
+        static let reactionItem = "reactionItem"  // CKRecord.Reference -> board item
+        static let reactedBy = "reactedBy"  // CKRecord.Reference -> UserProfile
+        static let reactionKind = "reactionKind"
+        static let reactionDateAdded = "reactionDateAdded"
 
         // MARK: Restaurant
         /// Multi-value replacement for the legacy singular `cuisine` field.

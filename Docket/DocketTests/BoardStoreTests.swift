@@ -6,8 +6,9 @@
 //  sorting, profile identity persistence, error surfacing, space switching.
 //
 
-import XCTest
 import CloudKit
+import XCTest
+
 @testable import Docket
 
 @MainActor
@@ -264,6 +265,79 @@ final class BoardStoreTests: XCTestCase {
         )
     }
 
+    // MARK: - Reactions
+
+    func testReactionCanBeAddedReplacedAndRemoved() async throws {
+        let alice = seedProfile()
+        seedMovie("Heat", addedBy: alice, dateAdded: .now)
+        await store.bootstrap()
+        let movie = try XCTUnwrap(store.items.first)
+
+        await store.setReaction(.love, for: movie)
+
+        let reactionID = BoardReaction.recordID(for: movie.id, profileID: alice.id)
+        XCTAssertEqual(store.currentReaction(for: movie), .love)
+        XCTAssertEqual(
+            store.reactionGroups(for: movie),
+            [
+                BoardReactionGroup(kind: .love, count: 1, includesCurrentUser: true)
+            ])
+        XCTAssertNotNil(mock.records[reactionID])
+
+        await store.setReaction(.laugh, for: movie)
+
+        XCTAssertEqual(store.currentReaction(for: movie), .laugh)
+        XCTAssertEqual(
+            mock.records.values.filter {
+                $0.recordType == Schema.RecordType.boardReaction
+            }.count,
+            1
+        )
+        XCTAssertEqual(
+            BoardReaction(record: try XCTUnwrap(mock.records[reactionID]))?.kind,
+            .laugh
+        )
+
+        await store.setReaction(.laugh, for: movie)
+
+        XCTAssertNil(store.currentReaction(for: movie))
+        XCTAssertTrue(store.reactionGroups(for: movie).isEmpty)
+        XCTAssertNil(mock.records[reactionID])
+    }
+
+    func testReactionAttributionsGroupPeopleByTapback() async throws {
+        let alice = seedProfile(name: "Alice")
+        let jordan = seedProfile(name: "Jordan")
+        mock.profileCreatorRecordNames[jordan.id] = "jordan-icloud-user"
+        seedMovie("Heat", addedBy: alice, dateAdded: .now)
+        let itemID = CKRecord.ID(recordName: "movie-Heat", zoneID: mock.space.zoneID)
+        let aliceReaction = BoardReaction(
+            id: BoardReaction.recordID(for: itemID, profileID: alice.id),
+            itemID: itemID,
+            reactedBy: alice.reference,
+            kind: .like
+        )
+        let jordanReaction = BoardReaction(
+            id: BoardReaction.recordID(for: itemID, profileID: jordan.id),
+            itemID: itemID,
+            reactedBy: jordan.reference,
+            kind: .like
+        )
+        mock.records[aliceReaction.id] = aliceReaction.toRecord()
+        mock.records[jordanReaction.id] = jordanReaction.toRecord()
+        await store.bootstrap()
+        let movie = try XCTUnwrap(store.items.first)
+
+        XCTAssertEqual(
+            store.reactionAttributions(for: movie),
+            [
+                BoardReactionAttribution(
+                    kind: .like,
+                    names: ["Alice Nguyen", "Jordan Nguyen"]
+                )
+            ])
+    }
+
     func testRefreshSummaryPluralizesMultipleItems() {
         XCTAssertEqual(
             BoardRefreshSummary(addedItemCount: 2).message,
@@ -368,9 +442,19 @@ final class BoardStoreTests: XCTestCase {
             title: "Heat",
             addedBy: legacyDuplicate.reference
         )
+        let legacyReaction = BoardReaction(
+            id: BoardReaction.recordID(
+                for: legacyMovie.id,
+                profileID: legacyDuplicate.id
+            ),
+            itemID: legacyMovie.id,
+            reactedBy: legacyDuplicate.reference,
+            kind: .love
+        )
         mock.records[canonical.id] = canonical.toRecord()
         mock.records[legacyDuplicate.id] = legacyDuplicate.toRecord()
         mock.records[legacyMovie.id] = legacyMovie.toRecord()
+        mock.records[legacyReaction.id] = legacyReaction.toRecord()
         mock.profileCreatorRecordNames[canonical.id] = mock.accountUserID.recordName
         mock.profileCreatorRecordNames[legacyDuplicate.id] = CKCurrentUserDefaultName
         defaults.set(canonical.id.recordName, forKey: store.profileKey)
@@ -386,6 +470,17 @@ final class BoardStoreTests: XCTestCase {
         )
         XCTAssertEqual(repairedReference.recordID, canonical.id)
         XCTAssertEqual(store.items.first?.addedBy.recordID, canonical.id)
+        XCTAssertEqual(store.reactions.first?.profileID, canonical.id)
+        XCTAssertEqual(store.reactions.first?.kind, .love)
+        XCTAssertNil(mock.records[legacyReaction.id])
+        XCTAssertNotNil(
+            mock.records[
+                BoardReaction.recordID(
+                    for: legacyMovie.id,
+                    profileID: canonical.id
+                )
+            ]
+        )
     }
 
     func testRestoreRepairsDuplicatesOnBoardsThatAreNotSelected() async throws {
@@ -581,7 +676,8 @@ final class BoardStoreTests: XCTestCase {
 
         XCTAssertEqual(result, .updated(boardCount: 2))
         XCTAssertEqual(UserProfile(record: try XCTUnwrap(mock.records[defaultProfile.id]))?.displayName, "Alicia Stone")
-        XCTAssertEqual(UserProfile(record: try XCTUnwrap(joinedService.records[joinedProfile.id]))?.displayName, "Alicia Stone")
+        XCTAssertEqual(
+            UserProfile(record: try XCTUnwrap(joinedService.records[joinedProfile.id]))?.displayName, "Alicia Stone")
         XCTAssertEqual(mock.records.count, recordCounts.0)
         XCTAssertEqual(joinedService.records.count, recordCounts.1)
         let updatedDefaultMovie = try XCTUnwrap(mock.records[defaultMovieID])
@@ -796,7 +892,7 @@ final class BoardStoreTests: XCTestCase {
 
         let result = await store.delete(store.items[0])
 
-        guard case let .failed(message) = result else {
+        guard case .failed(let message) = result else {
             return XCTFail("Expected delete to fail")
         }
         XCTAssertFalse(message.isEmpty)

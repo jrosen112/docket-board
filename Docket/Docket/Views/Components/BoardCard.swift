@@ -18,6 +18,8 @@ struct BoardCard: View {
     let item: any SharedListItem
     let subtitle: String?
     let addedBy: String
+    let reactionGroups: [BoardReactionGroup]
+    let onReactionHold: () -> Void
     var showsPin = true
 
     private var accent: Color { item.category.accent }
@@ -48,11 +50,11 @@ struct BoardCard: View {
                         data: photoData,
                         position: item.boardPhotoPosition
                     )
-                        .frame(
-                            width: geometry.size.width,
-                            height: DocketTheme.BoardCard.photoHeight
-                        )
-                        .clipped()
+                    .frame(
+                        width: geometry.size.width,
+                        height: DocketTheme.BoardCard.photoHeight
+                    )
+                    .clipped()
                 }
                 .frame(height: DocketTheme.BoardCard.photoHeight)
                 .clipShape(
@@ -135,6 +137,9 @@ struct BoardCard: View {
                     .offset(y: DocketTheme.BoardCard.pinOffsetY)
             }
         }
+        .overlay(alignment: .topTrailing) {
+            reactionCluster
+        }
         .rotationEffect(.degrees(DocketTheme.rotationDegrees(for: item.id.recordName)))
     }
 
@@ -154,7 +159,7 @@ struct BoardCard: View {
                     data: photoData,
                     position: item.boardPhotoPosition
                 )
-                    .frame(width: geometry.size.width, height: geometry.size.height)
+                .frame(width: geometry.size.width, height: geometry.size.height)
             }
             .accessibilityHidden(true)
 
@@ -219,7 +224,24 @@ struct BoardCard: View {
                     .offset(y: DocketTheme.BoardCard.pinOffsetY)
             }
         }
+        .overlay(alignment: .topTrailing) {
+            reactionCluster
+        }
         .rotationEffect(.degrees(DocketTheme.rotationDegrees(for: item.id.recordName)))
+    }
+
+    @ViewBuilder
+    private var reactionCluster: some View {
+        if !reactionGroups.isEmpty {
+            BoardReactionCluster(
+                groups: reactionGroups,
+                onLongPress: onReactionHold
+            )
+            .offset(
+                x: DocketTheme.BoardReaction.clusterOffsetX,
+                y: DocketTheme.BoardReaction.clusterOffsetY
+            )
+        }
     }
 
     private var categoryBadge: some View {
@@ -250,6 +272,79 @@ struct BoardCard: View {
         .padding(.horizontal, DocketTheme.BoardCard.movieBadgeHorizontalPadding)
         .padding(.vertical, DocketTheme.BoardCard.movieBadgeVerticalPadding)
         .background(DocketTheme.BoardCard.movieBadgeBackground, in: Capsule())
+    }
+}
+
+private struct BoardReactionCluster: View {
+    let groups: [BoardReactionGroup]
+    let onLongPress: () -> Void
+
+    private var visibleGroups: ArraySlice<BoardReactionGroup> {
+        groups.prefix(DocketTheme.BoardReaction.maximumVisibleKinds)
+    }
+
+    private var hiddenKindCount: Int {
+        max(groups.count - visibleGroups.count, 0)
+    }
+
+    private var accessibilityDescription: String {
+        groups.map { group in
+            "\(group.kind.label), \(group.count)"
+        }
+        .joined(separator: ", ")
+    }
+
+    var body: some View {
+        HStack(spacing: DocketTheme.BoardReaction.clusterSpacing) {
+            ForEach(visibleGroups) { group in
+                HStack(spacing: 1) {
+                    Text(group.kind.rawValue)
+                    if group.count > 1 {
+                        Text("\(group.count)")
+                            .font(DocketTheme.BoardReaction.countFont)
+                            .foregroundStyle(DocketTheme.ink)
+                    }
+                }
+                .padding(.horizontal, group.count > 1 ? 3 : 1)
+                .background {
+                    if group.includesCurrentUser {
+                        Capsule()
+                            .fill(DocketTheme.brass.opacity(0.2))
+                    }
+                }
+            }
+
+            if hiddenKindCount > 0 {
+                Text("+\(hiddenKindCount)")
+                    .font(DocketTheme.BoardReaction.moreFont)
+                    .foregroundStyle(DocketTheme.ink.opacity(0.7))
+            }
+        }
+        .font(DocketTheme.BoardReaction.emojiFont)
+        .padding(.horizontal, DocketTheme.BoardReaction.clusterHorizontalPadding)
+        .padding(.vertical, DocketTheme.BoardReaction.clusterVerticalPadding)
+        .background(
+            Capsule()
+                .fill(DocketTheme.cream)
+                .shadow(
+                    color: .black.opacity(DocketTheme.BoardReaction.shadowOpacity),
+                    radius: DocketTheme.BoardReaction.shadowRadius,
+                    y: DocketTheme.BoardReaction.shadowY
+                )
+        )
+        .overlay {
+            Capsule()
+                .stroke(DocketTheme.brass.opacity(0.45), lineWidth: 0.75)
+        }
+        .contentShape(Capsule())
+        .highPriorityGesture(
+            LongPressGesture(minimumDuration: DocketTheme.BoardReaction.holdDuration)
+                .onEnded { _ in onLongPress() }
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Reactions: \(accessibilityDescription)")
+        .accessibilityHint("Touch and hold to see who reacted")
+        .accessibilityAction(named: "Show who reacted", onLongPress)
     }
 }
 

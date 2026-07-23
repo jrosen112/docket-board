@@ -37,11 +37,13 @@ extension BoardStore {
             )
 
             if !loaded.items.contains(where: { $0.id == destinationRecordID }) {
-                guard let copiedItem = ItemDraft(item: item).makeNew(
-                    id: destinationRecordID,
-                    addedBy: destinationProfile.reference,
-                    dateAdded: .now
-                ) else {
+                guard
+                    let copiedItem = ItemDraft(item: item).makeNew(
+                        id: destinationRecordID,
+                        addedBy: destinationProfile.reference,
+                        dateAdded: .now
+                    )
+                else {
                     return .failed(message: "This item type can’t be copied yet.")
                 }
 
@@ -107,7 +109,8 @@ extension BoardStore {
             try await requireNetwork()
             let savedRecord = try await requestedService.save(item.toRecord())
             if space == requestedSpace,
-               let savedItem = RecordDecoder.item(from: savedRecord) {
+                let savedItem = RecordDecoder.item(from: savedRecord)
+            {
                 if let index = items.firstIndex(where: { $0.id == savedItem.id }) {
                     items[index] = savedItem
                 } else {
@@ -121,7 +124,8 @@ extension BoardStore {
         } catch {
             if Self.isConflict(error) {
                 return .conflict(
-                    message: "Someone else edited this item. Reload the board to see their version, then try your edit again."
+                    message:
+                        "Someone else edited this item. Reload the board to see their version, then try your edit again."
                 )
             }
             return .failed(message: Self.message(for: error))
@@ -134,6 +138,7 @@ extension BoardStore {
             try await requireNetwork()
             try await service.delete(item.id)
             items.removeAll { $0.id == item.id }
+            reactions.removeAll { $0.itemID == item.id }
             return .deleted
         } catch {
             let message = Self.message(for: error)
@@ -157,9 +162,11 @@ extension BoardStore {
             return existing
         }
 
-        guard let template = currentProfile.map({
-            ProfileNameTemplate(firstName: $0.firstName, lastName: $0.lastName)
-        }) ?? rememberedProfileTemplate() else {
+        guard
+            let template = currentProfile.map({
+                ProfileNameTemplate(firstName: $0.firstName, lastName: $0.lastName)
+            }) ?? rememberedProfileTemplate()
+        else {
             throw BoardItemTransferError.profileUnavailable
         }
 
@@ -190,6 +197,7 @@ extension BoardStore {
 
         if space == sourceSpace {
             items.removeAll { $0.id == item.id }
+            reactions.removeAll { $0.itemID == item.id }
             remember(items: items, in: sourceSpace)
         }
         return .moved
@@ -200,35 +208,142 @@ extension BoardStore {
         profiles.first { $0.id.recordName == item.addedBy.recordID.recordName }?.displayName ?? "—"
     }
 
-    #if DEBUG
-    /// Populates the board with SampleData so UI iteration doesn't require
-    /// re-entering items by hand. Saved once, then a single refresh.
-    func seedSampleData() async {
-        guard let me = currentProfile else { return }
-        do {
-            try await requireNetwork()
-            for item in SampleData.items(addedBy: me.reference, in: service.space.zoneID) {
-                try await service.save(item.toRecord())
+    func reactionGroups(for item: any SharedListItem) -> [BoardReactionGroup] {
+        let mine = currentProfile?.id
+        return BoardReactionKind.allCases.compactMap { kind in
+            let matches = reactions.filter {
+                $0.itemID == item.id && $0.kind == kind
             }
-            await refresh()
-        } catch {
-            errorMessage = Self.message(for: error)
+            guard !matches.isEmpty else { return nil }
+            return BoardReactionGroup(
+                kind: kind,
+                count: matches.count,
+                includesCurrentUser: mine.map { profileID in
+                    matches.contains { $0.profileID == profileID }
+                } ?? false
+            )
         }
     }
 
-    /// Removes ONLY seeded records (sample- ID prefix); real items untouched.
-    func deleteSampleData() async {
-        let samples = items.filter { SampleData.isSample($0.id) }
-        do {
-            try await requireNetwork()
-            for item in samples {
-                try await service.delete(item.id)
-            }
-            await refresh()
-        } catch {
-            errorMessage = Self.message(for: error)
+    func currentReaction(for item: any SharedListItem) -> BoardReactionKind? {
+        guard let profileID = currentProfile?.id else { return nil }
+        return reactions.first {
+            $0.itemID == item.id && $0.profileID == profileID
+        }?.kind
+    }
+
+    func reactionAttributions(
+        for item: any SharedListItem
+    ) -> [BoardReactionAttribution] {
+        BoardReactionKind.allCases.compactMap { kind in
+            let names =
+                reactions
+                .filter { $0.itemID == item.id && $0.kind == kind }
+                .sorted { $0.dateAdded < $1.dateAdded }
+                .map { reaction in
+                    profiles.first { $0.id == reaction.profileID }?.displayName
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                        .orNil
+                        ?? "Someone"
+                }
+            guard !names.isEmpty else { return nil }
+            return BoardReactionAttribution(kind: kind, names: names)
         }
     }
+
+    /// Selecting the current tapback removes it; selecting another replaces
+    /// it. Optimistic local updates keep the interaction feeling immediate.
+    func setReaction(
+        _ kind: BoardReactionKind,
+        for item: any SharedListItem
+    ) async {
+        guard let profile = currentProfile else {
+            errorMessage = "Finish setting up your profile before reacting."
+            return
+        }
+
+        do {
+            try await requireNetwork()
+            if let existingIndex = reactions.firstIndex(where: {
+                $0.itemID == item.id && $0.profileID == profile.id
+            }) {
+                let existing = reactions[existingIndex]
+                if existing.kind == kind {
+                    reactions.remove(at: existingIndex)
+                    do {
+                        try await service.delete(existing.id)
+                    } catch {
+                        reactions.insert(existing, at: min(existingIndex, reactions.count))
+                        throw error
+                    }
+                } else {
+                    var replacement = existing
+                    replacement.kind = kind
+                    reactions[existingIndex] = replacement
+                    do {
+                        let saved = try await service.save(replacement.toRecord())
+                        reactions[existingIndex] = BoardReaction(record: saved) ?? replacement
+                    } catch {
+                        reactions[existingIndex] = existing
+                        throw error
+                    }
+                }
+            } else {
+                let reaction = BoardReaction(
+                    id: BoardReaction.recordID(for: item.id, profileID: profile.id),
+                    itemID: item.id,
+                    reactedBy: profile.reference,
+                    kind: kind
+                )
+                reactions.append(reaction)
+                do {
+                    let saved = try await service.save(reaction.toRecord())
+                    if let index = reactions.firstIndex(where: { $0.id == reaction.id }) {
+                        reactions[index] = BoardReaction(record: saved) ?? reaction
+                    }
+                } catch {
+                    reactions.removeAll { $0.id == reaction.id }
+                    throw error
+                }
+            }
+            errorMessage = nil
+        } catch {
+            errorMessage =
+                Self.isConflict(error)
+                ? "Your reactions changed on another device. Refresh the board and try again."
+                : Self.message(for: error)
+        }
+    }
+
+    #if DEBUG
+        /// Populates the board with SampleData so UI iteration doesn't require
+        /// re-entering items by hand. Saved once, then a single refresh.
+        func seedSampleData() async {
+            guard let me = currentProfile else { return }
+            do {
+                try await requireNetwork()
+                for item in SampleData.items(addedBy: me.reference, in: service.space.zoneID) {
+                    try await service.save(item.toRecord())
+                }
+                await refresh()
+            } catch {
+                errorMessage = Self.message(for: error)
+            }
+        }
+
+        /// Removes ONLY seeded records (sample- ID prefix); real items untouched.
+        func deleteSampleData() async {
+            let samples = items.filter { SampleData.isSample($0.id) }
+            do {
+                try await requireNetwork()
+                for item in samples {
+                    try await service.delete(item.id)
+                }
+                await refresh()
+            } catch {
+                errorMessage = Self.message(for: error)
+            }
+        }
     #endif
 }
 
