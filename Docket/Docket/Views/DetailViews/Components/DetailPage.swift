@@ -132,33 +132,39 @@ struct DetailPage<Details: View>: View {
                         additionalPhotoData: $draft.additionalPhotoData,
                         showsPhotoOnBoard: $draft.showsPhotoOnBoard,
                         showsMapOnBoard: $draft.showsMapOnBoard,
-                        accent: accent
+                        boardPhotoPosition: $draft.boardPhotoPosition,
+                        accent: accent,
+                        boardCropAspectRatio: 4.0 / 3.0
                     )
                 } else {
                     ItemPhotoEditor(
                         photoData: $draft.photoData,
                         showsPhotoOnBoard: $draft.showsPhotoOnBoard,
                         showsMapOnBoard: $draft.showsMapOnBoard,
-                        accent: accent
+                        boardPhotoPosition: $draft.boardPhotoPosition,
+                        accent: accent,
+                        boardCropAspectRatio: draft.category == .movie
+                            ? DocketTheme.BoardCard.moviePosterAspectRatio
+                            : 4.0 / 3.0
                     )
                 }
             } else if let recipe = item as? Recipe, !recipe.allPhotoData.isEmpty {
-                RecipePhotoCarousel(photos: recipe.allPhotoData)
+                RecipePhotoCarousel(
+                    photos: recipe.allPhotoData,
+                    coverPosition: recipe.boardPhotoPosition
+                )
                     .contentShape(Rectangle())
                     .onTapGesture { onEdit(.photo) }
                     .accessibilityHint("Double tap to edit")
                     .accessibilityAddTraits(.isButton)
             } else if let photoData = item.photoData {
-                ItemPhotoImage(data: photoData, contentMode: .fit)
-                    .frame(maxWidth: .infinity)
-                    .frame(maxHeight: DocketDetailTheme.Photo.detailMaximumHeight)
-                    .background(DocketTheme.ink.opacity(0.08))
-                    .clipShape(
-                        RoundedRectangle(
-                            cornerRadius: DocketDetailTheme.Photo.cornerRadius,
-                            style: .continuous
-                        )
-                    )
+                CroppedDetailPhoto(
+                    data: photoData,
+                    position: item.boardPhotoPosition,
+                    aspectRatio: item.category == .movie
+                        ? DocketTheme.BoardCard.moviePosterAspectRatio
+                        : 4.0 / 3.0
+                )
                     .contentShape(Rectangle())
                     .onTapGesture { onEdit(.photo) }
                     .accessibilityLabel("Item photo")

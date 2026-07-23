@@ -22,6 +22,7 @@ nonisolated struct Restaurant: LocatedListItem {
     var status: ItemStatus
     var photoData: Data?
     var showsPhotoOnBoard: Bool
+    var boardPhotoPosition: BoardPhotoPosition
     var addedBy: CKRecord.Reference
     let dateAdded: Date
     var category: ItemCategory { .restaurant }
@@ -48,6 +49,7 @@ nonisolated struct Restaurant: LocatedListItem {
         dateAdded: Date = .now,
         photoData: Data? = nil,
         showsPhotoOnBoard: Bool = false,
+        boardPhotoPosition: BoardPhotoPosition = .center,
         location: ItemLocation? = nil,
         showsMapOnBoard: Bool = false,
         cuisine: String? = nil,
@@ -62,6 +64,7 @@ nonisolated struct Restaurant: LocatedListItem {
         self.dateAdded = dateAdded
         self.photoData = photoData
         self.showsPhotoOnBoard = showsPhotoOnBoard
+        self.boardPhotoPosition = boardPhotoPosition
         self.location = location
         self.showsMapOnBoard = showsMapOnBoard
         self.cuisines = CuisineCatalog.normalized(cuisines + [cuisine].compactMap(\.self))
@@ -82,6 +85,7 @@ nonisolated struct Restaurant: LocatedListItem {
         self.dateAdded = shared.dateAdded
         self.photoData = shared.photoData
         self.showsPhotoOnBoard = shared.showsPhotoOnBoard
+        self.boardPhotoPosition = shared.boardPhotoPosition
         self.systemFields = shared.systemFields
         self.location = ItemLocation(record: record)
         self.showsMapOnBoard = self.location != nil
@@ -101,7 +105,9 @@ nonisolated struct Restaurant: LocatedListItem {
         record.applySharedFields(
             title: title, notes: notes, status: status,
             addedBy: addedBy, dateAdded: dateAdded,
-            photoData: photoData, showsPhotoOnBoard: showsPhotoOnBoard
+            photoData: photoData,
+            showsPhotoOnBoard: showsPhotoOnBoard,
+            boardPhotoPosition: boardPhotoPosition
         )
         record.applyLocationFields(location: location, showsMapOnBoard: showsMapOnBoard)
         record[Schema.Field.cuisines] = cuisines.isEmpty ? nil : cuisines as CKRecordValue

@@ -17,6 +17,7 @@ nonisolated struct Recipe: SharedListItem {
     var status: ItemStatus
     var photoData: Data?
     var showsPhotoOnBoard: Bool
+    var boardPhotoPosition: BoardPhotoPosition
     var addedBy: CKRecord.Reference
     let dateAdded: Date
     var category: ItemCategory { .recipe }
@@ -48,6 +49,7 @@ nonisolated struct Recipe: SharedListItem {
         dateAdded: Date = .now,
         photoData: Data? = nil,
         showsPhotoOnBoard: Bool = false,
+        boardPhotoPosition: BoardPhotoPosition = .center,
         sourceURL: String? = nil,
         cuisines: [String] = [],
         ingredients: [String] = [],
@@ -62,6 +64,7 @@ nonisolated struct Recipe: SharedListItem {
         self.dateAdded = dateAdded
         self.photoData = photoData
         self.showsPhotoOnBoard = showsPhotoOnBoard
+        self.boardPhotoPosition = boardPhotoPosition
         self.sourceURL = sourceURL
         self.cuisines = CuisineCatalog.normalized(cuisines)
         self.ingredients = ingredients
@@ -83,6 +86,7 @@ nonisolated struct Recipe: SharedListItem {
         self.dateAdded = shared.dateAdded
         self.photoData = shared.photoData
         self.showsPhotoOnBoard = shared.showsPhotoOnBoard
+        self.boardPhotoPosition = shared.boardPhotoPosition
         self.systemFields = shared.systemFields
         self.sourceURL = record[Schema.Field.sourceURL] as? String
         self.cuisines = CuisineCatalog.normalized(
@@ -104,7 +108,8 @@ nonisolated struct Recipe: SharedListItem {
             addedBy: addedBy,
             dateAdded: dateAdded,
             photoData: photoData,
-            showsPhotoOnBoard: showsPhotoOnBoard
+            showsPhotoOnBoard: showsPhotoOnBoard,
+            boardPhotoPosition: boardPhotoPosition
         )
         record[Schema.Field.sourceURL] = sourceURL
         record[Schema.Field.cuisines] = cuisines.isEmpty ? nil : cuisines as CKRecordValue

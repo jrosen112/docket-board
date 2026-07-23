@@ -204,6 +204,8 @@ extension BoardStore {
             item.notes ?? "",
             item.status.rawValue,
             item.showsPhotoOnBoard ? "1" : "0",
+            String(item.boardPhotoPosition.x),
+            String(item.boardPhotoPosition.y),
             item.addedBy.recordID.recordName,
             String(item.dateAdded.timeIntervalSinceReferenceDate)
         ]

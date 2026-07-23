@@ -9,6 +9,20 @@
 
 import CloudKit
 
+/// The normalized position of an item's photo inside its board-card crop.
+/// Zero selects the leading/top edge, one selects the trailing/bottom edge.
+nonisolated struct BoardPhotoPosition: Equatable, Sendable {
+    static let center = BoardPhotoPosition(x: 0.5, y: 0.5)
+
+    let x: Double
+    let y: Double
+
+    init(x: Double, y: Double) {
+        self.x = min(max(x, 0), 1)
+        self.y = min(max(y, 0), 1)
+    }
+}
+
 /// Lifecycle of an item on the board.
 nonisolated enum ItemStatus: String, CaseIterable, Codable {
     case wantToGo
@@ -84,6 +98,7 @@ nonisolated protocol SharedListItem: Identifiable {
     var status: ItemStatus { get set }
     var photoData: Data? { get set }
     var showsPhotoOnBoard: Bool { get set }
+    var boardPhotoPosition: BoardPhotoPosition { get set }
     /// Reference to the UserProfile of whoever added the item.
     var addedBy: CKRecord.Reference { get set }
     var dateAdded: Date { get }
@@ -104,7 +119,8 @@ extension CKRecord {
         addedBy: CKRecord.Reference,
         dateAdded: Date,
         photoData: Data?,
-        showsPhotoOnBoard: Bool
+        showsPhotoOnBoard: Bool,
+        boardPhotoPosition: BoardPhotoPosition
     ) {
         self[Schema.Field.title] = title
         self[Schema.Field.notes] = notes
@@ -113,6 +129,8 @@ extension CKRecord {
         self[Schema.Field.dateAdded] = dateAdded
         self[Schema.Field.itemPhoto] = ItemPhotoAsset.make(from: photoData)
         self[Schema.Field.showsPhotoOnBoard] = photoData != nil && showsPhotoOnBoard
+        self[Schema.Field.boardPhotoPositionX] = boardPhotoPosition.x
+        self[Schema.Field.boardPhotoPositionY] = boardPhotoPosition.y
     }
 }
 
@@ -126,6 +144,7 @@ nonisolated struct SharedFields {
     let dateAdded: Date
     let photoData: Data?
     let showsPhotoOnBoard: Bool
+    let boardPhotoPosition: BoardPhotoPosition
     /// System-fields archive of the source record, so edits carry the change tag.
     let systemFields: Data
 
@@ -148,6 +167,10 @@ nonisolated struct SharedFields {
         self.showsPhotoOnBoard =
             photoData != nil
             && (record[Schema.Field.showsPhotoOnBoard] as? Bool ?? false)
+        self.boardPhotoPosition = BoardPhotoPosition(
+            x: record[Schema.Field.boardPhotoPositionX] as? Double ?? 0.5,
+            y: record[Schema.Field.boardPhotoPositionY] as? Double ?? 0.5
+        )
         self.systemFields = record.systemFieldsData
     }
 }

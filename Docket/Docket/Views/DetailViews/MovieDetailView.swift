@@ -151,6 +151,7 @@ struct MovieDetailView: View {
         {
             draft.photoData = preparedPoster
             draft.showsPhotoOnBoard = true
+            draft.boardPhotoPosition = .center
         }
     }
 }

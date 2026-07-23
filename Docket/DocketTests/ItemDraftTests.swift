@@ -128,13 +128,18 @@ final class ItemDraftTests: XCTestCase {
             title: "Paris, Texas",
             addedBy: addedBy,
             photoData: photoData,
-            showsPhotoOnBoard: true
+            showsPhotoOnBoard: true,
+            boardPhotoPosition: BoardPhotoPosition(x: 0.25, y: 0.75)
         )
 
         let draft = ItemDraft(item: movie)
 
         XCTAssertEqual(draft.photoData, photoData)
         XCTAssertTrue(draft.showsPhotoOnBoard)
+        XCTAssertEqual(draft.boardPhotoPosition, movie.boardPhotoPosition)
+
+        let edited = try? XCTUnwrap(draft.applying(to: movie) as? Movie)
+        XCTAssertEqual(edited?.boardPhotoPosition, movie.boardPhotoPosition)
     }
 
     func testBoardCardMediaKeepsPhotoAndMapMutuallyExclusive() {

@@ -49,6 +49,7 @@ nonisolated struct ItemDraft {
     var photoData: Data?
     var showsPhotoOnBoard = false
     var showsMapOnBoard = false
+    var boardPhotoPosition: BoardPhotoPosition = .center
 
     var location: ItemLocation?
     var cuisines: [String] = []
@@ -97,6 +98,7 @@ nonisolated struct ItemDraft {
         status = item.status
         photoData = item.photoData
         showsPhotoOnBoard = item.showsPhotoOnBoard
+        boardPhotoPosition = item.boardPhotoPosition
 
         switch item {
         case let restaurant as Restaurant:
@@ -135,6 +137,7 @@ nonisolated struct ItemDraft {
             restaurant.status = status
             restaurant.photoData = photoData
             restaurant.showsPhotoOnBoard = boardMedia == .photo
+            restaurant.boardPhotoPosition = boardPhotoPosition
             restaurant.location = location
             restaurant.showsMapOnBoard = boardMedia == .map
             restaurant.cuisines = CuisineCatalog.normalized(cuisines)
@@ -146,6 +149,7 @@ nonisolated struct ItemDraft {
             bar.status = status
             bar.photoData = photoData
             bar.showsPhotoOnBoard = boardMedia == .photo
+            bar.boardPhotoPosition = boardPhotoPosition
             bar.location = location
             bar.showsMapOnBoard = boardMedia == .map
             bar.barType = barType
@@ -156,6 +160,7 @@ nonisolated struct ItemDraft {
             movie.status = status
             movie.photoData = photoData
             movie.showsPhotoOnBoard = boardMedia == .photo
+            movie.boardPhotoPosition = boardPhotoPosition
             movie.runtimeMinutes = Int(runtime)
             movie.streamingService = streamingService.orNil
             movie.releaseYear = Int(releaseYear)
@@ -170,6 +175,7 @@ nonisolated struct ItemDraft {
                 additionalPhotoData.prefix(Recipe.maximumPhotoCount - 1)
             )
             recipe.showsPhotoOnBoard = boardMedia == .photo
+            recipe.boardPhotoPosition = boardPhotoPosition
             recipe.cuisines = CuisineCatalog.normalized(cuisines)
             recipe.sourceURL = sourceURL.orNil
             recipe.ingredients = ingredientLines
@@ -197,6 +203,7 @@ nonisolated struct ItemDraft {
                 dateAdded: dateAdded,
                 photoData: photoData,
                 showsPhotoOnBoard: boardMedia == .photo,
+                boardPhotoPosition: boardPhotoPosition,
                 location: location,
                 showsMapOnBoard: boardMedia == .map,
                 cuisines: CuisineCatalog.normalized(cuisines),
@@ -212,6 +219,7 @@ nonisolated struct ItemDraft {
                 dateAdded: dateAdded,
                 photoData: photoData,
                 showsPhotoOnBoard: boardMedia == .photo,
+                boardPhotoPosition: boardPhotoPosition,
                 location: location,
                 showsMapOnBoard: boardMedia == .map,
                 barType: barType
@@ -226,6 +234,7 @@ nonisolated struct ItemDraft {
                 dateAdded: dateAdded,
                 photoData: photoData,
                 showsPhotoOnBoard: boardMedia == .photo,
+                boardPhotoPosition: boardPhotoPosition,
                 runtimeMinutes: Int(runtime),
                 streamingService: streamingService.orNil,
                 releaseYear: Int(releaseYear),
@@ -241,6 +250,7 @@ nonisolated struct ItemDraft {
                 dateAdded: dateAdded,
                 photoData: photoData,
                 showsPhotoOnBoard: boardMedia == .photo,
+                boardPhotoPosition: boardPhotoPosition,
                 sourceURL: sourceURL.orNil,
                 cuisines: CuisineCatalog.normalized(cuisines),
                 ingredients: ingredientLines,

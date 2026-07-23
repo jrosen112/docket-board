@@ -17,17 +17,97 @@ struct ItemPhotoImage: View {
     }
 }
 
+/// Renders the portion of a photo selected for the board card.
+struct BoardCroppedPhoto: View {
+    let data: Data
+    let position: BoardPhotoPosition
+
+    var body: some View {
+        GeometryReader { geometry in
+            if let image = UIImage(data: data) {
+                let layout = BoardPhotoLayout(
+                    imageSize: image.size,
+                    containerSize: geometry.size
+                )
+
+                Image(uiImage: image)
+                    .resizable()
+                    .frame(width: layout.imageSize.width, height: layout.imageSize.height)
+                    .position(
+                        x: layout.imageSize.width / 2
+                            - CGFloat(position.x) * layout.horizontalOverflow,
+                        y: layout.imageSize.height / 2
+                            - CGFloat(position.y) * layout.verticalOverflow
+                    )
+            }
+        }
+        .clipped()
+    }
+}
+
+/// Keeps the background and rounded corners attached to the fitted image,
+/// rather than to the larger detail-page container around it.
+struct RoundedItemPhoto: View {
+    let data: Data
+    let maximumHeight: CGFloat
+
+    var body: some View {
+        ItemPhotoImage(data: data, contentMode: .fit)
+            .frame(maxHeight: maximumHeight)
+            .background(
+                DocketTheme.ink.opacity(0.08),
+                in: RoundedRectangle(
+                    cornerRadius: DocketDetailTheme.Photo.cornerRadius,
+                    style: .continuous
+                )
+            )
+            .clipShape(
+                RoundedRectangle(
+                    cornerRadius: DocketDetailTheme.Photo.cornerRadius,
+                    style: .continuous
+                )
+            )
+    }
+}
+
+/// Read-only detail presentation that mirrors the saved board crop without
+/// growing taller than the rest of the hero content.
+struct CroppedDetailPhoto: View {
+    let data: Data
+    let position: BoardPhotoPosition
+    let aspectRatio: CGFloat
+
+    var body: some View {
+        FittedPhotoLayout(
+            aspectRatio: aspectRatio,
+            maximumHeight: DocketDetailTheme.Photo.detailMaximumHeight
+        ) {
+            BoardCroppedPhoto(data: data, position: position)
+        }
+        .clipShape(
+            RoundedRectangle(
+                cornerRadius: DocketDetailTheme.Photo.cornerRadius,
+                style: .continuous
+            )
+        )
+        .frame(maxWidth: .infinity)
+    }
+}
+
 /// Photo picker used by both the add flow and the typed detail editors.
 struct ItemPhotoEditor: View {
     @Binding var photoData: Data?
     @Binding var showsPhotoOnBoard: Bool
     @Binding var showsMapOnBoard: Bool
+    @Binding var boardPhotoPosition: BoardPhotoPosition
 
     let accent: Color
+    let boardCropAspectRatio: CGFloat
 
     @State private var selectedItem: PhotosPickerItem?
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var isCroppingForBoard = false
 
     var body: some View {
         VStack(spacing: DocketDetailTheme.Photo.controlSpacing) {
@@ -52,19 +132,24 @@ struct ItemPhotoEditor: View {
             guard let newValue else { return }
             Task { await load(newValue) }
         }
+        .sheet(isPresented: $isCroppingForBoard) {
+            if let photoData {
+                BoardPhotoCropEditor(
+                    data: photoData,
+                    position: $boardPhotoPosition,
+                    aspectRatio: boardCropAspectRatio,
+                    accent: accent
+                )
+            }
+        }
     }
 
     private func photoPreview(_ data: Data) -> some View {
-        ItemPhotoImage(data: data, contentMode: .fit)
+        RoundedItemPhoto(
+            data: data,
+            maximumHeight: DocketDetailTheme.Photo.editorMaximumHeight
+        )
             .frame(maxWidth: .infinity)
-            .frame(maxHeight: DocketDetailTheme.Photo.editorMaximumHeight)
-            .background(DocketTheme.ink.opacity(0.08))
-            .clipShape(
-                RoundedRectangle(
-                    cornerRadius: DocketDetailTheme.Photo.cornerRadius,
-                    style: .continuous
-                )
-            )
     }
 
     private var controls: some View {
@@ -74,7 +159,15 @@ struct ItemPhotoEditor: View {
                 matching: .images,
                 preferredItemEncoding: .automatic
             ) {
-                Label("Change photo", systemImage: "photo.badge.arrow.down")
+                Label("Change", systemImage: "photo.badge.arrow.down")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(DocketPhotoButtonStyle(tint: accent))
+
+            Button {
+                isCroppingForBoard = true
+            } label: {
+                Label("Board crop", systemImage: "crop")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(DocketPhotoButtonStyle(tint: accent))
@@ -83,6 +176,7 @@ struct ItemPhotoEditor: View {
                 withAnimation(DocketDetailTheme.Edit.modeAnimation) {
                     photoData = nil
                     showsPhotoOnBoard = false
+                    boardPhotoPosition = .center
                     errorMessage = nil
                 }
             } label: {
@@ -155,6 +249,7 @@ struct ItemPhotoEditor: View {
             let isFirstPhoto = photoData == nil
             withAnimation(DocketDetailTheme.Edit.modeAnimation) {
                 photoData = preparedData
+                boardPhotoPosition = .center
                 if isFirstPhoto {
                     showsPhotoOnBoard = true
                     showsMapOnBoard = false
@@ -173,12 +268,15 @@ struct RecipePhotoCarouselEditor: View {
     @Binding var additionalPhotoData: [Data]
     @Binding var showsPhotoOnBoard: Bool
     @Binding var showsMapOnBoard: Bool
+    @Binding var boardPhotoPosition: BoardPhotoPosition
 
     let accent: Color
+    let boardCropAspectRatio: CGFloat
 
     @State private var selectedItems: [PhotosPickerItem] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var isCroppingForBoard = false
 
     private var photos: [Data] {
         ([photoData].compactMap(\.self) + additionalPhotoData)
@@ -197,9 +295,10 @@ struct RecipePhotoCarouselEditor: View {
             } else {
                 TabView {
                     ForEach(Array(photos.enumerated()), id: \.offset) { index, data in
-                        ItemPhotoImage(data: data, contentMode: .fit)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .background(DocketTheme.ink.opacity(0.08))
+                        RoundedItemPhoto(
+                            data: data,
+                            maximumHeight: DocketDetailTheme.Photo.editorMaximumHeight
+                        )
                             .overlay(alignment: .topTrailing) {
                                 Button(role: .destructive) {
                                     removePhoto(at: index)
@@ -213,21 +312,24 @@ struct RecipePhotoCarouselEditor: View {
                                 .padding(10)
                                 .accessibilityLabel("Remove photo \(index + 1)")
                             }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: photos.count > 1 ? .automatic : .never))
                 .frame(height: DocketDetailTheme.Photo.editorMaximumHeight)
-                .clipShape(
-                    RoundedRectangle(
-                        cornerRadius: DocketDetailTheme.Photo.cornerRadius,
-                        style: .continuous
-                    )
-                )
 
                 HStack(spacing: DocketDetailTheme.Photo.controlSpacing) {
                     if remainingCapacity > 0 {
                         addPhotosButton(label: "Add photos", isEmptyState: false)
                     }
+
+                    Button {
+                        isCroppingForBoard = true
+                    } label: {
+                        Label("Board crop", systemImage: "crop")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(DocketPhotoButtonStyle(tint: accent))
 
                     Text("\(photos.count) of \(Recipe.maximumPhotoCount)")
                         .font(DocketDetailTheme.Photo.supportingFont)
@@ -249,6 +351,16 @@ struct RecipePhotoCarouselEditor: View {
         .onChange(of: selectedItems) { _, items in
             guard !items.isEmpty else { return }
             Task { await load(items) }
+        }
+        .sheet(isPresented: $isCroppingForBoard) {
+            if let photoData {
+                BoardPhotoCropEditor(
+                    data: photoData,
+                    position: $boardPhotoPosition,
+                    aspectRatio: boardCropAspectRatio,
+                    accent: accent
+                )
+            }
         }
     }
 
@@ -315,6 +427,7 @@ struct RecipePhotoCarouselEditor: View {
         withAnimation(DocketDetailTheme.Edit.modeAnimation) {
             photoData = updated.first
             additionalPhotoData = Array(updated.dropFirst())
+            if index == 0 { boardPhotoPosition = .center }
             if updated.isEmpty { showsPhotoOnBoard = false }
         }
     }
@@ -352,6 +465,7 @@ struct RecipePhotoCarouselEditor: View {
             photoData = updated.first
             additionalPhotoData = Array(updated.dropFirst())
             if wasEmpty {
+                boardPhotoPosition = .center
                 showsPhotoOnBoard = true
                 showsMapOnBoard = false
             }
@@ -361,24 +475,231 @@ struct RecipePhotoCarouselEditor: View {
 
 struct RecipePhotoCarousel: View {
     let photos: [Data]
+    let coverPosition: BoardPhotoPosition
 
     var body: some View {
-        TabView {
-            ForEach(Array(photos.enumerated()), id: \.offset) { index, data in
-                ItemPhotoImage(data: data, contentMode: .fit)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(DocketTheme.ink.opacity(0.08))
+        FittedPhotoLayout(
+            aspectRatio: 4.0 / 3.0,
+            maximumHeight: DocketDetailTheme.Photo.detailMaximumHeight
+        ) {
+            TabView {
+                ForEach(Array(photos.enumerated()), id: \.offset) { index, data in
+                    BoardCroppedPhoto(
+                        data: data,
+                        position: index == 0 ? coverPosition : .center
+                    )
                     .accessibilityLabel("Recipe photo \(index + 1) of \(photos.count)")
+                }
             }
+            .tabViewStyle(.page(indexDisplayMode: photos.count > 1 ? .automatic : .never))
         }
-        .tabViewStyle(.page(indexDisplayMode: photos.count > 1 ? .automatic : .never))
-        .frame(height: DocketDetailTheme.Photo.detailMaximumHeight)
         .clipShape(
             RoundedRectangle(
                 cornerRadius: DocketDetailTheme.Photo.cornerRadius,
                 style: .continuous
             )
         )
+        .frame(maxWidth: .infinity)
+    }
+}
+
+private struct FittedPhotoLayout: Layout {
+    let aspectRatio: CGFloat
+    let maximumHeight: CGFloat
+
+    func sizeThatFits(
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) -> CGSize {
+        guard !subviews.isEmpty, aspectRatio > 0 else { return .zero }
+
+        let availableHeight = min(proposal.height ?? maximumHeight, maximumHeight)
+        let availableWidth = proposal.width ?? availableHeight * aspectRatio
+        let width = min(availableWidth, availableHeight * aspectRatio)
+        return CGSize(width: width, height: width / aspectRatio)
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) {
+        guard let subview = subviews.first else { return }
+        subview.place(
+            at: bounds.origin,
+            anchor: .topLeading,
+            proposal: ProposedViewSize(width: bounds.width, height: bounds.height)
+        )
+    }
+}
+
+private struct BoardPhotoCropEditor: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let data: Data
+    @Binding var position: BoardPhotoPosition
+    let aspectRatio: CGFloat
+    let accent: Color
+
+    @State private var workingPosition: BoardPhotoPosition
+    @State private var dragStart: BoardPhotoPosition?
+
+    init(
+        data: Data,
+        position: Binding<BoardPhotoPosition>,
+        aspectRatio: CGFloat,
+        accent: Color
+    ) {
+        self.data = data
+        self._position = position
+        self.aspectRatio = aspectRatio
+        self.accent = accent
+        self._workingPosition = State(initialValue: position.wrappedValue)
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 18) {
+                Text("Drag the photo to frame its board card.")
+                    .font(DocketDetailTheme.Photo.supportingFont)
+                    .foregroundStyle(.secondary)
+
+                cropCanvas
+                    .aspectRatio(aspectRatio, contentMode: .fit)
+                    .frame(maxHeight: 340)
+                    .shadow(color: .black.opacity(0.18), radius: 8, y: 4)
+
+                Button("Reset to center") {
+                    withAnimation(.snappy) {
+                        workingPosition = .center
+                    }
+                }
+                .font(DocketDetailTheme.Photo.buttonFont)
+                .foregroundStyle(accent)
+
+                Spacer(minLength: 0)
+            }
+            .padding()
+            .background(DocketTheme.cream)
+            .navigationTitle("Board crop")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        position = workingPosition
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private var cropCanvas: some View {
+        GeometryReader { geometry in
+            BoardCroppedPhoto(data: data, position: workingPosition)
+                .overlay {
+                    cropGuides
+                }
+                .contentShape(Rectangle())
+                .gesture(cropGesture(in: geometry.size))
+        }
+        .clipShape(
+            RoundedRectangle(
+                cornerRadius: DocketDetailTheme.Photo.cornerRadius,
+                style: .continuous
+            )
+        )
+        .overlay {
+            RoundedRectangle(
+                cornerRadius: DocketDetailTheme.Photo.cornerRadius,
+                style: .continuous
+            )
+            .stroke(accent, lineWidth: 2)
+        }
+        .accessibilityLabel("Board photo crop")
+        .accessibilityHint("Drag the photo to choose which part appears on the board")
+    }
+
+    private var cropGuides: some View {
+        ZStack {
+            HStack(spacing: 0) {
+                Spacer()
+                Rectangle().frame(width: 0.5)
+                Spacer()
+                Rectangle().frame(width: 0.5)
+                Spacer()
+            }
+            VStack(spacing: 0) {
+                Spacer()
+                Rectangle().frame(height: 0.5)
+                Spacer()
+                Rectangle().frame(height: 0.5)
+                Spacer()
+            }
+        }
+        .foregroundStyle(.white.opacity(0.58))
+        .allowsHitTesting(false)
+    }
+
+    private func cropGesture(in containerSize: CGSize) -> some Gesture {
+        DragGesture()
+            .onChanged { value in
+                guard let image = UIImage(data: data) else { return }
+                let layout = BoardPhotoLayout(
+                    imageSize: image.size,
+                    containerSize: containerSize
+                )
+                let start = dragStart ?? workingPosition
+                if dragStart == nil { dragStart = start }
+
+                let x = layout.horizontalOverflow > 0
+                    ? start.x - Double(value.translation.width / layout.horizontalOverflow)
+                    : 0.5
+                let y = layout.verticalOverflow > 0
+                    ? start.y - Double(value.translation.height / layout.verticalOverflow)
+                    : 0.5
+                workingPosition = BoardPhotoPosition(x: x, y: y)
+            }
+            .onEnded { _ in
+                dragStart = nil
+            }
+    }
+}
+
+private struct BoardPhotoLayout {
+    let imageSize: CGSize
+    let horizontalOverflow: CGFloat
+    let verticalOverflow: CGFloat
+
+    init(imageSize: CGSize, containerSize: CGSize) {
+        guard imageSize.width > 0, imageSize.height > 0,
+            containerSize.width > 0, containerSize.height > 0
+        else {
+            self.imageSize = containerSize
+            self.horizontalOverflow = 0
+            self.verticalOverflow = 0
+            return
+        }
+
+        let scale = max(
+            containerSize.width / imageSize.width,
+            containerSize.height / imageSize.height
+        )
+        let scaledSize = CGSize(
+            width: imageSize.width * scale,
+            height: imageSize.height * scale
+        )
+        self.imageSize = scaledSize
+        self.horizontalOverflow = max(0, scaledSize.width - containerSize.width)
+        self.verticalOverflow = max(0, scaledSize.height - containerSize.height)
     }
 }
 

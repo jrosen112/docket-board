@@ -1421,6 +1421,7 @@ final class BoardStoreTests: XCTestCase {
             dateAdded: Date(timeIntervalSince1970: 100),
             photoData: Data([0x01]),
             showsPhotoOnBoard: true,
+            boardPhotoPosition: BoardPhotoPosition(x: 0.3, y: 0.8),
             sourceURL: "https://example.com/recipe",
             cuisines: ["Korean", "American"],
             ingredients: ["Chicken", "Gochujang"],
@@ -1449,6 +1450,7 @@ final class BoardStoreTests: XCTestCase {
         XCTAssertEqual(copied.ingredients, recipe.ingredients)
         XCTAssertEqual(copied.instructions, recipe.instructions)
         XCTAssertEqual(copied.allPhotoData, recipe.allPhotoData)
+        XCTAssertEqual(copied.boardPhotoPosition, recipe.boardPhotoPosition)
         XCTAssertEqual(copied.addedBy.recordID, fixture.destinationProfile.id)
         XCTAssertGreaterThan(copied.dateAdded, recipe.dateAdded)
     }

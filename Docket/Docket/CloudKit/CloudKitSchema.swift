@@ -35,6 +35,8 @@ nonisolated enum Schema {
         static let dateAdded = "dateAdded"
         static let itemPhoto = "itemPhoto"  // CKAsset
         static let showsPhotoOnBoard = "showsPhotoOnBoard"
+        static let boardPhotoPositionX = "boardPhotoPositionX"
+        static let boardPhotoPositionY = "boardPhotoPositionY"
 
         // MARK: Location-based categories
         static let locationName = "locationName"

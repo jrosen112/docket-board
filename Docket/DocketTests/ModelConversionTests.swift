@@ -45,6 +45,7 @@ final class ModelConversionTests: XCTestCase {
             dateAdded: fixedDate,
             photoData: photoData,
             showsPhotoOnBoard: true,
+            boardPhotoPosition: BoardPhotoPosition(x: 0.2, y: 0.85),
             location: location,
             showsMapOnBoard: true,
             cuisines: ["Bakery", "French"],
@@ -63,6 +64,7 @@ final class ModelConversionTests: XCTestCase {
         XCTAssertEqual(decoded.dateAdded, original.dateAdded)
         XCTAssertEqual(decoded.photoData, photoData)
         XCTAssertTrue(decoded.showsPhotoOnBoard)
+        XCTAssertEqual(decoded.boardPhotoPosition, original.boardPhotoPosition)
         XCTAssertEqual(decoded.location, original.location)
         XCTAssertTrue(decoded.showsMapOnBoard)
         XCTAssertEqual(decoded.cuisines, original.cuisines)
@@ -243,6 +245,31 @@ final class ModelConversionTests: XCTestCase {
 
         XCTAssertNil(decoded.photoData)
         XCTAssertFalse(decoded.showsPhotoOnBoard)
+        XCTAssertEqual(decoded.boardPhotoPosition, .center)
+    }
+
+    func testLegacyPhotoDefaultsToCenteredBoardCrop() throws {
+        let record = Movie(
+            id: CKRecord.ID(recordName: "legacy-photo-crop"),
+            title: "Heat",
+            addedBy: addedBy,
+            dateAdded: fixedDate,
+            photoData: Data([0x01]),
+            showsPhotoOnBoard: true
+        ).toRecord()
+        record[Schema.Field.boardPhotoPositionX] = nil
+        record[Schema.Field.boardPhotoPositionY] = nil
+
+        let decoded = try XCTUnwrap(Movie(record: record))
+
+        XCTAssertEqual(decoded.boardPhotoPosition, .center)
+    }
+
+    func testBoardPhotoPositionClampsToValidCropRange() {
+        XCTAssertEqual(
+            BoardPhotoPosition(x: -0.5, y: 1.5),
+            BoardPhotoPosition(x: 0, y: 1)
+        )
     }
 
     func testLegacyRestaurantCuisineMigratesIntoCuisineArray() throws {

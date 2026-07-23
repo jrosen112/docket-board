@@ -43,7 +43,10 @@ struct BoardCard: View {
 
             if item.showsPhotoOnBoard, let photoData = item.photoData {
                 GeometryReader { geometry in
-                    ItemPhotoImage(data: photoData, contentMode: .fill)
+                    BoardCroppedPhoto(
+                        data: photoData,
+                        position: item.boardPhotoPosition
+                    )
                         .frame(
                             width: geometry.size.width,
                             height: DocketTheme.BoardCard.photoHeight
@@ -143,9 +146,11 @@ struct BoardCard: View {
             DocketTheme.ink
 
             GeometryReader { geometry in
-                ItemPhotoImage(data: photoData, contentMode: .fill)
+                BoardCroppedPhoto(
+                    data: photoData,
+                    position: item.boardPhotoPosition
+                )
                     .frame(width: geometry.size.width, height: geometry.size.height)
-                    .clipped()
             }
             .accessibilityHidden(true)
 

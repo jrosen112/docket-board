@@ -24,6 +24,7 @@ nonisolated struct Bar: LocatedListItem {
     var status: ItemStatus
     var photoData: Data?
     var showsPhotoOnBoard: Bool
+    var boardPhotoPosition: BoardPhotoPosition
     var addedBy: CKRecord.Reference
     let dateAdded: Date
     var category: ItemCategory { .bar }
@@ -44,6 +45,7 @@ nonisolated struct Bar: LocatedListItem {
         dateAdded: Date = .now,
         photoData: Data? = nil,
         showsPhotoOnBoard: Bool = false,
+        boardPhotoPosition: BoardPhotoPosition = .center,
         location: ItemLocation? = nil,
         showsMapOnBoard: Bool = false,
         barType: BarType? = nil
@@ -56,6 +58,7 @@ nonisolated struct Bar: LocatedListItem {
         self.dateAdded = dateAdded
         self.photoData = photoData
         self.showsPhotoOnBoard = showsPhotoOnBoard
+        self.boardPhotoPosition = boardPhotoPosition
         self.location = location
         self.showsMapOnBoard = showsMapOnBoard
         self.barType = barType
@@ -75,6 +78,7 @@ nonisolated struct Bar: LocatedListItem {
         self.dateAdded = shared.dateAdded
         self.photoData = shared.photoData
         self.showsPhotoOnBoard = shared.showsPhotoOnBoard
+        self.boardPhotoPosition = shared.boardPhotoPosition
         self.systemFields = shared.systemFields
         self.location = ItemLocation(record: record)
         self.showsMapOnBoard = self.location != nil
@@ -89,7 +93,9 @@ nonisolated struct Bar: LocatedListItem {
         record.applySharedFields(
             title: title, notes: notes, status: status,
             addedBy: addedBy, dateAdded: dateAdded,
-            photoData: photoData, showsPhotoOnBoard: showsPhotoOnBoard
+            photoData: photoData,
+            showsPhotoOnBoard: showsPhotoOnBoard,
+            boardPhotoPosition: boardPhotoPosition
         )
         record.applyLocationFields(location: location, showsMapOnBoard: showsMapOnBoard)
         record[Schema.Field.barType] = barType?.rawValue

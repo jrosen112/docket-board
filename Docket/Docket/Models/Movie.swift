@@ -15,6 +15,7 @@ nonisolated struct Movie: SharedListItem {
     var status: ItemStatus
     var photoData: Data?
     var showsPhotoOnBoard: Bool
+    var boardPhotoPosition: BoardPhotoPosition
     var addedBy: CKRecord.Reference
     let dateAdded: Date
     var category: ItemCategory { .movie }
@@ -36,6 +37,7 @@ nonisolated struct Movie: SharedListItem {
         dateAdded: Date = .now,
         photoData: Data? = nil,
         showsPhotoOnBoard: Bool = false,
+        boardPhotoPosition: BoardPhotoPosition = .center,
         runtimeMinutes: Int? = nil,
         streamingService: String? = nil,
         releaseYear: Int? = nil,
@@ -49,6 +51,7 @@ nonisolated struct Movie: SharedListItem {
         self.dateAdded = dateAdded
         self.photoData = photoData
         self.showsPhotoOnBoard = showsPhotoOnBoard
+        self.boardPhotoPosition = boardPhotoPosition
         self.runtimeMinutes = runtimeMinutes
         self.streamingService = streamingService
         self.releaseYear = releaseYear
@@ -69,6 +72,7 @@ nonisolated struct Movie: SharedListItem {
         self.dateAdded = shared.dateAdded
         self.photoData = shared.photoData
         self.showsPhotoOnBoard = shared.showsPhotoOnBoard
+        self.boardPhotoPosition = shared.boardPhotoPosition
         self.systemFields = shared.systemFields
         self.runtimeMinutes = record[Schema.Field.runtimeMinutes] as? Int
         self.streamingService = record[Schema.Field.streamingService] as? String
@@ -81,7 +85,9 @@ nonisolated struct Movie: SharedListItem {
         record.applySharedFields(
             title: title, notes: notes, status: status,
             addedBy: addedBy, dateAdded: dateAdded,
-            photoData: photoData, showsPhotoOnBoard: showsPhotoOnBoard
+            photoData: photoData,
+            showsPhotoOnBoard: showsPhotoOnBoard,
+            boardPhotoPosition: boardPhotoPosition
         )
         record[Schema.Field.runtimeMinutes] = runtimeMinutes
         record[Schema.Field.streamingService] = streamingService
