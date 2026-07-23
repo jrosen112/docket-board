@@ -50,7 +50,7 @@ final class ItemDraftTests: XCTestCase {
         draft.title = "After"
         draft.location = newLocation
         draft.showsMapOnBoard = true
-        draft.cuisine = "Thai"
+        draft.cuisines = ["Thai", "Chinese"]
         draft.priceRange = .moderate
         draft.photoData = Data([0xCA, 0xFE])
         draft.boardCardMedia = .map
@@ -64,7 +64,7 @@ final class ItemDraftTests: XCTestCase {
         XCTAssertEqual(edited.title, "After")
         XCTAssertEqual(edited.location, newLocation)
         XCTAssertTrue(edited.showsMapOnBoard)
-        XCTAssertEqual(edited.cuisine, "Thai")
+        XCTAssertEqual(edited.cuisines, ["Thai", "Chinese"])
         XCTAssertEqual(edited.priceRange, .moderate)
         XCTAssertEqual(edited.photoData, draft.photoData)
         XCTAssertFalse(edited.showsPhotoOnBoard)
@@ -159,6 +159,7 @@ final class ItemDraftTests: XCTestCase {
         var draft = ItemDraft(category: .recipe)
         draft.title = "  Tomato Pasta  "
         draft.sourceURL = "https://www.instagram.com/reel/pasta"
+        draft.cuisines = ["Italian", "Vegetarian"]
         draft.ingredients = "- 1 lb tomatoes\n• Olive oil\n\n* Salt"
         draft.instructions = "1. Roast the tomatoes\n2) Toss with pasta"
         draft.photoData = Data([0x01])
@@ -173,6 +174,7 @@ final class ItemDraftTests: XCTestCase {
         )
 
         XCTAssertEqual(recipe.title, "Tomato Pasta")
+        XCTAssertEqual(recipe.cuisines, ["Italian", "Vegetarian"])
         XCTAssertEqual(recipe.ingredients, ["1 lb tomatoes", "Olive oil", "Salt"])
         XCTAssertEqual(recipe.instructions, ["Roast the tomatoes", "Toss with pasta"])
         XCTAssertEqual(recipe.allPhotoData.count, Recipe.maximumPhotoCount)
@@ -185,6 +187,7 @@ final class ItemDraftTests: XCTestCase {
             title: "Soup",
             addedBy: addedBy,
             sourceURL: "https://example.com/soup",
+            cuisines: ["Japanese"],
             ingredients: ["Stock"],
             instructions: ["Simmer"],
             additionalPhotoData: [Data([0x02])]
@@ -192,12 +195,15 @@ final class ItemDraftTests: XCTestCase {
         var draft = ItemDraft(item: recipe)
 
         XCTAssertEqual(draft.ingredients, "Stock")
+        XCTAssertEqual(draft.cuisines, ["Japanese"])
         XCTAssertEqual(draft.instructions, "Simmer")
         XCTAssertEqual(draft.additionalPhotoData, [Data([0x02])])
 
         draft.ingredients += "\nNoodles"
+        draft.cuisines.append("Comfort Food")
         let edited = try XCTUnwrap(draft.applying(to: recipe) as? Recipe)
         XCTAssertEqual(edited.ingredients, ["Stock", "Noodles"])
+        XCTAssertEqual(edited.cuisines, ["Japanese", "Comfort Food"])
         XCTAssertEqual(edited.sourceURL, "https://example.com/soup")
     }
 

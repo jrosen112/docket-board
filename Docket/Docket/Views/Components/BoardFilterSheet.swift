@@ -3,6 +3,7 @@ import SwiftUI
 struct BoardFilterSheet: View {
     @Binding var filter: BoardFilter
     let categories: [ItemCategory]
+    let cuisines: [String]
     let onCancel: () -> Void
     let onApply: () -> Void
 
@@ -26,6 +27,9 @@ struct BoardFilterSheet: View {
                     VStack(alignment: .leading, spacing: DocketTheme.FilterSheet.sectionSpacing) {
                         categorySection
                         statusSection
+                        if !cuisines.isEmpty || !filter.cuisines.isEmpty {
+                            cuisineSection
+                        }
                     }
                     .padding(.horizontal, DocketTheme.FilterSheet.pageHorizontalPadding)
                     .padding(.top, DocketTheme.FilterSheet.pageTopPadding)
@@ -94,6 +98,104 @@ struct BoardFilterSheet: View {
                         isSelected: filter.statuses.contains(status),
                         action: { filter.toggle(status) }
                     )
+                }
+            }
+        }
+    }
+
+    private var cuisineSection: some View {
+        filterSection(
+            title: "Cuisines",
+            selectionSummary: filter.cuisines.isEmpty
+                ? "Any cuisine"
+                : "\(filter.cuisines.count) selected"
+        ) {
+            VStack(alignment: .leading, spacing: 10) {
+                Menu {
+                    Section("Match any selected cuisine") {
+                        ForEach(cuisines, id: \.self) { cuisine in
+                            Toggle(
+                                cuisine,
+                                isOn: Binding(
+                                    get: { filter.contains(cuisine: cuisine) },
+                                    set: { _ in filter.toggle(cuisine: cuisine) }
+                                )
+                            )
+                            .menuActionDismissBehavior(.disabled)
+                        }
+                    }
+                } label: {
+                    HStack(spacing: DocketTheme.FilterSheet.tileSpacing) {
+                        Image(systemName: "fork.knife")
+                            .foregroundStyle(DocketTheme.brass)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Choose cuisines")
+                                .font(DocketTheme.FilterSheet.tileFont)
+                            Text("Only cuisines used on this board")
+                                .font(.caption)
+                                .foregroundStyle(DocketTheme.FilterSheet.selectionSummaryColor)
+                        }
+
+                        Spacer(minLength: 8)
+
+                        Text("\(cuisines.count)")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(DocketTheme.brass)
+
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.caption2.weight(.bold))
+                    }
+                    .padding(.horizontal, DocketTheme.FilterSheet.tileHorizontalPadding)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+                    .foregroundStyle(DocketTheme.FilterSheet.unselectedForeground)
+                    .background(
+                        RoundedRectangle(
+                            cornerRadius: DocketTheme.FilterSheet.tileCornerRadius,
+                            style: .continuous
+                        )
+                        .fill(DocketTheme.FilterSheet.unselectedFill)
+                    )
+                    .overlay(
+                        RoundedRectangle(
+                            cornerRadius: DocketTheme.FilterSheet.tileCornerRadius,
+                            style: .continuous
+                        )
+                        .stroke(DocketTheme.FilterSheet.unselectedBorder, lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+
+                if !filter.cuisines.isEmpty {
+                    ScrollView(.horizontal) {
+                        HStack(spacing: 8) {
+                            ForEach(
+                                filter.cuisines.sorted {
+                                    $0.localizedStandardCompare($1) == .orderedAscending
+                                },
+                                id: \.self
+                            ) { cuisine in
+                                Button {
+                                    filter.toggle(cuisine: cuisine)
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        Text(cuisine)
+                                        Image(systemName: "xmark")
+                                            .font(.caption2.weight(.bold))
+                                    }
+                                    .font(.caption.weight(.semibold))
+                                    .padding(.horizontal, 11)
+                                    .padding(.vertical, 7)
+                                    .foregroundStyle(DocketTheme.ink)
+                                    .background(DocketTheme.brass, in: Capsule())
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Remove \(cuisine) filter")
+                            }
+                        }
+                    }
+                    .scrollIndicators(.hidden)
                 }
             }
         }

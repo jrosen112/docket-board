@@ -23,7 +23,7 @@ nonisolated func cardSubtitle(for item: any SharedListItem) -> String? {
     switch item {
     case let restaurant as Restaurant:
         parts = [
-            restaurant.cuisine,
+            cuisineSummary(restaurant.cuisines),
             restaurant.priceRange?.rawValue,
             restaurant.location?.boardLabel,
         ]
@@ -37,6 +37,7 @@ nonisolated func cardSubtitle(for item: any SharedListItem) -> String? {
         ]
     case let recipe as Recipe:
         parts = [
+            cuisineSummary(recipe.cuisines),
             recipe.ingredients.isEmpty ? nil : "\(recipe.ingredients.count) ingredients",
             recipe.instructions.isEmpty ? nil : "\(recipe.instructions.count) steps",
         ]
@@ -92,7 +93,7 @@ nonisolated func quickLookFacts(for item: any SharedListItem) -> [ItemQuickLookF
                 restaurant.location?.detailAddress,
                 prefersFullWidth: true
             ),
-            fact("cuisine", "Cuisine", restaurant.cuisine),
+            fact("cuisine", "Cuisines", cuisineSummary(restaurant.cuisines, limit: nil)),
             fact("price", "Price", restaurant.priceRange?.rawValue),
         ].compactMap(\.self)
     case let bar as Bar:
@@ -108,6 +109,7 @@ nonisolated func quickLookFacts(for item: any SharedListItem) -> [ItemQuickLookF
         ].compactMap(\.self)
     case let recipe as Recipe:
         return [
+            fact("cuisine", "Cuisines", cuisineSummary(recipe.cuisines, limit: nil)),
             fact("source", "Source", recipe.sourceURL, prefersFullWidth: true),
             fact(
                 "ingredients",
@@ -123,6 +125,13 @@ nonisolated func quickLookFacts(for item: any SharedListItem) -> [ItemQuickLookF
     default:
         return []
     }
+}
+
+private nonisolated func cuisineSummary(_ cuisines: [String], limit: Int? = 2) -> String? {
+    guard !cuisines.isEmpty else { return nil }
+    let shown = limit.map { Array(cuisines.prefix($0)) } ?? cuisines
+    let remaining = cuisines.count - shown.count
+    return shown.joined(separator: ", ") + (remaining > 0 ? " +\(remaining)" : "")
 }
 
 nonisolated extension ItemCategory {

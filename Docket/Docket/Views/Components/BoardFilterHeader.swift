@@ -3,6 +3,7 @@ import SwiftUI
 struct BoardFilterHeader: View {
     @Binding var filter: BoardFilter
     let categories: [ItemCategory]
+    let cuisines: [String]
     @State private var showingFilterSheet = false
     @State private var draftFilter = BoardFilter()
     @State private var appliesDraftOnDismiss = false
@@ -41,6 +42,7 @@ struct BoardFilterHeader: View {
                 BoardFilterSheet(
                     filter: $draftFilter,
                     categories: categories,
+                    cuisines: cuisines,
                     onCancel: cancelFilters,
                     onApply: applyFilters
                 )

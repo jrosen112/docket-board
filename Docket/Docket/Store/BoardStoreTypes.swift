@@ -17,6 +17,20 @@ nonisolated enum StoreDeleteResult: Equatable {
     case failed(message: String)
 }
 
+nonisolated enum BoardItemTransferKind: Equatable, Sendable {
+    case duplicate
+    case move
+}
+
+nonisolated enum BoardItemTransferResult: Equatable, Sendable {
+    case duplicated
+    case moved
+    /// The destination copy is safe, but the source remains and can be retried
+    /// without creating another copy.
+    case copiedButSourceKept(message: String)
+    case failed(message: String)
+}
+
 nonisolated enum ICloudRestoreResult: Equatable {
     case restored(boardCount: Int)
     case notFound

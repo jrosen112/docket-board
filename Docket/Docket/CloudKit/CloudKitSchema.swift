@@ -58,6 +58,8 @@ nonisolated enum Schema {
         static let profilePicture = "profilePicture"  // CKAsset (added with photo work)
 
         // MARK: Restaurant
+        /// Multi-value replacement for the legacy singular `cuisine` field.
+        static let cuisines = "cuisines"
         static let cuisine = "cuisine"
         static let priceRange = "priceRange"
 

@@ -58,7 +58,7 @@
                         "1658 Market St", latitude: 37.7736, longitude: -122.4216
                     ),
                     showsMapOnBoard: true,
-                    cuisine: "Californian", priceRange: .pricey
+                    cuisines: ["Californian", "French"], priceRange: .pricey
                 ),
                 Restaurant(
                     id: id(), title: "Souvla",
@@ -113,6 +113,7 @@
                     id: id(), title: "Crispy Gochujang Chicken",
                     notes: "Double the sauce and save some for rice bowls.",
                     status: .planned, addedBy: addedBy, dateAdded: daysAgo(0.8),
+                    cuisines: ["Korean", "American"],
                     ingredients: [
                         "1½ lb boneless chicken thighs",
                         "3 tbsp gochujang",
@@ -134,6 +135,7 @@
                     id: id(), title: "Miso-Maple Salmon Rice Bowls",
                     notes: "Good with leftover rice; crisp it in a skillet while the salmon cooks.",
                     status: .wantToGo, addedBy: addedBy, dateAdded: daysAgo(1.4),
+                    cuisines: ["Japanese"],
                     ingredients: [
                         "2 skin-on salmon fillets, about 6 oz each",
                         "1 tbsp white miso",
@@ -156,6 +158,7 @@
                     id: id(), title: "Skillet Butter Beans with Lemon and Kale",
                     notes: "Serve with toasted sourdough to catch the broth.",
                     status: .completed, addedBy: addedBy, dateAdded: daysAgo(8),
+                    cuisines: ["Mediterranean", "Vegetarian"],
                     ingredients: [
                         "2 cans butter beans, drained, rinsed, and dried",
                         "3 tbsp olive oil",

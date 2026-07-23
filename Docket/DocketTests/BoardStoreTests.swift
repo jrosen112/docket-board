@@ -70,6 +70,56 @@ final class BoardStoreTests: XCTestCase {
         mock.records[movie.id] = movie.toRecord()
     }
 
+    private func makeTransferFixture() -> (
+        store: BoardStore,
+        sourceProfile: UserProfile,
+        destination: Space,
+        destinationService: MockSpaceService,
+        destinationProfile: UserProfile
+    ) {
+        let sourceProfile = seedProfile()
+        let destination = Space(
+            zoneID: CKRecordZone.ID(
+                zoneName: "DocketBoard-transfer",
+                ownerName: "partner"
+            ),
+            access: .joined,
+            title: "Date Nights"
+        )
+        let destinationService = MockSpaceService(space: destination)
+        destinationService.accountUserID = mock.accountUserID
+        let destinationProfile = UserProfile(
+            id: CKRecord.ID(recordName: "profile-destination", zoneID: destination.zoneID),
+            firstName: "Alice",
+            lastName: "Nguyen",
+            accountRecordName: mock.accountUserID.recordName
+        )
+        destinationService.records[destinationProfile.id] = destinationProfile.toRecord()
+        destinationService.profileCreatorRecordNames[destinationProfile.id] =
+            mock.accountUserID.recordName
+        SpaceStore.replace(
+            with: [.default, destination],
+            selected: .default,
+            in: defaults
+        )
+        let sourceService = mock!
+        let transferStore = BoardStore(
+            defaults: defaults,
+            makeService: { space in
+                space == destination ? destinationService : sourceService
+            },
+            notificationService: notificationMock,
+            networkAvailability: networkMock
+        )
+        return (
+            transferStore,
+            sourceProfile,
+            destination,
+            destinationService,
+            destinationProfile
+        )
+    }
+
     // MARK: - Loading
 
     func testBootstrapLoadsItemsAndSetsLoadedFlag() async {
@@ -1356,5 +1406,144 @@ final class BoardStoreTests: XCTestCase {
         XCTAssertEqual(store.currentProfile?.displayName, "Alicia Stone")
         let notices = await notificationMock.capturedNotices()
         XCTAssertTrue(notices.isEmpty)
+    }
+
+    // MARK: - Duplicate and move
+
+    func testDuplicateCopiesCompleteItemToDestinationAndKeepsSource() async throws {
+        let fixture = makeTransferFixture()
+        let recipe = Recipe(
+            id: CKRecord.ID(recordName: "source-recipe", zoneID: mock.space.zoneID),
+            title: "Gochujang Chicken",
+            notes: "Double the sauce",
+            status: .planned,
+            addedBy: fixture.sourceProfile.reference,
+            dateAdded: Date(timeIntervalSince1970: 100),
+            photoData: Data([0x01]),
+            showsPhotoOnBoard: true,
+            sourceURL: "https://example.com/recipe",
+            cuisines: ["Korean", "American"],
+            ingredients: ["Chicken", "Gochujang"],
+            instructions: ["Roast"],
+            additionalPhotoData: [Data([0x02])]
+        )
+        mock.records[recipe.id] = recipe.toRecord()
+        await fixture.store.bootstrap()
+        let destinationID = fixture.store.newItemID(in: fixture.destination)
+
+        let result = await fixture.store.transfer(
+            recipe,
+            to: fixture.destination,
+            kind: .duplicate,
+            destinationRecordID: destinationID
+        )
+
+        XCTAssertEqual(result, .duplicated)
+        XCTAssertNotNil(mock.records[recipe.id])
+        let copiedRecord = try XCTUnwrap(fixture.destinationService.records[destinationID])
+        let copied = try XCTUnwrap(Recipe(record: copiedRecord))
+        XCTAssertEqual(copied.title, recipe.title)
+        XCTAssertEqual(copied.notes, recipe.notes)
+        XCTAssertEqual(copied.status, recipe.status)
+        XCTAssertEqual(copied.cuisines, recipe.cuisines)
+        XCTAssertEqual(copied.ingredients, recipe.ingredients)
+        XCTAssertEqual(copied.instructions, recipe.instructions)
+        XCTAssertEqual(copied.allPhotoData, recipe.allPhotoData)
+        XCTAssertEqual(copied.addedBy.recordID, fixture.destinationProfile.id)
+        XCTAssertGreaterThan(copied.dateAdded, recipe.dateAdded)
+    }
+
+    func testMoveCopiesFirstThenRemovesSourceFromCurrentBoard() async throws {
+        let fixture = makeTransferFixture()
+        let restaurant = Restaurant(
+            id: CKRecord.ID(recordName: "source-restaurant", zoneID: mock.space.zoneID),
+            title: "Souvla",
+            status: .wantToGo,
+            addedBy: fixture.sourceProfile.reference,
+            cuisines: ["Greek"],
+            priceRange: .moderate
+        )
+        mock.records[restaurant.id] = restaurant.toRecord()
+        await fixture.store.bootstrap()
+        let destinationID = fixture.store.newItemID(in: fixture.destination)
+
+        let result = await fixture.store.transfer(
+            restaurant,
+            to: fixture.destination,
+            kind: .move,
+            destinationRecordID: destinationID
+        )
+
+        XCTAssertEqual(result, .moved)
+        XCTAssertNil(mock.records[restaurant.id])
+        XCTAssertFalse(fixture.store.items.contains { $0.id == restaurant.id })
+        let copied = try XCTUnwrap(
+            Restaurant(record: try XCTUnwrap(fixture.destinationService.records[destinationID]))
+        )
+        XCTAssertEqual(copied.title, restaurant.title)
+        XCTAssertEqual(copied.cuisines, restaurant.cuisines)
+    }
+
+    func testFailedDestinationCopyLeavesSourceUntouched() async {
+        let fixture = makeTransferFixture()
+        let movie = Movie(
+            id: CKRecord.ID(recordName: "source-movie", zoneID: mock.space.zoneID),
+            title: "Heat",
+            addedBy: fixture.sourceProfile.reference
+        )
+        mock.records[movie.id] = movie.toRecord()
+        await fixture.store.bootstrap()
+        fixture.destinationService.saveError = CKError(.networkFailure)
+
+        let result = await fixture.store.transfer(
+            movie,
+            to: fixture.destination,
+            kind: .move,
+            destinationRecordID: fixture.store.newItemID(in: fixture.destination)
+        )
+
+        guard case .failed = result else { return XCTFail("Expected failed copy") }
+        XCTAssertNotNil(mock.records[movie.id])
+        XCTAssertTrue(fixture.store.items.contains { $0.id == movie.id })
+    }
+
+    func testPartialMoveCanRetryOnlySourceRemovalWithoutDuplicating() async {
+        let fixture = makeTransferFixture()
+        let bar = Bar(
+            id: CKRecord.ID(recordName: "source-bar", zoneID: mock.space.zoneID),
+            title: "Trick Dog",
+            addedBy: fixture.sourceProfile.reference,
+            barType: .cocktail
+        )
+        mock.records[bar.id] = bar.toRecord()
+        await fixture.store.bootstrap()
+        mock.deleteError = CKError(.networkFailure)
+        let destinationID = fixture.store.newItemID(in: fixture.destination)
+
+        let firstResult = await fixture.store.transfer(
+            bar,
+            to: fixture.destination,
+            kind: .move,
+            destinationRecordID: destinationID
+        )
+
+        guard case .copiedButSourceKept = firstResult else {
+            return XCTFail("Expected a completed copy with source retained")
+        }
+        XCTAssertNotNil(mock.records[bar.id])
+        XCTAssertNotNil(fixture.destinationService.records[destinationID])
+        let destinationItemCount = RecordDecoder.partition(
+            Array(fixture.destinationService.records.values)
+        ).items.count
+
+        mock.deleteError = nil
+        let retryResult = await fixture.store.finishMove(bar, from: .default)
+
+        XCTAssertEqual(retryResult, .moved)
+        XCTAssertNil(mock.records[bar.id])
+        XCTAssertEqual(
+            RecordDecoder.partition(Array(fixture.destinationService.records.values)).items.count,
+            destinationItemCount
+        )
     }
 }

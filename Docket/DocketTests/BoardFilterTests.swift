@@ -33,7 +33,7 @@ final class BoardFilterTests: XCTestCase {
         [
             Restaurant(
                 id: CKRecord.ID(recordName: "r1"), title: "Tartine",
-                status: .wantToGo, addedBy: addedBy),
+                status: .wantToGo, addedBy: addedBy, cuisines: ["Bakery", "French"]),
             Bar(
                 id: CKRecord.ID(recordName: "b1"), title: "Trick Dog",
                 status: .planned, addedBy: addedBy),
@@ -43,13 +43,16 @@ final class BoardFilterTests: XCTestCase {
             Movie(
                 id: CKRecord.ID(recordName: "m2"), title: "Past Lives",
                 status: .wantToGo, addedBy: addedBy),
+            Recipe(
+                id: CKRecord.ID(recordName: "recipe-1"), title: "Red Curry",
+                status: .planned, addedBy: addedBy, cuisines: ["Thai"]),
         ]
     }
 
     func testEmptyFilterPassesEverythingAndIsInactive() {
         let filter = BoardFilter()
         XCTAssertFalse(filter.isActive)
-        XCTAssertEqual(filter.apply(to: items).count, 4)
+        XCTAssertEqual(filter.apply(to: items).count, 5)
     }
 
     func testCategoryFilter() {
@@ -84,22 +87,23 @@ final class BoardFilterTests: XCTestCase {
 
         XCTAssertEqual(
             filter.apply(to: items).map(\.title),
-            ["Tartine", "Trick Dog", "Past Lives"]
+            ["Tartine", "Trick Dog", "Past Lives", "Red Curry"]
         )
     }
 
     func testSelectionCountAndClear() {
         var filter = BoardFilter(
             categories: [.restaurant, .bar, .movie],
-            statuses: [.wantToGo, .planned]
+            statuses: [.wantToGo, .planned],
+            cuisines: ["Thai", "French"]
         )
-        XCTAssertEqual(filter.selectionCount, 5)
+        XCTAssertEqual(filter.selectionCount, 7)
 
         filter.clear()
 
         XCTAssertFalse(filter.isActive)
         XCTAssertEqual(filter.selectionCount, 0)
-        XCTAssertEqual(filter.apply(to: items).count, 4)
+        XCTAssertEqual(filter.apply(to: items).count, 5)
     }
 
     func testToggleAddsAndRemovesSelections() {
@@ -107,12 +111,29 @@ final class BoardFilterTests: XCTestCase {
 
         filter.toggle(.restaurant)
         filter.toggle(ItemStatus.planned)
+        filter.toggle(cuisine: "thai")
         XCTAssertEqual(filter.categories, [.restaurant])
         XCTAssertEqual(filter.statuses, [.planned])
+        XCTAssertTrue(filter.contains(cuisine: "Thai"))
 
         filter.toggle(.restaurant)
         filter.toggle(ItemStatus.planned)
+        filter.toggle(cuisine: "THAI")
         XCTAssertFalse(filter.isActive)
+    }
+
+    func testCuisineFilterMatchesRecipesAndRestaurants() {
+        let thai = BoardFilter(cuisines: ["thai"])
+        let bakery = BoardFilter(cuisines: ["Bakery"])
+
+        XCTAssertEqual(thai.apply(to: items).map(\.title), ["Red Curry"])
+        XCTAssertEqual(bakery.apply(to: items).map(\.title), ["Tartine"])
+    }
+
+    func testMultipleCuisineSelectionsUseORWithinCuisineGroup() {
+        let filter = BoardFilter(cuisines: ["Thai", "French"])
+
+        XCTAssertEqual(filter.apply(to: items).map(\.title), ["Tartine", "Red Curry"])
     }
 
     func testBoardSearchMatchesVisibleAndSupportingItemContent() {

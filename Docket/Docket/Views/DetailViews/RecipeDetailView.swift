@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct RecipeDetailView: View {
+    @Environment(BoardStore.self) private var store
     @Environment(\.docketSurfacePalette) private var palette
 
     let recipe: Recipe
@@ -36,6 +37,15 @@ struct RecipeDetailView: View {
 
     private var editingFields: some View {
         VStack(alignment: .leading, spacing: 4) {
+            CuisineEditRow(
+                accent: recipe.category.accent,
+                availableCuisines: store.items.flatMap(itemCuisines),
+                cuisines: $draft.cuisines,
+                focusedField: focusedField
+            )
+
+            Divider().opacity(0.5)
+
             DetailEditField(
                 symbol: "link",
                 label: "Recipe link",
@@ -75,6 +85,14 @@ struct RecipeDetailView: View {
 
     private var displayFields: some View {
         VStack(alignment: .leading, spacing: 12) {
+            CuisineDisplayRow(
+                cuisines: recipe.cuisines,
+                accent: recipe.category.accent,
+                onTap: { onEdit(.cuisine) }
+            )
+
+            Divider().opacity(0.5)
+
             sourceRow
 
             Divider().opacity(0.5)

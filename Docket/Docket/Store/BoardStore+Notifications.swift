@@ -212,7 +212,7 @@ extension BoardStore {
             fields += [
                 locationFingerprint(restaurant.location),
                 restaurant.showsMapOnBoard ? "1" : "0",
-                restaurant.cuisine ?? "",
+                restaurant.cuisines.joined(separator: "\u{1D}"),
                 restaurant.priceRange?.rawValue ?? ""
             ]
         case let bar as Bar:
@@ -227,6 +227,13 @@ extension BoardStore {
                 movie.streamingService ?? "",
                 movie.releaseYear.map(String.init) ?? "",
                 movie.tmdbID.map(String.init) ?? ""
+            ]
+        case let recipe as Recipe:
+            fields += [
+                recipe.sourceURL ?? "",
+                recipe.cuisines.joined(separator: "\u{1D}"),
+                recipe.ingredients.joined(separator: "\u{1D}"),
+                recipe.instructions.joined(separator: "\u{1D}")
             ]
         default:
             break

@@ -31,7 +31,12 @@ nonisolated struct Restaurant: LocatedListItem {
     // Restaurant-specific
     var location: ItemLocation?
     var showsMapOnBoard: Bool
-    var cuisine: String?
+    var cuisines: [String]
+    /// Compatibility bridge for older call sites and app versions.
+    var cuisine: String? {
+        get { cuisines.first }
+        set { cuisines = CuisineCatalog.normalized([newValue].compactMap(\.self)) }
+    }
     var priceRange: PriceRange?
 
     init(
@@ -46,6 +51,7 @@ nonisolated struct Restaurant: LocatedListItem {
         location: ItemLocation? = nil,
         showsMapOnBoard: Bool = false,
         cuisine: String? = nil,
+        cuisines: [String] = [],
         priceRange: PriceRange? = nil
     ) {
         self.id = id
@@ -58,7 +64,7 @@ nonisolated struct Restaurant: LocatedListItem {
         self.showsPhotoOnBoard = showsPhotoOnBoard
         self.location = location
         self.showsMapOnBoard = showsMapOnBoard
-        self.cuisine = cuisine
+        self.cuisines = CuisineCatalog.normalized(cuisines + [cuisine].compactMap(\.self))
         self.priceRange = priceRange
     }
 
@@ -80,7 +86,11 @@ nonisolated struct Restaurant: LocatedListItem {
         self.location = ItemLocation(record: record)
         self.showsMapOnBoard = self.location != nil
             && (record[Schema.Field.showsMapOnBoard] as? Bool ?? false)
-        self.cuisine = record[Schema.Field.cuisine] as? String
+        let storedCuisines = record[Schema.Field.cuisines] as? [String] ?? []
+        let legacyCuisine = record[Schema.Field.cuisine] as? String
+        self.cuisines = CuisineCatalog.normalized(
+            storedCuisines + [legacyCuisine].compactMap(\.self)
+        )
         if let raw = record[Schema.Field.priceRange] as? String {
             self.priceRange = PriceRange(rawValue: raw)
         }
@@ -94,7 +104,9 @@ nonisolated struct Restaurant: LocatedListItem {
             photoData: photoData, showsPhotoOnBoard: showsPhotoOnBoard
         )
         record.applyLocationFields(location: location, showsMapOnBoard: showsMapOnBoard)
-        record[Schema.Field.cuisine] = cuisine
+        record[Schema.Field.cuisines] = cuisines.isEmpty ? nil : cuisines as CKRecordValue
+        // Keep the first value readable by older app versions during rollout.
+        record[Schema.Field.cuisine] = cuisines.first
         record[Schema.Field.priceRange] = priceRange?.rawValue
         return record
     }

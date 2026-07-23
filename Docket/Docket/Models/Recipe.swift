@@ -23,6 +23,7 @@ nonisolated struct Recipe: SharedListItem {
     var systemFields: Data?
 
     var sourceURL: String?
+    var cuisines: [String]
     var ingredients: [String]
     var instructions: [String]
     var additionalPhotoData: [Data]
@@ -48,6 +49,7 @@ nonisolated struct Recipe: SharedListItem {
         photoData: Data? = nil,
         showsPhotoOnBoard: Bool = false,
         sourceURL: String? = nil,
+        cuisines: [String] = [],
         ingredients: [String] = [],
         instructions: [String] = [],
         additionalPhotoData: [Data] = []
@@ -61,6 +63,7 @@ nonisolated struct Recipe: SharedListItem {
         self.photoData = photoData
         self.showsPhotoOnBoard = showsPhotoOnBoard
         self.sourceURL = sourceURL
+        self.cuisines = CuisineCatalog.normalized(cuisines)
         self.ingredients = ingredients
         self.instructions = instructions
         self.additionalPhotoData = Array(additionalPhotoData.prefix(Self.maximumPhotoCount - 1))
@@ -82,6 +85,9 @@ nonisolated struct Recipe: SharedListItem {
         self.showsPhotoOnBoard = shared.showsPhotoOnBoard
         self.systemFields = shared.systemFields
         self.sourceURL = record[Schema.Field.sourceURL] as? String
+        self.cuisines = CuisineCatalog.normalized(
+            record[Schema.Field.cuisines] as? [String] ?? []
+        )
         self.ingredients = record[Schema.Field.ingredients] as? [String] ?? []
         self.instructions = record[Schema.Field.instructions] as? [String] ?? []
         self.additionalPhotoData = Schema.Field.additionalRecipePhotos.compactMap { field in
@@ -101,6 +107,7 @@ nonisolated struct Recipe: SharedListItem {
             showsPhotoOnBoard: showsPhotoOnBoard
         )
         record[Schema.Field.sourceURL] = sourceURL
+        record[Schema.Field.cuisines] = cuisines.isEmpty ? nil : cuisines as CKRecordValue
         record[Schema.Field.ingredients] = ingredients.isEmpty ? nil : ingredients as CKRecordValue
         record[Schema.Field.instructions] = instructions.isEmpty ? nil : instructions as CKRecordValue
 

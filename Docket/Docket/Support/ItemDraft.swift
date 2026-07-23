@@ -51,7 +51,12 @@ nonisolated struct ItemDraft {
     var showsMapOnBoard = false
 
     var location: ItemLocation?
-    var cuisine = ""
+    var cuisines: [String] = []
+    /// Compatibility bridge for callers that still set a single cuisine.
+    var cuisine: String {
+        get { cuisines.first ?? "" }
+        set { cuisines = CuisineCatalog.normalized([newValue]) }
+    }
     var priceRange: PriceRange?
     var barType: BarType?
     var sourceURL = ""
@@ -97,7 +102,7 @@ nonisolated struct ItemDraft {
         case let restaurant as Restaurant:
             location = restaurant.location
             showsMapOnBoard = restaurant.showsMapOnBoard
-            cuisine = restaurant.cuisine ?? ""
+            cuisines = restaurant.cuisines
             priceRange = restaurant.priceRange
         case let bar as Bar:
             location = bar.location
@@ -109,6 +114,7 @@ nonisolated struct ItemDraft {
             releaseYear = movie.releaseYear.map(String.init) ?? ""
             tmdbID = movie.tmdbID
         case let recipe as Recipe:
+            cuisines = recipe.cuisines
             sourceURL = recipe.sourceURL ?? ""
             ingredients = recipe.ingredients.joined(separator: "\n")
             instructions = recipe.instructions.joined(separator: "\n")
@@ -131,7 +137,7 @@ nonisolated struct ItemDraft {
             restaurant.showsPhotoOnBoard = boardMedia == .photo
             restaurant.location = location
             restaurant.showsMapOnBoard = boardMedia == .map
-            restaurant.cuisine = cuisine.orNil
+            restaurant.cuisines = CuisineCatalog.normalized(cuisines)
             restaurant.priceRange = priceRange
             return restaurant
         case var bar as Bar:
@@ -164,6 +170,7 @@ nonisolated struct ItemDraft {
                 additionalPhotoData.prefix(Recipe.maximumPhotoCount - 1)
             )
             recipe.showsPhotoOnBoard = boardMedia == .photo
+            recipe.cuisines = CuisineCatalog.normalized(cuisines)
             recipe.sourceURL = sourceURL.orNil
             recipe.ingredients = ingredientLines
             recipe.instructions = instructionLines
@@ -192,7 +199,7 @@ nonisolated struct ItemDraft {
                 showsPhotoOnBoard: boardMedia == .photo,
                 location: location,
                 showsMapOnBoard: boardMedia == .map,
-                cuisine: cuisine.orNil,
+                cuisines: CuisineCatalog.normalized(cuisines),
                 priceRange: priceRange
             )
         case .bar:
@@ -235,6 +242,7 @@ nonisolated struct ItemDraft {
                 photoData: photoData,
                 showsPhotoOnBoard: boardMedia == .photo,
                 sourceURL: sourceURL.orNil,
+                cuisines: CuisineCatalog.normalized(cuisines),
                 ingredients: ingredientLines,
                 instructions: instructionLines,
                 additionalPhotoData: additionalPhotoData

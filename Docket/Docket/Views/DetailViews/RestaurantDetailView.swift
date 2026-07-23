@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct RestaurantDetailView: View {
+    @Environment(BoardStore.self) private var store
+
     let restaurant: Restaurant
     let addedBy: String
     let isEditing: Bool
@@ -39,13 +41,10 @@ struct RestaurantDetailView: View {
                 showsMapOnBoard: $draft.showsMapOnBoard,
                 showsPhotoOnBoard: $draft.showsPhotoOnBoard
             )
-            DetailEditField(
-                symbol: "takeoutbag.and.cup.and.straw.fill",
-                label: "Cuisine",
-                placeholder: "Add a cuisine",
-                field: .cuisine,
+            CuisineEditRow(
                 accent: restaurant.category.accent,
-                text: $draft.cuisine,
+                availableCuisines: store.items.flatMap(itemCuisines),
+                cuisines: $draft.cuisines,
                 focusedField: focusedField
             )
             DetailEditPickerRow(
@@ -71,12 +70,10 @@ struct RestaurantDetailView: View {
                 placeholder: "Add location",
                 field: .location
             )
-            fact(
-                symbol: "takeoutbag.and.cup.and.straw.fill",
-                label: "Cuisine",
-                value: restaurant.cuisine,
-                placeholder: "Add cuisine",
-                field: .cuisine
+            CuisineDisplayRow(
+                cuisines: restaurant.cuisines,
+                accent: restaurant.category.accent,
+                onTap: { onEdit(.cuisine) }
             )
             fact(
                 symbol: "creditcard.fill",

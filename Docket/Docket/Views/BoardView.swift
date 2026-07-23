@@ -25,7 +25,9 @@ struct BoardView: View {
     @State private var scrollNoteProgress: CGFloat = 0
     @State private var boardNotice: BoardNotice?
     @State private var pendingSave: PendingBoardSave?
+    @State private var pendingTransfer: PendingBoardTransfer?
     @State private var deleteCandidate: BoardDeleteCandidate?
+    @State private var moveCandidate: BoardMoveCandidate?
     @State private var revealingAddedItemID: CKRecord.ID?
     @State private var isAddedItemRevealed = true
     @State private var diceRoll: DiceRoll?
@@ -35,6 +37,17 @@ struct BoardView: View {
         filter.apply(to: store.items).filter {
             itemMatchesBoardSearch($0, query: searchQuery)
         }
+    }
+
+    private var availableCuisines: [String] {
+        CuisineCatalog.normalized(
+            store.items.flatMap(itemCuisines) + Array(filter.cuisines)
+        )
+        .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+    }
+
+    private var otherBoards: [Space] {
+        store.spaces.filter { $0 != store.space }
     }
 
     private var isSearching: Bool {
@@ -142,6 +155,28 @@ struct BoardView: View {
             } message: { _ in
                 Text("This removes the item from the shared board for everyone. This can't be undone.")
             }
+            .alert(
+                moveCandidate.map {
+                    "Move “\($0.item.title)” to “\($0.destination.title)”?"
+                } ?? "Move Item?",
+                isPresented: Binding(
+                    get: { moveCandidate != nil },
+                    set: { if !$0 { moveCandidate = nil } }
+                ),
+                presenting: moveCandidate
+            ) { candidate in
+                Button("Move", role: .destructive) {
+                    moveCandidate = nil
+                    beginTransfer(candidate.item, to: candidate.destination, kind: .move)
+                }
+                Button("Cancel", role: .cancel) {
+                    moveCandidate = nil
+                }
+            } message: { candidate in
+                Text(
+                    "The item will be copied to \(candidate.destination.title), then removed from \(store.space.title) for everyone."
+                )
+            }
             .task(id: store.itemNavigationRequest?.id) {
                 guard let request = store.itemNavigationRequest else { return }
                 detailTarget = DetailTarget(id: request.recordID)
@@ -162,7 +197,8 @@ struct BoardView: View {
                 } header: {
                     BoardFilterHeader(
                         filter: $filter,
-                        categories: ItemCategory.supported
+                        categories: ItemCategory.supported,
+                        cuisines: availableCuisines
                     )
                 }
             }
@@ -247,6 +283,36 @@ struct BoardView: View {
             } label: {
                 Label("Edit", systemImage: "pencil")
             }
+            if !otherBoards.isEmpty {
+                Menu {
+                    ForEach(otherBoards) { destination in
+                        Button {
+                            beginTransfer(item, to: destination, kind: .duplicate)
+                        } label: {
+                            Label(destination.title, systemImage: "rectangle.stack.fill")
+                        }
+                        .disabled(pendingTransfer != nil)
+                    }
+                } label: {
+                    Label("Duplicate to Board", systemImage: "square.on.square")
+                }
+
+                Menu {
+                    ForEach(otherBoards) { destination in
+                        Button {
+                            moveCandidate = BoardMoveCandidate(
+                                item: item,
+                                destination: destination
+                            )
+                        } label: {
+                            Label(destination.title, systemImage: "rectangle.stack.fill")
+                        }
+                        .disabled(pendingTransfer != nil)
+                    }
+                } label: {
+                    Label("Move to Board", systemImage: "arrow.right.square")
+                }
+            }
             Button(role: .destructive) {
                 deleteCandidate = BoardDeleteCandidate(item: item)
             } label: {
@@ -315,6 +381,96 @@ struct BoardView: View {
         }
     }
 
+    private func beginTransfer(
+        _ item: any SharedListItem,
+        to destination: Space,
+        kind: BoardItemTransferKind
+    ) {
+        performTransfer(
+            PendingBoardTransfer(
+                id: UUID(),
+                item: item,
+                source: store.space,
+                destination: destination,
+                destinationRecordID: store.newItemID(in: destination),
+                kind: kind,
+                stage: .copy
+            )
+        )
+    }
+
+    private func performTransfer(_ transfer: PendingBoardTransfer) {
+        pendingTransfer = transfer
+        withAnimation(DocketDetailTheme.Edit.modeAnimation) {
+            boardNotice = BoardNotice(
+                id: transfer.id,
+                message: transfer.progressMessage,
+                systemImage: transfer.kind.progressSymbol,
+                isProgress: true
+            )
+        }
+
+        Task { @MainActor in
+            let minimumDelay = Task {
+                try? await Task.sleep(for: DocketTheme.RefreshPill.minimumSaveDuration)
+            }
+            let result = switch transfer.stage {
+            case .copy:
+                await store.transfer(
+                    transfer.item,
+                    to: transfer.destination,
+                    kind: transfer.kind,
+                    destinationRecordID: transfer.destinationRecordID
+                )
+            case .removeSource:
+                await store.finishMove(transfer.item, from: transfer.source)
+            }
+            await minimumDelay.value
+
+            guard pendingTransfer?.id == transfer.id else { return }
+            switch result {
+            case .duplicated, .moved:
+                pendingTransfer = nil
+                withAnimation(DocketDetailTheme.Edit.modeAnimation) {
+                    boardNotice = BoardNotice(
+                        id: transfer.id,
+                        message: transfer.successMessage,
+                        systemImage: transfer.kind.successSymbol,
+                        dismissalID: UUID()
+                    )
+                }
+            case .copiedButSourceKept:
+                let retry = PendingBoardTransfer(
+                    id: transfer.id,
+                    item: transfer.item,
+                    source: transfer.source,
+                    destination: transfer.destination,
+                    destinationRecordID: transfer.destinationRecordID,
+                    kind: .move,
+                    stage: .removeSource
+                )
+                pendingTransfer = retry
+                withAnimation(DocketDetailTheme.Edit.modeAnimation) {
+                    boardNotice = BoardNotice(
+                        id: retry.id,
+                        message: "Copied to \(retry.destination.title), but couldn't remove the original — tap to retry",
+                        systemImage: "exclamationmark.arrow.trianglehead.2.clockwise.rotate.90",
+                        isRetryable: true
+                    )
+                }
+            case .failed:
+                withAnimation(DocketDetailTheme.Edit.modeAnimation) {
+                    boardNotice = BoardNotice(
+                        id: transfer.id,
+                        message: transfer.failureMessage,
+                        systemImage: "arrow.clockwise",
+                        isRetryable: true
+                    )
+                }
+            }
+        }
+    }
+
     private func presentDeletedNotice(title: String) {
         withAnimation(DocketDetailTheme.Edit.modeAnimation) {
             boardNotice = BoardNotice(
@@ -377,6 +533,14 @@ struct BoardView: View {
     private func retryPendingSave() {
         guard let pendingSave else { return }
         performSave(pendingSave)
+    }
+
+    private func retryPendingOperation() {
+        if let pendingTransfer {
+            performTransfer(pendingTransfer)
+        } else {
+            retryPendingSave()
+        }
     }
 
     private func performSave(_ initialSave: PendingBoardSave) {
@@ -462,6 +626,7 @@ struct BoardView: View {
     private func dismissBoardNotice() {
         if boardNotice?.isRetryable == true {
             pendingSave = nil
+            pendingTransfer = nil
         }
         withAnimation(
             .easeIn(duration: DocketTheme.RefreshPill.removalDuration)
@@ -483,7 +648,7 @@ struct BoardView: View {
                     systemImage: notice.systemImage,
                     isProgress: notice.isProgress,
                     isRetryable: notice.isRetryable,
-                    onRetry: retryPendingSave,
+                    onRetry: retryPendingOperation,
                     onDismiss: dismissBoardNotice
                 )
                 .id(notice.id)
@@ -584,6 +749,11 @@ private struct BoardDeleteCandidate {
     }
 }
 
+private struct BoardMoveCandidate {
+    let item: any SharedListItem
+    let destination: Space
+}
+
 private struct BoardNotice: Identifiable {
     var id = UUID()
     let message: String
@@ -631,4 +801,57 @@ private struct PendingBoardSave {
     let item: any SharedListItem
     let kind: BoardSaveKind
     let requiresRebase: Bool
+}
+
+private struct PendingBoardTransfer {
+    enum Stage: Equatable {
+        case copy
+        case removeSource
+    }
+
+    let id: UUID
+    let item: any SharedListItem
+    let source: Space
+    let destination: Space
+    let destinationRecordID: CKRecord.ID
+    let kind: BoardItemTransferKind
+    let stage: Stage
+
+    var progressMessage: String {
+        if stage == .removeSource { return "Finishing move…" }
+        return switch kind {
+        case .duplicate: "Duplicating to \(destination.title)…"
+        case .move: "Moving to \(destination.title)…"
+        }
+    }
+
+    var successMessage: String {
+        switch kind {
+        case .duplicate: "Duplicated to \(destination.title)"
+        case .move: "Moved to \(destination.title)"
+        }
+    }
+
+    var failureMessage: String {
+        switch kind {
+        case .duplicate: "Couldn't duplicate to \(destination.title) — tap to retry"
+        case .move: "Couldn't move to \(destination.title) — tap to retry"
+        }
+    }
+}
+
+private extension BoardItemTransferKind {
+    var progressSymbol: String {
+        switch self {
+        case .duplicate: "square.on.square"
+        case .move: "arrow.right.square"
+        }
+    }
+
+    var successSymbol: String {
+        switch self {
+        case .duplicate: "square.on.square.fill"
+        case .move: "arrow.right.square.fill"
+        }
+    }
 }

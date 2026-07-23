@@ -47,7 +47,7 @@ final class ModelConversionTests: XCTestCase {
             showsPhotoOnBoard: true,
             location: location,
             showsMapOnBoard: true,
-            cuisine: "Bakery",
+            cuisines: ["Bakery", "French"],
             priceRange: .moderate
         )
 
@@ -65,7 +65,8 @@ final class ModelConversionTests: XCTestCase {
         XCTAssertTrue(decoded.showsPhotoOnBoard)
         XCTAssertEqual(decoded.location, original.location)
         XCTAssertTrue(decoded.showsMapOnBoard)
-        XCTAssertEqual(decoded.cuisine, original.cuisine)
+        XCTAssertEqual(decoded.cuisines, original.cuisines)
+        XCTAssertEqual(record[Schema.Field.cuisine] as? String, "Bakery")
         XCTAssertEqual(decoded.priceRange, original.priceRange)
     }
 
@@ -159,6 +160,7 @@ final class ModelConversionTests: XCTestCase {
             photoData: cover,
             showsPhotoOnBoard: true,
             sourceURL: "https://www.instagram.com/reel/example",
+            cuisines: ["Korean", "American"],
             ingredients: ["Chicken thighs", "Gochujang", "Honey"],
             instructions: ["Whisk the sauce", "Roast the chicken"],
             additionalPhotoData: [processPhoto, finishedPhoto]
@@ -172,6 +174,7 @@ final class ModelConversionTests: XCTestCase {
         XCTAssertEqual(decoded.notes, original.notes)
         XCTAssertEqual(decoded.status, original.status)
         XCTAssertEqual(decoded.sourceURL, original.sourceURL)
+        XCTAssertEqual(decoded.cuisines, original.cuisines)
         XCTAssertEqual(decoded.ingredients, original.ingredients)
         XCTAssertEqual(decoded.instructions, original.instructions)
         XCTAssertEqual(decoded.allPhotoData, [cover, processPhoto, finishedPhoto])
@@ -240,6 +243,21 @@ final class ModelConversionTests: XCTestCase {
 
         XCTAssertNil(decoded.photoData)
         XCTAssertFalse(decoded.showsPhotoOnBoard)
+    }
+
+    func testLegacyRestaurantCuisineMigratesIntoCuisineArray() throws {
+        let record = Restaurant(
+            id: CKRecord.ID(recordName: "legacy-cuisine"),
+            title: "Old Favorite",
+            addedBy: addedBy,
+            dateAdded: fixedDate
+        ).toRecord()
+        record[Schema.Field.cuisines] = nil
+        record[Schema.Field.cuisine] = "Thai"
+
+        let decoded = try XCTUnwrap(Restaurant(record: record))
+
+        XCTAssertEqual(decoded.cuisines, ["Thai"])
     }
 
     // MARK: System fields (edit support)

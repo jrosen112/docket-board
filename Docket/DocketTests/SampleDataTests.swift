@@ -30,6 +30,7 @@ final class SampleDataTests: XCTestCase {
         // All tagged as samples, all landing in the right zone.
         XCTAssertTrue(items.allSatisfy { SampleData.isSample($0.id) })
         XCTAssertTrue(items.allSatisfy { $0.id.zoneID == zoneID })
+        XCTAssertTrue(items.contains { itemCuisines($0).count > 1 })
     }
 
     func testSeedAndDeleteLeavesRealItemsAlone() async {
