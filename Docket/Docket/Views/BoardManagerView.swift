@@ -139,23 +139,27 @@ struct BoardManagerView: View {
                     )
                 }
             }
-            .alert(
-                "Delete Board?",
-                isPresented: Binding(
-                    get: { deleteCandidate != nil },
-                    set: { if !$0 { deleteCandidate = nil } }
-                ),
-                presenting: deleteCandidate
-            ) { space in
-                Button("Delete “\(space.title)”", role: .destructive) {
-                    deleteCandidate = nil
-                    deleteBoard(space)
-                }
-                Button("Cancel", role: .cancel) {
-                    deleteCandidate = nil
-                }
-            } message: { space in
-                Text("Deletes every pin for all participants. This can't be undone.")
+            .background {
+                Color.clear
+                    .alert(
+                        "Delete Board?",
+                        isPresented: Binding(
+                            get: { deleteCandidate != nil },
+                            set: { if !$0 { deleteCandidate = nil } }
+                        ),
+                        presenting: deleteCandidate
+                    ) { space in
+                        Button("Delete “\(space.title)”", role: .destructive) {
+                            deleteCandidate = nil
+                            deleteBoard(space)
+                        }
+                        Button("Cancel", role: .cancel) {
+                            deleteCandidate = nil
+                        }
+                    } message: { space in
+                        Text("Deletes every pin for all participants. This can't be undone.")
+                    }
+                    .tint(DocketTheme.alertActionTint)
             }
         }
         .tint(DocketTheme.brass)

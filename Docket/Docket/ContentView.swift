@@ -40,20 +40,24 @@ struct ContentView: View {
         ) { invitation in
             JoinBoardView(invitation: invitation)
         }
-        .alert(
-            "Couldn't Join Board",
-            isPresented: Binding(
-                get: { store.shareAcceptanceErrorMessage != nil },
-                set: { isPresented in
-                    if !isPresented { store.shareAcceptanceErrorMessage = nil }
+        .background {
+            Color.clear
+                .alert(
+                    "Couldn't Join Board",
+                    isPresented: Binding(
+                        get: { store.shareAcceptanceErrorMessage != nil },
+                        set: { isPresented in
+                            if !isPresented { store.shareAcceptanceErrorMessage = nil }
+                        }
+                    )
+                ) {
+                    Button("OK", role: .cancel) {
+                        store.shareAcceptanceErrorMessage = nil
+                    }
+                } message: {
+                    Text(store.shareAcceptanceErrorMessage ?? "Please try the invitation again.")
                 }
-            )
-        ) {
-            Button("OK", role: .cancel) {
-                store.shareAcceptanceErrorMessage = nil
-            }
-        } message: {
-            Text(store.shareAcceptanceErrorMessage ?? "Please try the invitation again.")
+                .tint(DocketTheme.alertActionTint)
         }
     }
 
@@ -63,9 +67,7 @@ struct ContentView: View {
                 .fill(DocketTheme.boardBackground)
                 .ignoresSafeArea()
             VStack(spacing: 14) {
-                Image(systemName: "pin.fill")
-                    .font(.system(size: 30))
-                    .foregroundStyle(DocketTheme.brass)
+                DocketPinIcon()
                 Text("Docket")
                     .font(DocketTheme.display(24))
                     .foregroundStyle(DocketTheme.cream)

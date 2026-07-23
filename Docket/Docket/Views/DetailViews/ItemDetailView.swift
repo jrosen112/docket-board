@@ -46,29 +46,11 @@ struct ItemDetailView: View {
                             onSave: submitSave
                         )
                     }
-                    .alert(
-                        "Delete “\(item.title)”?",
-                        isPresented: $isShowingDeleteConfirmation
-                    ) {
-                        Button("Delete", role: .destructive) {
-                            submitDelete(item)
-                        }
-                        Button("Cancel", role: .cancel) {}
-                    } message: {
-                        Text("This removes the item from the shared board for everyone. This can't be undone.")
+                    .background {
+                        deleteConfirmationPresenter(for: item)
                     }
-                    .alert(
-                        "Couldn't Delete Item",
-                        isPresented: Binding(
-                            get: { deleteErrorMessage != nil },
-                            set: { if !$0 { deleteErrorMessage = nil } }
-                        )
-                    ) {
-                        Button("OK", role: .cancel) {
-                            deleteErrorMessage = nil
-                        }
-                    } message: {
-                        Text(deleteErrorMessage ?? "Please try again.")
+                    .background {
+                        deleteErrorPresenter
                     }
                     .onAppear {
                         isToolbarVisible = true
@@ -88,6 +70,40 @@ struct ItemDetailView: View {
                 )
             }
         }
+    }
+
+    private func deleteConfirmationPresenter(for item: any SharedListItem) -> some View {
+        Color.clear
+            .alert(
+                "Delete “\(item.title)”?",
+                isPresented: $isShowingDeleteConfirmation
+            ) {
+                Button("Delete", role: .destructive) {
+                    submitDelete(item)
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This removes the item from the shared board for everyone. This can't be undone.")
+            }
+            .tint(DocketTheme.alertActionTint)
+    }
+
+    private var deleteErrorPresenter: some View {
+        Color.clear
+            .alert(
+                "Couldn't Delete Item",
+                isPresented: Binding(
+                    get: { deleteErrorMessage != nil },
+                    set: { if !$0 { deleteErrorMessage = nil } }
+                )
+            ) {
+                Button("OK", role: .cancel) {
+                    deleteErrorMessage = nil
+                }
+            } message: {
+                Text(deleteErrorMessage ?? "Please try again.")
+            }
+            .tint(DocketTheme.alertActionTint)
     }
 
     @ViewBuilder

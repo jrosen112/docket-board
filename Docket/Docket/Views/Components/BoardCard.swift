@@ -18,6 +18,7 @@ struct BoardCard: View {
     let item: any SharedListItem
     let subtitle: String?
     let addedBy: String
+    var showsPin = true
 
     private var accent: Color { item.category.accent }
 
@@ -129,7 +130,10 @@ struct BoardCard: View {
                 .padding(.leading, 5)
         }
         .overlay(alignment: .top) {
-            PinDot().offset(y: -5)
+            if showsPin {
+                BoardPinHead()
+                    .offset(y: DocketTheme.BoardCard.pinOffsetY)
+            }
         }
         .rotationEffect(.degrees(DocketTheme.rotationDegrees(for: item.id.recordName)))
     }
@@ -210,7 +214,10 @@ struct BoardCard: View {
             .shadow(color: palette.shadow, radius: 5, x: 0, y: 4)
         )
         .overlay(alignment: .top) {
-            PinDot().offset(y: -5)
+            if showsPin {
+                BoardPinHead()
+                    .offset(y: DocketTheme.BoardCard.pinOffsetY)
+            }
         }
         .rotationEffect(.degrees(DocketTheme.rotationDegrees(for: item.id.recordName)))
     }
@@ -277,8 +284,8 @@ struct BoardCardPreviewShape: Shape {
     }
 }
 
-/// The brass "push pin" head at the top of each card.
-private struct PinDot: View {
+/// The brass push-pin head shared by cards and their removal animation.
+struct BoardPinHead: View {
     var body: some View {
         Circle()
             .fill(
@@ -290,7 +297,10 @@ private struct PinDot: View {
                 )
             )
             .overlay(Circle().stroke(.black.opacity(0.3), lineWidth: 0.5))
-            .frame(width: 11, height: 11)
+            .frame(
+                width: DocketTheme.BoardCard.pinSize,
+                height: DocketTheme.BoardCard.pinSize
+            )
             .shadow(color: .black.opacity(0.4), radius: 1.5, x: 0, y: 1.5)
     }
 }

@@ -33,6 +33,8 @@ nonisolated enum DocketTheme {
     static let cream = Color(hex: 0xEFE6D3)
     /// Brass/gold primary accent.
     static let brass = Color(hex: 0xD9A441)
+    /// Native alerts use adaptive glass, where brass text is too low-contrast.
+    static let alertActionTint = Color.blue
 
     /// The board surface: navy with a subtle top-light vignette.
     static var boardBackground: some ShapeStyle {
@@ -60,6 +62,8 @@ nonisolated enum DocketTheme {
         /// Transparent breathing room included in transition and context-menu
         /// snapshots so the tilted paper, shadow, and pin are not clipped.
         static let transitionCaptureInset: CGFloat = 10
+        static let pinSize: CGFloat = 11
+        static let pinOffsetY: CGFloat = -5
         static let photoHeight: CGFloat = 104
         static let photoCornerRadius: CGFloat = 4
         static let categoryFooterSpacing: CGFloat = 8
@@ -351,6 +355,42 @@ nonisolated enum DocketTheme {
         static var changeAnimation: Animation {
             .spring(response: changeResponse, dampingFraction: changeDamping)
         }
+    }
+
+    enum PhysicalDelete {
+        static let pinLiftDistance: CGFloat = 24
+        static let pinLiftScale: CGFloat = 1.12
+        static let cardReleaseOffset: CGFloat = 4
+        static let horizontalDrift: CGFloat = 34
+        static let fallDistance: CGFloat = 720
+        static let fallScale: CGFloat = 0.96
+        static let fallRotation: Double = 11
+        static let pinLiftDuration: TimeInterval = 0.16
+        static let fallDuration: TimeInterval = 0.52
+        static let reducedMotionDuration: TimeInterval = 0.18
+        static let pinLiftDelay: Duration = .milliseconds(160)
+        static let fallDelay: Duration = .milliseconds(520)
+        static let reducedMotionDelay: Duration = .milliseconds(180)
+    }
+
+    enum PullToRefresh {
+        static let threshold: CGFloat = 76
+        static let disarmDistance: CGFloat = 64
+        static let maximumTrackedDistance: CGFloat = 104
+        static let hiddenOffset: CGFloat = -34
+        static let revealedOffset: CGFloat = 7
+        static let indicatorHeight: CGFloat = 44
+        static let refreshHoldSpace: CGFloat = 44
+        static let activityRingSize: CGFloat = 36
+        static let activityLineWidth: CGFloat = 1.75
+        static let pinSymbolSize: CGFloat = 19
+        static let restingRotation: Double = -10
+        static let restingScale: CGFloat = 0.9
+        static let armedScale: CGFloat = 1.08
+        static let refreshDegreesPerSecond: Double = 210
+        static let refreshFrameInterval: TimeInterval = 1.0 / 30.0
+        static let armingAnimation = Animation.snappy(duration: 0.18)
+        static let resetAnimation = Animation.spring(response: 0.3, dampingFraction: 0.78)
     }
 
     enum RefreshPill {

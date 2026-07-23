@@ -28,6 +28,8 @@ struct BoardView: View {
     @State private var pendingTransfer: PendingBoardTransfer?
     @State private var deleteCandidate: BoardDeleteCandidate?
     @State private var moveCandidate: BoardMoveCandidate?
+    @State private var physicalDeleteCandidates: [CKRecord.ID: BoardDeleteCandidate] = [:]
+    @State private var locallyRemovedItemIDs: Set<CKRecord.ID> = []
     @State private var revealingAddedItemID: CKRecord.ID?
     @State private var isAddedItemRevealed = true
     @State private var diceRoll: DiceRoll?
@@ -35,7 +37,8 @@ struct BoardView: View {
 
     private var filteredItems: [any SharedListItem] {
         filter.apply(to: store.items).filter {
-            itemMatchesBoardSearch($0, query: searchQuery)
+            !locallyRemovedItemIDs.contains($0.id)
+                && itemMatchesBoardSearch($0, query: searchQuery)
         }
     }
 
@@ -137,6 +140,22 @@ struct BoardView: View {
                     .zoom(sourceID: target.id, in: boardTransitionNamespace)
                 )
             }
+            .background {
+                deleteAlertPresenter
+            }
+            .background {
+                moveAlertPresenter
+            }
+            .task(id: store.itemNavigationRequest?.id) {
+                guard let request = store.itemNavigationRequest else { return }
+                detailTarget = DetailTarget(id: request.recordID)
+                store.consumeItemNavigationRequest(request.id)
+            }
+        }
+    }
+
+    private var deleteAlertPresenter: some View {
+        Color.clear
             .alert(
                 deleteAlertTitle,
                 isPresented: Binding(
@@ -155,10 +174,17 @@ struct BoardView: View {
             } message: { _ in
                 Text("This removes the item from the shared board for everyone. This can't be undone.")
             }
+            .tint(DocketTheme.alertActionTint)
+    }
+
+    private var moveAlertPresenter: some View {
+        let title = moveCandidate.map {
+            "Move “\($0.item.title)” to “\($0.destination.title)”?"
+        } ?? "Move Item?"
+
+        return Color.clear
             .alert(
-                moveCandidate.map {
-                    "Move “\($0.item.title)” to “\($0.destination.title)”?"
-                } ?? "Move Item?",
+                title,
                 isPresented: Binding(
                     get: { moveCandidate != nil },
                     set: { if !$0 { moveCandidate = nil } }
@@ -177,12 +203,7 @@ struct BoardView: View {
                     "The item will be copied to \(candidate.destination.title), then removed from \(store.space.title) for everyone."
                 )
             }
-            .task(id: store.itemNavigationRequest?.id) {
-                guard let request = store.itemNavigationRequest else { return }
-                detailTarget = DetailTarget(id: request.recordID)
-                store.consumeItemNavigationRequest(request.id)
-            }
-        }
+            .tint(DocketTheme.alertActionTint)
     }
 
     // MARK: - Pieces
@@ -204,7 +225,9 @@ struct BoardView: View {
             }
             .padding(.horizontal, 16)
         }
-        .refreshable { await refreshBoard() }
+        .docketPullToRefresh(isEnabled: !store.isSwitchingBoard) {
+            await refreshBoard()
+        }
         .onScrollGeometryChange(
             for: CGFloat.self,
             of: { geometry in
@@ -259,11 +282,20 @@ struct BoardView: View {
     private func card(for item: any SharedListItem) -> some View {
         let captureInset = DocketTheme.BoardCard.transitionCaptureInset
 
-        return BoardCard(
-            item: item,
-            subtitle: cardSubtitle(for: item),
-            addedBy: store.displayName(for: item)
-        )
+        return PhysicalCardRemovalView(
+            isRemoving: physicalDeleteCandidates[item.id] != nil,
+            direction: physicalDeleteDirection(for: item.id),
+            onAnimationCompleted: {
+                finishPhysicalDeleteAnimation(for: item.id)
+            }
+        ) {
+            BoardCard(
+                item: item,
+                subtitle: cardSubtitle(for: item),
+                addedBy: store.displayName(for: item),
+                showsPin: false
+            )
+        }
         // Capture visual overflow from the pin, shadow, and card rotation.
         // MasonryLayout accounts for this inset without moving the paper.
         .padding(captureInset)
@@ -330,6 +362,7 @@ struct BoardView: View {
                 : 1
         )
         .opacity(revealingAddedItemID == item.id && !isAddedItemRevealed ? 0 : 1)
+        .zIndex(physicalDeleteCandidates[item.id] == nil ? 0 : 10)
         .transition(
             .asymmetric(
                 insertion: .scale(scale: DocketTheme.BoardItems.insertionScale)
@@ -375,10 +408,33 @@ struct BoardView: View {
     }
 
     private func performDelete(_ candidate: BoardDeleteCandidate) {
-        Task { @MainActor in
-            guard case .deleted = await store.delete(candidate.item) else { return }
-            presentDeletedNotice(title: candidate.title)
+        guard physicalDeleteCandidates[candidate.item.id] == nil else { return }
+        physicalDeleteCandidates[candidate.item.id] = candidate
+    }
+
+    private func finishPhysicalDeleteAnimation(for itemID: CKRecord.ID) {
+        guard let candidate = physicalDeleteCandidates[itemID] else { return }
+
+        withAnimation(DocketTheme.BoardItems.changeAnimation) {
+            locallyRemovedItemIDs.insert(itemID)
+            physicalDeleteCandidates[itemID] = nil
         }
+
+        Task { @MainActor in
+            switch await store.delete(candidate.item) {
+            case .deleted:
+                locallyRemovedItemIDs.remove(itemID)
+                presentDeletedNotice(title: candidate.title)
+            case .failed:
+                withAnimation(DocketTheme.BoardItems.changeAnimation) {
+                    _ = locallyRemovedItemIDs.remove(itemID)
+                }
+            }
+        }
+    }
+
+    private func physicalDeleteDirection(for itemID: CKRecord.ID) -> CGFloat {
+        DocketTheme.stableHash(for: itemID.recordName + "#delete") % 2 == 0 ? -1 : 1
     }
 
     private func beginTransfer(

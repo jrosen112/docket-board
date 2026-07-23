@@ -82,14 +82,18 @@ struct ShareRootView: View {
         }
         .interactiveDismissDisabled(isSaving || isAnalyzing)
         .task { await analyzeCaptionIfNeeded() }
-        .alert("Couldn't create recipe", isPresented: $showsAnalysisFailure) {
-            Button("Edit manually") {
-                if title.isEmpty {
-                    focusedField = .title
+        .background {
+            Color.clear
+                .alert("Couldn't create recipe", isPresented: $showsAnalysisFailure) {
+                    Button("Edit manually") {
+                        if title.isEmpty {
+                            focusedField = .title
+                        }
+                    }
+                } message: {
+                    Text(analysisFailureMessage)
                 }
-            }
-        } message: {
-            Text(analysisFailureMessage)
+                .tint(.blue)
         }
     }
 
