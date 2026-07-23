@@ -6,7 +6,18 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		A20000010000000000000001 /* DocketShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A20000020000000000000002 /* DocketShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
+		A20000030000000000000003 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = EB5D0EFF30044876003C719B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A20000090000000000000009;
+			remoteInfo = DocketShareExtension;
+		};
 		EB5D0F1530044876003C719B /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = EB5D0EFF30044876003C719B /* Project object */;
@@ -23,14 +34,47 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		A20000080000000000000008 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				A20000010000000000000001 /* DocketShareExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		A10000010000000000000001 /* Config/Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config/Base.xcconfig; sourceTree = SOURCE_ROOT; };
+		A20000020000000000000002 /* DocketShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = DocketShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		EB5D0F0730044876003C719B /* Docket.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Docket.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		EB5D0F1430044876003C719B /* DocketTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DocketTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		EB5D0F1E30044876003C719B /* DocketUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DocketUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		A200000E000000000000000E /* Exceptions for "DocketShareExtension" folder in "DocketShareExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = A20000090000000000000009 /* DocketShareExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		A20000040000000000000004 /* DocketShareExtension */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				A200000E000000000000000E /* Exceptions for "DocketShareExtension" folder in "DocketShareExtension" target */,
+			);
+			path = DocketShareExtension;
+			sourceTree = "<group>";
+		};
 		EB5D0F0930044876003C719B /* Docket */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Docket;
@@ -49,6 +93,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		A20000050000000000000005 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		EB5D0F0430044876003C719B /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -78,6 +129,7 @@
 			children = (
 				A10000010000000000000001 /* Config/Base.xcconfig */,
 				EB5D0F0930044876003C719B /* Docket */,
+				A20000040000000000000004 /* DocketShareExtension */,
 				EB5D0F1730044876003C719B /* DocketTests */,
 				EB5D0F2130044876003C719B /* DocketUITests */,
 				EB5D0F0830044876003C719B /* Products */,
@@ -88,6 +140,7 @@
 			isa = PBXGroup;
 			children = (
 				EB5D0F0730044876003C719B /* Docket.app */,
+				A20000020000000000000002 /* DocketShareExtension.appex */,
 				EB5D0F1430044876003C719B /* DocketTests.xctest */,
 				EB5D0F1E30044876003C719B /* DocketUITests.xctest */,
 			);
@@ -97,6 +150,28 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		A20000090000000000000009 /* DocketShareExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A200000D000000000000000D /* Build configuration list for PBXNativeTarget "DocketShareExtension" */;
+			buildPhases = (
+				A20000060000000000000006 /* Sources */,
+				A20000050000000000000005 /* Frameworks */,
+				A20000070000000000000007 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				A20000040000000000000004 /* DocketShareExtension */,
+			);
+			name = DocketShareExtension;
+			packageProductDependencies = (
+			);
+			productName = DocketShareExtension;
+			productReference = A20000020000000000000002 /* DocketShareExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		EB5D0F0630044876003C719B /* Docket */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = EB5D0F2830044876003C719B /* Build configuration list for PBXNativeTarget "Docket" */;
@@ -104,10 +179,12 @@
 				EB5D0F0330044876003C719B /* Sources */,
 				EB5D0F0430044876003C719B /* Frameworks */,
 				EB5D0F0530044876003C719B /* Resources */,
+				A20000080000000000000008 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				A200000A000000000000000A /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				EB5D0F0930044876003C719B /* Docket */,
@@ -175,6 +252,9 @@
 				LastSwiftUpdateCheck = 2640;
 				LastUpgradeCheck = 2640;
 				TargetAttributes = {
+					A20000090000000000000009 = {
+						CreatedOnToolsVersion = 26.4.1;
+					};
 					EB5D0F0630044876003C719B = {
 						CreatedOnToolsVersion = 26.4.1;
 					};
@@ -203,6 +283,7 @@
 			projectRoot = "";
 			targets = (
 				EB5D0F0630044876003C719B /* Docket */,
+				A20000090000000000000009 /* DocketShareExtension */,
 				EB5D0F1330044876003C719B /* DocketTests */,
 				EB5D0F1D30044876003C719B /* DocketUITests */,
 			);
@@ -210,6 +291,13 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		A20000070000000000000007 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		EB5D0F0530044876003C719B /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -234,6 +322,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		A20000060000000000000006 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		EB5D0F0330044876003C719B /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -258,6 +353,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		A200000A000000000000000A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A20000090000000000000009 /* DocketShareExtension */;
+			targetProxy = A20000030000000000000003 /* PBXContainerItemProxy */;
+		};
 		EB5D0F1630044876003C719B /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = EB5D0F0630044876003C719B /* Docket */;
@@ -271,6 +371,66 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		A200000B000000000000000B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = DocketShareExtension/DocketShareExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = NGVV83EA24;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = DocketShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = jared.rosen.Docket.Share;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A200000C000000000000000C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = DocketShareExtension/DocketShareExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = NGVV83EA24;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = DocketShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = jared.rosen.Docket.Share;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		EB5D0F2630044876003C719B /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -549,6 +709,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		A200000D000000000000000D /* Build configuration list for PBXNativeTarget "DocketShareExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A200000B000000000000000B /* Debug */,
+				A200000C000000000000000C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		EB5D0F0230044876003C719B /* Build configuration list for PBXProject "Docket" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

@@ -1,6 +1,6 @@
 # Docket — Implementation
 
-_Current as of 2026-07-20._
+_Current as of 2026-07-22._
 
 This document describes the app as it exists now. [CLAUDE.md](CLAUDE.md)
 contains the original product brief and working agreement; where its old
@@ -22,6 +22,10 @@ The current app supports:
 - Restaurant, Bar, Recipe, and Movie items with category-specific fields.
 - Recipe source links (including Instagram and TikTok), structured shopping
   lists and instructions, and up to five detail-carousel photos.
+- A Share to Docket extension that captures web, Instagram, and TikTok links,
+  recovers public captions and clean cover images when available, analyzes the
+  recipe on-device, and opens an editable title, ingredient, instruction, and
+  cover form before saving to a selected board.
 - MapKit place search and structured addresses for Restaurants and Bars.
 - Optional pinned map snapshots on place cards, alongside the existing photo
   and paper-only card treatments.
@@ -37,6 +41,8 @@ The current app supports:
 - Silent CloudKit change notifications and local notifications for items added
   by another participant.
 - Pull-to-refresh feedback showing the number of newly added items.
+- A top-bar Pick for us dice action that rolls with haptics, reveals a random
+  visible pin, and opens its detail screen.
 - Offline detection, bounded CloudKit reads, and short user-facing errors.
 
 ## CloudKit and board architecture
@@ -76,6 +82,12 @@ mistaken for the current participant.
 Local state that belongs to one board is keyed by `Space.id`, including the
 current profile record and remembered item IDs. Switching boards never destroys
 another board's local identity.
+
+Production board persistence uses the `group.jared.rosen.docket` app-group
+defaults suite. Existing installs copy their Docket-owned standard-defaults
+keys into that suite once. This lets the Share extension read the board catalog
+and the current user's per-board profile references without duplicating account
+or board discovery logic.
 
 ### Sharing and roles
 
@@ -159,6 +171,79 @@ general notes field remains separate for personal tweaks. The first photo is
 the optional board-card cover; detail and edit screens page through the full
 gallery. Four explicit additional `CKAsset` fields keep gallery ordering stable
 without introducing child-record lifecycle complexity.
+
+### Share extension
+
+`DocketShareExtension` accepts one web URL or shared text containing a URL. It
+prefers the URL attachment and falls back to extracting the first HTTP(S) link
+from text, which covers Instagram and TikTok share payloads. Caption discovery
+checks `NSExtensionItem` title/content text and every item-provider type that
+conforms to text. A long or multiline attributed title is also accepted because
+some source apps place their visible caption there. URL-only payloads are common
+and are handled by the network fallbacks below.
+
+The import pipeline is:
+
+1. For TikTok, request the official public oEmbed representation first. Its
+   `title` supplies the post description and `thumbnail_url` supplies a clean
+   cover. Shortened or decorated generic TikTok descriptions are therefore not
+   preferred. A failed oEmbed request falls through to the generic path.
+2. For Instagram and other public links, make an ephemeral, bounded page
+   request and inspect Open Graph, Twitter, and standard HTML description
+   metadata. HTML entities are decoded before analysis.
+3. Prefer a JSON-LD `VideoObject.thumbnailUrl`, then `twitter:image`, then
+   `og:image`. Structured thumbnails are preferred because social preview
+   images can have a play button baked into the pixels.
+4. Send the recovered caption—not the image or video—to Apple's on-device
+   Foundation Model. Guided generation returns `isRecipe`, a title, up to 40
+   ingredient lines, and up to 30 chronological instruction lines.
+5. Validate and normalize the generated value, then populate the share form.
+   Title, ingredients, instructions, cover, source URL, and destination board
+   remain reviewable before save. The downloaded cover can be removed.
+
+The Foundation Models instructions treat captions as untrusted source data,
+ignore promotion/hashtags/engagement copy, and prohibit inventing quantities,
+ingredients, temperatures, times, or techniques. Guided generation guarantees
+the Swift shape, not factual correctness, so user review remains part of the
+flow. If a dish is clear but unnamed, the model may create a short descriptive
+title grounded in the caption.
+
+Remote work is deliberately bounded: page HTML is limited to 2 MB, images to
+10 MB, requests use 12-second request and 15-second resource timeouts, model
+input is capped at 6,000 caption characters, and generation is capped at 1,000
+response tokens. Cover bytes are resized to a maximum 1,800-pixel dimension and
+encoded as JPEG at 0.82 quality, matching the main app's photo preparation.
+Thumbnail failure is nonfatal.
+
+`SystemLanguageModel.default.availability` is checked before inference. An
+ineligible device, disabled/not-ready Apple Intelligence model, private or
+login-gated metadata, non-recipe caption, or other extraction error presents a
+short alert and leaves the manual recipe editor available. Metadata retrieval
+requires a network connection, while caption-to-Recipe generation itself is
+on-device. Docket does not download or transcribe the third-party video.
+
+Saving writes the reviewed title, source URL, ingredients, instructions, and
+optional prepared cover directly into that board's private or shared CloudKit
+database using the profile reference from the app-group catalog. A saved cover
+uses the existing `itemPhoto` `CKAsset` and enables `showsPhotoOnBoard`. The
+existing Recipe record type and fields are reused; caption analysis adds no
+CloudKit schema or migration.
+
+Implementation responsibilities are split across the extension sources:
+
+- `ShareViewController.swift`: URL, title, and caption intake.
+- `RecipePageMetadataLoader.swift`: TikTok oEmbed and generic public metadata.
+- `CaptionRecipeAnalyzer.swift`: prompt, guided schema, availability, and
+  output normalization.
+- `RecipeThumbnailLoader.swift`: bounded image download and preparation.
+- `ShareRootView.swift`: loading overlay, generated/manual editor, preview,
+  fallback alert, and save orchestration.
+- `ShareSupport.swift`: app-group board catalog and direct CloudKit save.
+
+The main app and extension targets both require iCloud container
+`iCloud.jaredrosen.docket` and app group `group.jared.rosen.docket` in their
+signed provisioning profiles. A user must open this updated main app once to
+migrate/populate the shared board catalog before the extension can list boards.
 
 `Support/BoardFilter.swift` stores selected categories and statuses as sets.
 An empty set means “all” for that dimension. Selections are ORed within one
@@ -268,6 +353,10 @@ views.
 - Tapping Add keeps the fast Restaurant-first flow. Long-pressing it opens a
   native category menu for starting directly with Restaurant, Bar, Recipe, or
   Movie.
+- The top navigation dice runs Pick for us against the current visible result
+  set, so active search and filter choices constrain the roll. It avoids the
+  immediately previous winner when another candidate exists, shows a tactile
+  rolling overlay, then routes into the selected item's normal detail view.
 - Tapping the board title opens `BoardManagerView`, a full board-management
   sheet with current/ownership state, pin counts, participant profile names,
   switching, creation, native CloudKit People controls, and owner-only board
@@ -350,6 +439,15 @@ All reusable visual constants belong under `Views/Theme/`:
 - CloudKit fetches are bounded if connectivity disappears after preflight.
 - Unsupported or unexpected CloudKit errors fall back to generic user copy,
   never a raw `CKError` dump.
+- Social apps often share only a URL. The extension tries official/public
+  metadata recovery before asking the user to enter the recipe manually.
+- Caption text is treated as untrusted source material: the model is instructed
+  to ignore embedded directives and never invent missing measurements,
+  ingredients, times, or temperatures.
+- Metadata, model, and thumbnail failures are recoverable. The extension
+  preserves the available URL/title, shows a short explanation, and leaves the
+  editable recipe form usable; thumbnail failure never blocks saving.
+- Generated recipe fields are always reviewable before any CloudKit write.
 
 ## Debug support
 
@@ -376,30 +474,33 @@ The root `Justfile` is the canonical command interface. Install its runner with
 latest installed simulator runtime. Override that with `DOCKET_SIMULATOR` and
 `DOCKET_SIMULATOR_OS`; `DOCKET_DERIVED_DATA` controls the `/tmp` build location.
 
-The repository currently contains **114 unit tests**:
+The repository currently contains **122 unit tests**:
 
 - `BoardStoreTests`: 59
-- `ModelConversionTests`: 11
+- `ModelConversionTests`: 14
 - `DocketThemeTests`: 7
-- `BoardFilterTests`: 11
+- `BoardFilterTests`: 12
 - `SpaceTests`: 4
-- `ItemDraftTests`: 6
-- `RecordDecoderTests`: 3
+- `ItemDraftTests`: 9
+- `RecordDecoderTests`: 4
 - `UserFacingErrorTests`: 3
 - `CloudKitFetchAccumulatorTests`: 2
 - `SampleDataTests`: 2
 - `TMDBServiceTests`: 3
 - `ShareAcceptanceRouterTests`: 3
 
-Coverage includes model/system-field round-trips, conflict behavior, profile
-identity, multi-board persistence and switching, board-creation rollback,
+Coverage includes model/system-field round-trips, structured Recipe drafting,
+conflict behavior, profile identity, multi-board persistence and switching,
+board-creation rollback,
 remote-add notification decisions, offline refresh/switch handling, error-copy
 sanitization, multi-select OR/AND filter behavior, selection counts and clearing,
 skeleton timing, refresh counts, and sample-data safety.
 
 The signed simulator build and complete unit-test target pass on the configured
 iPhone 17 Pro simulator. The Justfile's focused-test workflow has also been
-exercised end to end.
+exercised end to end. The share extension's metadata parsers have additionally
+been exercised with focused fixtures for HTML entities, relative image URLs,
+JSON-LD clean-thumbnail preference, and TikTok oEmbed decoding.
 
 Build and test commands are allowed, but automated sessions should not launch
 the app. Live CloudKit sharing and notification behavior require Jared's manual
@@ -427,6 +528,23 @@ Important manual checks:
 9. Add a Recipe with an Instagram or TikTok URL, multiline ingredients and
    instructions, and several photos. Verify the source opens, checklist toggles
    stay responsive, the carousel pages, and the chosen cover appears on board.
+10. Share a public Instagram Reel and a long-caption TikTok recipe. Verify that
+    URL-only shares recover the public caption when the platform exposes it;
+    the generated recipe name, ingredients, and instructions are editable; a
+    clean thumbnail is used when structured metadata exposes one, can be
+    removed, and becomes the Recipe card cover; and multiple selected boards
+    receive the saved recipe.
+11. Exercise social-import fallbacks with a private/login-gated post, no
+    network, and Apple Intelligence unavailable, disabled, or still
+    downloading. Confirm that a short alert appears, the source URL/title are
+    preserved where possible, and the manual editor remains usable without
+    hanging.
+12. Repeat TikTok testing with both short and canonical links. Confirm an
+    Instagram page that exposes only an overlay image can still import and save
+    the recipe without requiring that image.
+13. Tap the top-bar dice with no filters and with filters/search active. Verify
+    the rolling overlay and haptics, the winner reveal, and navigation to the
+    chosen item's detail screen.
 
 ## Remaining work
 
@@ -437,6 +555,11 @@ Important manual checks:
   participant leaves or an owner stops sharing.
 - Continue real-device testing for CloudKit sharing, push delivery, revoked
   access, notification permissions, and poor-network edge cases.
+- Add a physical-device social-import matrix covering public/private Instagram
+  and TikTok posts, short links, multilingual captions, Apple Intelligence
+  availability states, and prompt-quality regressions.
+- Add a dedicated share-extension test target or extract the metadata parsers
+  into a testable shared module.
 - Prepare production CloudKit schema/deployment and TestFlight release work
   when the feature set is ready.
 
@@ -450,4 +573,12 @@ Important manual checks:
 - Keep CloudKit system fields on decoded models for safe edits.
 - Keep data services injectable and store behavior testable without iCloud.
 - Keep presentation constants in `Views/Theme/` and screen views compositional.
+- Keep social recipe import backend-free: use official/public bounded metadata,
+  then analyze recovered caption text with Apple's on-device Foundation Model.
+  Do not add server AI, account scraping, or video/audio downloading without an
+  explicit product decision.
+- Treat model output as an intermediate `Recipe` draft, not trusted final data.
+  The user reviews it before the existing Recipe/CloudKit save path runs.
+- Keep imported thumbnails optional and non-blocking; prefer structured clean
+  images, but allow removal and save successfully without one.
 - Preserve unrelated workspace changes and do not add tool/author attribution.

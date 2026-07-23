@@ -101,6 +101,34 @@ nonisolated enum DocketTheme {
         static let font: Font = .caption2.weight(.semibold)
     }
 
+    enum DiceRoll {
+        static let backdropOpacity = 0.58
+        static let cardMaximumWidth: CGFloat = 330
+        static let cardPadding: CGFloat = 28
+        static let cardCornerRadius: CGFloat = 12
+        static let horizontalPadding: CGFloat = 28
+        static let contentSpacing: CGFloat = 20
+        static let diceSpacing: CGFloat = 18
+        static let eyebrowFont: Font = .caption.weight(.black)
+        static let eyebrowTracking: CGFloat = 1.7
+        static let titleFont: Font = DocketTheme.display(24)
+        static let titleMinimumHeight: CGFloat = 58
+        static let dieFont: Font = .system(size: 72, weight: .bold)
+        static let shadowOpacity = 0.42
+        static let shadowRadius: CGFloat = 18
+        static let shadowY: CGFloat = 10
+        static let dieShadowOpacity = 0.34
+        static let dieShadowRadius: CGFloat = 5
+        static let dieShadowY: CGFloat = 4
+        static let pinSize: CGFloat = 14
+        static let pinOffset: CGFloat = -6
+        static let rollSteps = 11
+        static let stepDuration: Duration = .milliseconds(95)
+        static let stepAnimationDuration = 0.09
+        static let winnerDuration: Duration = .milliseconds(850)
+        static let presentationAnimation = Animation.spring(response: 0.34, dampingFraction: 0.76)
+    }
+
     enum BoardFilterHeader {
         static let contentPadding: CGFloat = 10
         static let verticalMargin: CGFloat = 8

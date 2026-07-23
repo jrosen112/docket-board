@@ -87,7 +87,7 @@ final class BoardStore {
     var activeShareSpace: Space?
 
     init(
-        defaults: UserDefaults = .standard,
+        defaults: UserDefaults = DocketSharedDefaults.production(),
         makeService: @escaping @Sendable (Space) -> any SpaceDataService = {
             CloudKitService(space: $0)
         },
@@ -156,7 +156,7 @@ final class BoardStore {
 
     func rememberedProfileTemplate() -> ProfileNameTemplate? {
         guard let firstName = defaults.string(forKey: Self.profileTemplateFirstNameKey),
-              !firstName.isEmpty
+            !firstName.isEmpty
         else { return nil }
         return ProfileNameTemplate(
             firstName: firstName,
@@ -182,8 +182,9 @@ final class BoardStore {
         }
         await reclaimCurrentProfileFromLoadedBoardIfPossible()
         if loadState == .loaded,
-           currentProfile == nil,
-           (pendingAcceptedInvitation != nil || spaces.count > 1) {
+            currentProfile == nil,
+            pendingAcceptedInvitation != nil || spaces.count > 1
+        {
             _ = await restoreFromICloud()
         }
         await prepareNotificationsIfNeeded()
@@ -263,11 +264,13 @@ final class BoardStore {
 
     private func resetLocalStateForNewAccount() {
         refreshGeneration += 1
-        for key in defaults.dictionaryRepresentation().keys where
+        for key in defaults.dictionaryRepresentation().keys
+        where
             key.hasPrefix("docket.currentProfileRecordName.")
-                || key.hasPrefix("docket.knownItemRecordNames.")
-                || key.hasPrefix("docket.knownItemVersions.")
-                || key.hasPrefix("docket.profileTemplate.") {
+            || key.hasPrefix("docket.knownItemRecordNames.")
+            || key.hasPrefix("docket.knownItemVersions.")
+            || key.hasPrefix("docket.profileTemplate.")
+        {
             defaults.removeObject(forKey: key)
         }
         SpaceStore.replace(with: [.default], selected: .default, in: defaults)
@@ -384,7 +387,7 @@ final class BoardStore {
         guard let cloudError = error as? CKError else { return false }
         if cloudError.code == .serverRecordChanged { return true }
         guard cloudError.code == .partialFailure,
-              let partial = cloudError.partialErrorsByItemID
+            let partial = cloudError.partialErrorsByItemID
         else { return false }
         return partial.values.contains { isConflict($0) }
     }

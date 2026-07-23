@@ -28,6 +28,8 @@ struct BoardView: View {
     @State private var deleteCandidate: BoardDeleteCandidate?
     @State private var revealingAddedItemID: CKRecord.ID?
     @State private var isAddedItemRevealed = true
+    @State private var diceRoll: DiceRoll?
+    @State private var lastRandomItemID: CKRecord.ID?
 
     private var filteredItems: [any SharedListItem] {
         filter.apply(to: store.items).filter {
@@ -84,6 +86,7 @@ struct BoardView: View {
                 dismissSearch()
             }
             .overlay(alignment: .bottom) { boardOverlay }
+            .overlay { diceRollOverlay }
             .sheet(item: $addTarget) { target in
                 NewItemView(
                     itemID: target.id,
@@ -277,6 +280,32 @@ struct BoardView: View {
             dateAdded: .now,
             category: category
         )
+    }
+
+    private func startDiceRoll() {
+        guard diceRoll == nil, !filteredItems.isEmpty else { return }
+        let candidates =
+            filteredItems.count > 1
+            ? filteredItems.filter { $0.id != lastRandomItemID }
+            : filteredItems
+        guard let item = candidates.randomElement() else { return }
+
+        lastRandomItemID = item.id
+        withAnimation(DocketTheme.DiceRoll.presentationAnimation) {
+            diceRoll = DiceRoll(
+                itemID: item.id,
+                title: item.title,
+                category: item.category
+            )
+        }
+    }
+
+    private func finishDiceRoll(_ roll: DiceRoll) {
+        guard diceRoll?.id == roll.id else { return }
+        withAnimation(DocketTheme.DiceRoll.presentationAnimation) {
+            diceRoll = nil
+        }
+        detailTarget = DetailTarget(id: roll.itemID)
     }
 
     private func performDelete(_ candidate: BoardDeleteCandidate) {
@@ -483,6 +512,15 @@ struct BoardView: View {
                 showingBoardManager = true
             }
         }
+        ToolbarItem(placement: .topBarLeading) {
+            Button(action: startDiceRoll) {
+                Image(systemName: "dice.fill")
+                    .foregroundStyle(DocketTheme.brass)
+            }
+            .disabled(filteredItems.isEmpty || store.isSwitchingBoard || diceRoll != nil)
+            .accessibilityLabel("Pick for us")
+            .accessibilityHint("Chooses a random item from the visible board")
+        }
         #if DEBUG
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
@@ -503,11 +541,31 @@ struct BoardView: View {
             }
         #endif
     }
+
+    @ViewBuilder private var diceRollOverlay: some View {
+        if let diceRoll {
+            DiceRollOverlay(
+                winnerTitle: diceRoll.title,
+                accent: diceRoll.category.accent,
+                onComplete: { finishDiceRoll(diceRoll) }
+            )
+            .id(diceRoll.id)
+            .transition(.scale(scale: 0.86).combined(with: .opacity))
+            .zIndex(10)
+        }
+    }
 }
 
 private struct DetailTarget: Identifiable, Hashable {
     let id: CKRecord.ID
     var startsEditing = false
+}
+
+private struct DiceRoll: Identifiable {
+    let id = UUID()
+    let itemID: CKRecord.ID
+    let title: String
+    let category: ItemCategory
 }
 
 private struct AddTarget: Identifiable {

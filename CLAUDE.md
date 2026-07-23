@@ -8,6 +8,9 @@ A shared iOS app for two people to collaboratively track places and experiences 
 - SwiftUI
 - Raw CloudKit (`CKContainer`, `CKRecordZone`, `CKShare`) — **not** Core Data+CloudKit, **not** SwiftData. No `NSPersistentCloudKitContainer`.
 - CoreLocation / MapKit for location-based categories
+- Apple Foundation Models for on-device, guided recipe extraction
+- A Share extension plus bounded public-page/oEmbed metadata requests for
+  Instagram, TikTok, and web recipe intake
 - iOS only
 
 ## Sharing Model
@@ -59,6 +62,19 @@ Current interaction details:
   typed detail editor used everywhere else.
 - Save operations show progress and successful additions produce a transient
   board notice.
+- The top-bar dice runs an animated, haptic Pick for us roll over the current
+  visible pins and opens the winning detail view.
+- The Share to Docket extension turns supported public Instagram, TikTok, and
+  web links into editable Recipes. It captures shared text when available,
+  otherwise reads bounded public metadata, then uses Apple's on-device
+  Foundation Model to generate the title, ingredients, and ordered steps.
+- TikTok uses its official public oEmbed response first. Generic links use
+  Open Graph, Twitter, standard description, and JSON-LD metadata fallbacks.
+  A clean structured-data thumbnail is preferred, prepared locally, previewed
+  as a removable cover, and stored in the existing Recipe photo field.
+- Missing/private metadata, an unavailable Apple Intelligence model, or an
+  unusable caption produces a short alert and leaves the manual recipe editor
+  available. The extension never needs to download or transcribe the video.
 - Stable card IDs drive animated filter, add, delete, refresh, and masonry
   position changes.
 - Long-press Delete requires a native destructive alert and confirms successful
@@ -70,13 +86,16 @@ Built: CloudKit zones/sharing, multi-board switching, typed Restaurant/Bar/Recip
 records, masonry board, multi-select filtering, typed add/detail editing,
 structured MapKit locations and maps, photo/map card treatments, item and board
 deletion, board management, conflict handling, silent push reconciliation,
-local notifications, and current board interaction polish. The asset catalog
-also contains the production app icon. See `IMPLEMENTATION.md` for
-authoritative details.
+local notifications, caption-to-Recipe sharing with generated cover photos and
+board selection, Pick for us dice, and current board interaction polish. The
+asset catalog also contains the production app icon. See `IMPLEMENTATION.md`
+for authoritative details.
 
 Next: Happy Hour/Landmark/Hike/Activity record types, profile images,
 board renaming, additional real-device CloudKit testing, and
-production/TestFlight work.
+production/TestFlight work. Continue testing social recipe extraction across
+public/private posts, short links, supported languages, and Apple Intelligence
+availability states.
 
 ## Local Commands
 
@@ -90,7 +109,16 @@ be overridden with `DOCKET_SIMULATOR`, `DOCKET_SIMULATOR_OS`, and
 ## Explicitly Out of Scope for Phase 1
 - Custom auth beyond Apple ID + CloudKit sharing
 - Backend server
+- Server-side AI inference, third-party video downloading, and Reel/TikTok
+  audio transcription
 - App Store submission
 
 ## Working Agreement
-- **Do not run the app on simulators or devices.** Build and run tests (`xcodebuild build`, `xcodebuild test`, `swift build`, etc.) are fine, but launching/running the app itself is reserved for me to do manually in Xcode. If something needs to be visually verified or tested against live CloudKit sync, tell me what to check rather than launching it.
+- **Do not run the app on simulators or devices.** Build and run tests
+  (`xcodebuild build`, `xcodebuild test`, `swift build`, etc.) are fine, but
+  launching/running the app itself is reserved for me to do manually in Xcode.
+  If something needs to be visually verified or tested against live CloudKit
+  sync, tell me what to check rather than launching it.
+- Foundation Model inference cannot be validated in Simulator. Verify social
+  recipe extraction, Apple Intelligence availability states, and real
+  Instagram/TikTok metadata on an eligible physical device.
