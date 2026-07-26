@@ -62,6 +62,11 @@ format:
     #!/usr/bin/env zsh
     set -euo pipefail
     files=("${(@f)$(git diff --name-only --diff-filter=ACMR -- '*.swift')}" "${(@f)$(git ls-files --others --exclude-standard -- '*.swift')}")
+    # A git command that prints nothing still contributes one empty element under
+    # (@f), and swift-format reads an empty path as ".", silently recursing over
+    # the whole repo. Drop empty elements so the count check below is honest and
+    # swift-format only ever receives real paths.
+    files=(${files:#})
     if (( ${#files} == 0 )); then
         echo "No changed Swift files."
         exit 0
@@ -73,6 +78,8 @@ format-check:
     #!/usr/bin/env zsh
     set -euo pipefail
     files=("${(@f)$(git diff --name-only --diff-filter=ACMR -- '*.swift')}" "${(@f)$(git ls-files --others --exclude-standard -- '*.swift')}")
+    # See `format`: empty (@f) elements would make swift-format recurse the repo.
+    files=(${files:#})
     if (( ${#files} == 0 )); then
         echo "No changed Swift files."
         exit 0
