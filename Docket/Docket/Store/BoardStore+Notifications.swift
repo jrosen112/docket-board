@@ -207,6 +207,12 @@ extension BoardStore {
             item.title,
             item.notes ?? "",
             item.status.rawValue,
+            item.plannedDate.map { String($0.timeIntervalSinceReferenceDate) } ?? "",
+            item.plannedDateHasTime ? "1" : "0",
+            item.completionDates
+                .sorted()
+                .map { String($0.timeIntervalSinceReferenceDate) }
+                .joined(separator: "\u{1D}"),
             item.showsPhotoOnBoard ? "1" : "0",
             String(item.boardPhotoPosition.x),
             String(item.boardPhotoPosition.y),

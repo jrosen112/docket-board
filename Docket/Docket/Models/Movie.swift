@@ -13,6 +13,9 @@ nonisolated struct Movie: SharedListItem {
     var title: String
     var notes: String?
     var status: ItemStatus
+    var plannedDate: Date?
+    var plannedDateHasTime: Bool
+    var completionDates: [Date]
     var photoData: Data?
     var showsPhotoOnBoard: Bool
     var boardPhotoPosition: BoardPhotoPosition
@@ -35,6 +38,9 @@ nonisolated struct Movie: SharedListItem {
         status: ItemStatus = .wantToGo,
         addedBy: CKRecord.Reference,
         dateAdded: Date = .now,
+        plannedDate: Date? = nil,
+        plannedDateHasTime: Bool = false,
+        completionDates: [Date] = [],
         photoData: Data? = nil,
         showsPhotoOnBoard: Bool = false,
         boardPhotoPosition: BoardPhotoPosition = .center,
@@ -49,6 +55,9 @@ nonisolated struct Movie: SharedListItem {
         self.status = status
         self.addedBy = addedBy
         self.dateAdded = dateAdded
+        self.plannedDate = plannedDate
+        self.plannedDateHasTime = plannedDate != nil && plannedDateHasTime
+        self.completionDates = completionDates
         self.photoData = photoData
         self.showsPhotoOnBoard = showsPhotoOnBoard
         self.boardPhotoPosition = boardPhotoPosition
@@ -70,6 +79,9 @@ nonisolated struct Movie: SharedListItem {
         self.status = shared.status
         self.addedBy = shared.addedBy
         self.dateAdded = shared.dateAdded
+        self.plannedDate = shared.plannedDate
+        self.plannedDateHasTime = shared.plannedDateHasTime
+        self.completionDates = shared.completionDates
         self.photoData = shared.photoData
         self.showsPhotoOnBoard = shared.showsPhotoOnBoard
         self.boardPhotoPosition = shared.boardPhotoPosition
@@ -85,6 +97,9 @@ nonisolated struct Movie: SharedListItem {
         record.applySharedFields(
             title: title, notes: notes, status: status,
             addedBy: addedBy, dateAdded: dateAdded,
+            plannedDate: plannedDate,
+            plannedDateHasTime: plannedDateHasTime,
+            completionDates: completionDates,
             photoData: photoData,
             showsPhotoOnBoard: showsPhotoOnBoard,
             boardPhotoPosition: boardPhotoPosition

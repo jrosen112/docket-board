@@ -37,6 +37,8 @@ final class ItemDraftTests: XCTestCase {
 
     func testApplyingDraftPreservesCloudKitIdentityAndMetadata() throws {
         let dateAdded = Date(timeIntervalSince1970: 123_456)
+        let plannedDate = Date(timeIntervalSince1970: 223_456)
+        let completionDate = Date(timeIntervalSince1970: 23_456)
         let fetched = try XCTUnwrap(
             Restaurant(
                 record: Restaurant(
@@ -44,6 +46,9 @@ final class ItemDraftTests: XCTestCase {
                     title: "Before",
                     addedBy: addedBy,
                     dateAdded: dateAdded,
+                    plannedDate: plannedDate,
+                    plannedDateHasTime: true,
+                    completionDates: [completionDate],
                     location: oldLocation
                 ).toRecord()))
         var draft = ItemDraft(item: fetched)
@@ -60,6 +65,9 @@ final class ItemDraftTests: XCTestCase {
         XCTAssertEqual(edited.id, fetched.id)
         XCTAssertEqual(edited.addedBy.recordID, fetched.addedBy.recordID)
         XCTAssertEqual(edited.dateAdded, dateAdded)
+        XCTAssertEqual(edited.plannedDate, plannedDate)
+        XCTAssertTrue(edited.plannedDateHasTime)
+        XCTAssertEqual(edited.completionDates, [completionDate])
         XCTAssertEqual(edited.systemFields, fetched.systemFields)
         XCTAssertEqual(edited.title, "After")
         XCTAssertEqual(edited.location, newLocation)
@@ -216,5 +224,77 @@ final class ItemDraftTests: XCTestCase {
         XCTAssertEqual(ItemStatus.wantToGo.label(for: .recipe), "Want to make")
         XCTAssertEqual(ItemStatus.completed.label(for: .recipe), "Made")
         XCTAssertEqual(ItemStatus.wantToGo.label(for: .restaurant), "Want to go")
+        XCTAssertEqual(ItemStatus.completed.label(for: .restaurant), "Visited")
+        XCTAssertEqual(ItemStatus.wantToGo.label(for: .movie), "Want to watch")
+        XCTAssertEqual(ItemStatus.completed.label(for: .movie), "Watched")
+        XCTAssertEqual(ItemCategory.restaurant.completionLabel, "Visited")
+        XCTAssertEqual(ItemCategory.recipe.completionLabel, "Cooked")
+        XCTAssertEqual(ItemCategory.movie.completionLabel, "Watched")
+    }
+
+    func testAddingPlannedDateUsesTomorrowAndSuggestsPlannedStatus() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let now = try XCTUnwrap(
+            calendar.date(from: DateComponents(year: 2026, month: 7, day: 23, hour: 10))
+        )
+        var draft = ItemDraft(category: .restaurant)
+
+        draft.addPlannedDate(relativeTo: now, calendar: calendar)
+
+        XCTAssertEqual(draft.status, .planned)
+        XCTAssertFalse(draft.plannedDateHasTime)
+        XCTAssertEqual(
+            calendar.dateComponents(
+                [.year, .month, .day, .hour, .minute],
+                from: try XCTUnwrap(draft.plannedDate)
+            ),
+            DateComponents(year: 2026, month: 7, day: 24, hour: 19, minute: 0)
+        )
+    }
+
+    func testLoggingCompletionClearsElapsedPlanAndDeduplicatesDay() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let plannedDate = try XCTUnwrap(
+            calendar.date(from: DateComponents(year: 2026, month: 7, day: 23, hour: 19))
+        )
+        let completionDate = try XCTUnwrap(
+            calendar.date(from: DateComponents(year: 2026, month: 7, day: 23, hour: 22))
+        )
+        var draft = ItemDraft(category: .movie)
+        draft.plannedDate = plannedDate
+        draft.plannedDateHasTime = true
+        draft.status = .planned
+
+        draft.logCompletion(on: completionDate, calendar: calendar)
+        draft.plannedDate = plannedDate
+        draft.plannedDateHasTime = true
+        draft.status = .planned
+        draft.logCompletion(on: completionDate, calendar: calendar)
+
+        XCTAssertEqual(draft.status, .completed)
+        XCTAssertNil(draft.plannedDate)
+        XCTAssertFalse(draft.plannedDateHasTime)
+        XCTAssertEqual(draft.completionDates, [calendar.startOfDay(for: completionDate)])
+    }
+
+    func testLoggingPastCompletionKeepsFuturePlan() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let completionDate = try XCTUnwrap(
+            calendar.date(from: DateComponents(year: 2026, month: 7, day: 23))
+        )
+        let plannedDate = try XCTUnwrap(
+            calendar.date(from: DateComponents(year: 2026, month: 7, day: 30, hour: 19))
+        )
+        var draft = ItemDraft(category: .restaurant)
+        draft.plannedDate = plannedDate
+
+        draft.logCompletion(on: completionDate, calendar: calendar)
+
+        XCTAssertEqual(draft.status, .planned)
+        XCTAssertEqual(draft.plannedDate, plannedDate)
+        XCTAssertEqual(draft.completionDates, [completionDate])
     }
 }

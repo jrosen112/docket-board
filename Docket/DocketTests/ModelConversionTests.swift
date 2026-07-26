@@ -36,6 +36,11 @@ final class ModelConversionTests: XCTestCase {
 
     func testRestaurantRoundTrip() throws {
         let photoData = Data([0x01, 0x23, 0x45, 0x67])
+        let plannedDate = Date(timeIntervalSince1970: 1_100_000)
+        let completionDates = [
+            Date(timeIntervalSince1970: 800_000),
+            Date(timeIntervalSince1970: 900_000),
+        ]
         let original = Restaurant(
             id: CKRecord.ID(recordName: "r1"),
             title: "Tartine",
@@ -43,6 +48,9 @@ final class ModelConversionTests: XCTestCase {
             status: .planned,
             addedBy: addedBy,
             dateAdded: fixedDate,
+            plannedDate: plannedDate,
+            plannedDateHasTime: true,
+            completionDates: completionDates,
             photoData: photoData,
             showsPhotoOnBoard: true,
             boardPhotoPosition: BoardPhotoPosition(x: 0.2, y: 0.85),
@@ -62,6 +70,9 @@ final class ModelConversionTests: XCTestCase {
         XCTAssertEqual(decoded.status, original.status)
         XCTAssertEqual(decoded.addedBy.recordID, original.addedBy.recordID)
         XCTAssertEqual(decoded.dateAdded, original.dateAdded)
+        XCTAssertEqual(decoded.plannedDate, plannedDate)
+        XCTAssertTrue(decoded.plannedDateHasTime)
+        XCTAssertEqual(decoded.completionDates, completionDates)
         XCTAssertEqual(decoded.photoData, photoData)
         XCTAssertTrue(decoded.showsPhotoOnBoard)
         XCTAssertEqual(decoded.boardPhotoPosition, original.boardPhotoPosition)
@@ -246,6 +257,24 @@ final class ModelConversionTests: XCTestCase {
         XCTAssertNil(decoded.photoData)
         XCTAssertFalse(decoded.showsPhotoOnBoard)
         XCTAssertEqual(decoded.boardPhotoPosition, .center)
+    }
+
+    func testLegacyItemWithoutDateFieldsUsesSafeDefaults() throws {
+        let record = Movie(
+            id: CKRecord.ID(recordName: "legacy-movie-dates"),
+            title: "Heat",
+            addedBy: addedBy,
+            dateAdded: fixedDate
+        ).toRecord()
+        record[Schema.Field.plannedDate] = nil
+        record[Schema.Field.plannedDateHasTime] = nil
+        record[Schema.Field.completionDates] = nil
+
+        let decoded = try XCTUnwrap(Movie(record: record))
+
+        XCTAssertNil(decoded.plannedDate)
+        XCTAssertFalse(decoded.plannedDateHasTime)
+        XCTAssertTrue(decoded.completionDates.isEmpty)
     }
 
     func testLegacyPhotoDefaultsToCenteredBoardCrop() throws {

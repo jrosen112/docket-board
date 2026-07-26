@@ -221,7 +221,7 @@ struct ItemDetailView: View {
                 .runtime, .streamingService, .releaseYear, .notes:
                 focusedField = field
             case .status, .location, .priceRange, .barType, .photo,
-                .showsPhotoOnBoard, .showsMapOnBoard:
+                .showsPhotoOnBoard, .showsMapOnBoard, .dates:
                 focusedField = nil
             }
         }

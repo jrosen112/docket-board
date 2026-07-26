@@ -314,8 +314,6 @@ struct BoardView: View {
             ) {
                 BoardCard(
                     item: item,
-                    subtitle: cardSubtitle(for: item),
-                    addedBy: store.displayName(for: item),
                     reactionGroups: store.reactionGroups(for: item),
                     onReactionHold: {
                         reactionPopover = BoardReactionPopover(

@@ -16,13 +16,12 @@ struct BoardCard: View {
     @Environment(\.docketSurfacePalette) private var palette
 
     let item: any SharedListItem
-    let subtitle: String?
-    let addedBy: String
     let reactionGroups: [BoardReactionGroup]
     let onReactionHold: () -> Void
     var showsPin = true
 
     private var accent: Color { item.category.accent }
+    private var cues: [BoardCardCue] { boardCardCues(for: item) }
 
     @ViewBuilder
     var body: some View {
@@ -88,33 +87,22 @@ struct BoardCard: View {
                 .foregroundStyle(palette.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if let subtitle {
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(palette.secondaryText)
+            if !cues.isEmpty {
+                BoardCardCueList(
+                    cues: cues,
+                    foregroundColor: palette.secondaryText
+                )
             }
 
             if let notes = item.notes, !notes.isEmpty {
                 Text(notes)
                     .font(.footnote)
                     .foregroundStyle(palette.bodyText)
-                    .lineLimit(3)
+                    .lineLimit(2)
             }
 
-            HStack(alignment: .bottom, spacing: DocketTheme.BoardCard.categoryFooterSpacing) {
-                VStack(alignment: .leading, spacing: DocketTheme.BoardCard.categoryFooterTextSpacing) {
-                    StatusChip(status: item.status, category: item.category)
-                        .padding(.top, DocketTheme.StatusBadge.cardTopPadding)
-
-                    Text("— \(addedBy)")
-                        .font(.caption2.italic())
-                        .foregroundStyle(palette.mutedText)
-                        .lineLimit(1)
-                }
-
-                Spacer(minLength: 0)
-                categoryBadge
-            }
+            cardStatusLabel(foregroundColor: palette.secondaryText)
+                .padding(.top, DocketTheme.StatusBadge.cardTopPadding)
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -176,25 +164,15 @@ struct BoardCard: View {
                     .lineLimit(DocketTheme.BoardCard.movieTitleLineLimit)
                     .fixedSize(horizontal: false, vertical: true)
 
-                if let subtitle {
-                    Text(subtitle)
-                        .font(DocketTheme.BoardCard.movieSubtitleFont)
-                        .foregroundStyle(DocketTheme.BoardCard.movieSecondaryText)
-                        .lineLimit(2)
+                if !cues.isEmpty {
+                    BoardCardCueList(
+                        cues: cues,
+                        foregroundColor: DocketTheme.BoardCard.movieSecondaryText
+                    )
                 }
 
                 HStack(alignment: .bottom, spacing: DocketTheme.BoardCard.categoryFooterSpacing) {
-                    VStack(
-                        alignment: .leading,
-                        spacing: DocketTheme.BoardCard.categoryFooterTextSpacing
-                    ) {
-                        posterStatusChip
-
-                        Text("— \(addedBy)")
-                            .font(DocketTheme.BoardCard.movieAuthorFont)
-                            .foregroundStyle(DocketTheme.BoardCard.movieMutedText)
-                            .lineLimit(1)
-                    }
+                    posterStatusChip
 
                     Spacer(minLength: 0)
                     categoryBadge
@@ -202,7 +180,10 @@ struct BoardCard: View {
             }
             .padding(DocketTheme.BoardCard.movieContentPadding)
         }
-        .aspectRatio(DocketTheme.BoardCard.moviePosterAspectRatio, contentMode: .fit)
+        .aspectRatio(
+            DocketTheme.BoardCard.moviePosterAspectRatio(forCueCount: cues.count),
+            contentMode: .fit
+        )
         .frame(maxWidth: .infinity)
         .clipShape(
             RoundedRectangle(
@@ -257,21 +238,56 @@ struct BoardCard: View {
     }
 
     private var posterStatusChip: some View {
-        HStack(spacing: DocketTheme.BoardCard.movieStatusSpacing) {
+        cardStatusLabel(foregroundColor: DocketTheme.BoardCard.moviePrimaryText)
+            .padding(.horizontal, DocketTheme.BoardCard.movieBadgeHorizontalPadding)
+            .padding(.vertical, DocketTheme.BoardCard.movieBadgeVerticalPadding)
+            .background(DocketTheme.BoardCard.movieBadgeBackground, in: Capsule())
+    }
+
+    private func cardStatusLabel(foregroundColor: Color) -> some View {
+        HStack(spacing: DocketTheme.BoardCard.statusSpacing) {
             Circle()
                 .fill(item.status.chipColor)
                 .frame(
-                    width: DocketTheme.BoardCard.movieStatusDotSize,
-                    height: DocketTheme.BoardCard.movieStatusDotSize
+                    width: DocketTheme.BoardCard.statusDotSize,
+                    height: DocketTheme.BoardCard.statusDotSize
                 )
             Text(item.status.label(for: item.category))
                 .lineLimit(1)
         }
-        .font(DocketTheme.BoardCard.movieStatusFont)
-        .foregroundStyle(DocketTheme.BoardCard.moviePrimaryText)
-        .padding(.horizontal, DocketTheme.BoardCard.movieBadgeHorizontalPadding)
-        .padding(.vertical, DocketTheme.BoardCard.movieBadgeVerticalPadding)
-        .background(DocketTheme.BoardCard.movieBadgeBackground, in: Capsule())
+        .font(DocketTheme.BoardCard.statusFont)
+        .foregroundStyle(foregroundColor)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct BoardCardCueList: View {
+    let cues: [BoardCardCue]
+    let foregroundColor: Color
+
+    var body: some View {
+        VStack(
+            alignment: .leading,
+            spacing: DocketTheme.BoardCard.cueSpacing
+        ) {
+            ForEach(cues) { cue in
+                HStack(
+                    alignment: .firstTextBaseline,
+                    spacing: DocketTheme.BoardCard.cueIconSpacing
+                ) {
+                    Image(systemName: cue.symbol)
+                        .font(DocketTheme.BoardCard.cueSymbolFont)
+                        .frame(width: DocketTheme.BoardCard.cueSymbolWidth)
+
+                    Text(cue.label)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .font(DocketTheme.BoardCard.cueFont)
+                .foregroundStyle(foregroundColor)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .combine)
+            }
+        }
     }
 }
 

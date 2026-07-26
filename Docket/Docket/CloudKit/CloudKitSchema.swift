@@ -34,6 +34,9 @@ nonisolated enum Schema {
         static let status = "status"
         static let addedBy = "addedBy"  // CKRecord.Reference -> UserProfile
         static let dateAdded = "dateAdded"
+        static let plannedDate = "plannedDate"
+        static let plannedDateHasTime = "plannedDateHasTime"
+        static let completionDates = "completionDates"
         static let itemPhoto = "itemPhoto"  // CKAsset
         static let showsPhotoOnBoard = "showsPhotoOnBoard"
         static let boardPhotoPositionX = "boardPhotoPositionX"

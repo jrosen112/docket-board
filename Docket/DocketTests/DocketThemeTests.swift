@@ -6,6 +6,7 @@
 //
 
 import XCTest
+
 @testable import Docket
 
 final class DocketThemeTests: XCTestCase {
@@ -46,6 +47,12 @@ final class DocketThemeTests: XCTestCase {
         XCTAssertGreaterThan(tilts.count, 10)
     }
 
+    func testSparseMovieCardsUseShorterPosterRatio() {
+        XCTAssertEqual(DocketTheme.BoardCard.moviePosterAspectRatio(forCueCount: 0), 3.0 / 4.0)
+        XCTAssertEqual(DocketTheme.BoardCard.moviePosterAspectRatio(forCueCount: 2), 3.0 / 4.0)
+        XCTAssertEqual(DocketTheme.BoardCard.moviePosterAspectRatio(forCueCount: 3), 2.0 / 3.0)
+    }
+
     func testScrollNoteIsHiddenBeforeFadeRange() {
         XCTAssertEqual(DocketTheme.BoardScrollNote.progress(for: 0), 0)
         XCTAssertEqual(
@@ -57,13 +64,15 @@ final class DocketThemeTests: XCTestCase {
     }
 
     func testScrollNoteFadesProgressively() {
-        let midpoint = DocketTheme.BoardScrollNote.fadeStart
+        let midpoint =
+            DocketTheme.BoardScrollNote.fadeStart
             + DocketTheme.BoardScrollNote.fadeDistance / 2
         XCTAssertEqual(DocketTheme.BoardScrollNote.progress(for: midpoint), 0.5)
     }
 
     func testScrollNoteStaysVisiblePastFadeRange() {
-        let beyondFade = DocketTheme.BoardScrollNote.fadeStart
+        let beyondFade =
+            DocketTheme.BoardScrollNote.fadeStart
             + DocketTheme.BoardScrollNote.fadeDistance
             + 1_000
         XCTAssertEqual(DocketTheme.BoardScrollNote.progress(for: beyondFade), 1)

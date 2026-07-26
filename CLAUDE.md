@@ -52,6 +52,10 @@ Pinned corkboard aesthetic, not a plain list. Reference: two-column masonry grid
 
 Palette: ink-navy background (`#14181F`), warm cream cards (`#EFE6D3`), brass/gold primary accent (`#D9A441`). Serif display type (Georgia) for titles.
 
+Board-card information hierarchy is title-first. Category metadata uses compact
+icon-led utility cues, not a joined subtitle; author names and planning/history
+dates remain off the already-dense card surface.
+
 Current interaction details:
 
 - The board uses a compact pinned filter bar. Its full surface opens a
@@ -90,8 +94,8 @@ records, masonry board, multi-select filtering, typed add/detail editing,
 structured MapKit locations and maps, photo/map card treatments, item and board
 deletion, board management, conflict handling, silent push reconciliation,
 local notifications, caption-to-Recipe sharing with generated cover photos and
-board selection, Pick for us dice, per-person item reactions, and current board
-interaction polish. The
+board selection, shared planned dates and completion history, Pick for us dice,
+per-person item reactions, and current board interaction polish. The
 asset catalog also contains the production app icon. See `IMPLEMENTATION.md`
 for authoritative details.
 

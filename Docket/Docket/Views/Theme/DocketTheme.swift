@@ -67,23 +67,24 @@ nonisolated enum DocketTheme {
         static let photoHeight: CGFloat = 104
         static let photoCornerRadius: CGFloat = 4
         static let categoryFooterSpacing: CGFloat = 8
-        static let categoryFooterTextSpacing: CGFloat = 5
         static let categoryBadgeSize: CGFloat = 32
         static let categoryBadgeSymbolFont: Font = .system(size: 14, weight: .bold)
-        /// TMDB posters are delivered at roughly 2:3, so matching the card to
-        /// that ratio keeps the artwork visible instead of turning it into a
-        /// short landscape crop.
-        static let moviePosterAspectRatio: CGFloat = 2.0 / 3.0
+        static let movieArtworkAspectRatio: CGFloat = 2.0 / 3.0
         static let movieCornerRadius: CGFloat = 5
         static let movieContentPadding: CGFloat = 12
         static let movieTextSpacing: CGFloat = 4
         static let movieTitleFont: Font = DocketTheme.display(19)
-        static let movieSubtitleFont: Font = .caption.weight(.medium)
-        static let movieAuthorFont: Font = .caption2.italic()
         static let movieTitleLineLimit = 3
         static let moviePrimaryText = Color.white
         static let movieSecondaryText = Color.white.opacity(0.82)
-        static let movieMutedText = Color.white.opacity(0.66)
+        static let cueSpacing: CGFloat = 4
+        static let cueIconSpacing: CGFloat = 5
+        static let cueSymbolWidth: CGFloat = 12
+        static let cueFont: Font = .caption2.weight(.medium)
+        static let cueSymbolFont: Font = .system(size: 10, weight: .semibold)
+        static let statusSpacing: CGFloat = 4
+        static let statusDotSize: CGFloat = 6
+        static let statusFont: Font = .caption2.weight(.bold)
         static let moviePosterGradientColors = [
             Color.black.opacity(0.04),
             Color.black.opacity(0.02),
@@ -93,9 +94,13 @@ nonisolated enum DocketTheme {
         static let movieBadgeHorizontalPadding: CGFloat = 7
         static let movieBadgeVerticalPadding: CGFloat = 5
         static let movieBadgeBackground = Color.black.opacity(0.52)
-        static let movieStatusSpacing: CGFloat = 4
-        static let movieStatusDotSize: CGFloat = 6
-        static let movieStatusFont: Font = .system(size: 8, weight: .bold)
+
+        /// Dense cards preserve the poster's native 2:3 character. Sparse
+        /// cards use a slightly shorter 3:4 crop so artwork does not create
+        /// unnecessary vertical real estate around only one or two cues.
+        static func moviePosterAspectRatio(forCueCount cueCount: Int) -> CGFloat {
+            cueCount < 3 ? 3.0 / 4.0 : movieArtworkAspectRatio
+        }
     }
 
     enum BoardReaction {
@@ -356,11 +361,9 @@ nonisolated enum DocketTheme {
         static let detailLineHeight: CGFloat = 9
         static let statusWidth: CGFloat = 70
         static let statusHeight: CGFloat = 19
-        static let authorLineHeight: CGFloat = 7
         static let categoryTrailingInset: CGFloat = 70
         static let titleTrailingInsets: [CGFloat] = [20, 42, 8, 56]
         static let detailTrailingInsets: [CGFloat] = [34, 12, 52]
-        static let authorTrailingInset: CGFloat = 46
         static let cardFill = DocketTheme.cream.opacity(0.13)
         static let lineFill = DocketTheme.cream.opacity(0.19)
         static let stripeFill = DocketTheme.cream.opacity(0.2)

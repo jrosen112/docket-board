@@ -38,11 +38,31 @@ nonisolated enum ItemStatus: String, CaseIterable, Codable {
     }
 
     func label(for category: ItemCategory) -> String {
-        guard category == .recipe else { return label }
-        return switch self {
-        case .wantToGo: "Want to make"
-        case .planned: "Planned"
-        case .completed: "Made"
+        switch category {
+        case .recipe:
+            return switch self {
+            case .wantToGo: "Want to make"
+            case .planned: "Planned"
+            case .completed: "Made"
+            }
+        case .movie:
+            return switch self {
+            case .wantToGo: "Want to watch"
+            case .planned: "Planned"
+            case .completed: "Watched"
+            }
+        case .restaurant, .bar, .happyHour, .landmark:
+            return switch self {
+            case .wantToGo: "Want to go"
+            case .planned: "Planned"
+            case .completed: "Visited"
+            }
+        case .hike, .activity:
+            return switch self {
+            case .wantToGo: "Want to do"
+            case .planned: "Planned"
+            case .completed: "Completed"
+            }
         }
     }
 }
@@ -76,6 +96,32 @@ nonisolated enum ItemCategory: String, CaseIterable, Codable {
         }
     }
 
+    var completionLabel: String {
+        switch self {
+        case .restaurant, .bar, .happyHour, .landmark:
+            "Visited"
+        case .recipe:
+            "Cooked"
+        case .movie:
+            "Watched"
+        case .hike, .activity:
+            "Completed"
+        }
+    }
+
+    var logCompletionLabel: String {
+        switch self {
+        case .restaurant, .bar, .happyHour, .landmark:
+            "Log visit"
+        case .recipe:
+            "Log cooking"
+        case .movie:
+            "Log watch"
+        case .hike, .activity:
+            "Log completion"
+        }
+    }
+
     /// CKRecord type name backing this category (implemented categories only).
     var recordType: String {
         switch self {
@@ -96,6 +142,9 @@ nonisolated protocol SharedListItem: Identifiable {
     var title: String { get set }
     var notes: String? { get set }
     var status: ItemStatus { get set }
+    var plannedDate: Date? { get set }
+    var plannedDateHasTime: Bool { get set }
+    var completionDates: [Date] { get set }
     var photoData: Data? { get set }
     var showsPhotoOnBoard: Bool { get set }
     var boardPhotoPosition: BoardPhotoPosition { get set }
@@ -118,6 +167,9 @@ extension CKRecord {
         status: ItemStatus,
         addedBy: CKRecord.Reference,
         dateAdded: Date,
+        plannedDate: Date?,
+        plannedDateHasTime: Bool,
+        completionDates: [Date],
         photoData: Data?,
         showsPhotoOnBoard: Bool,
         boardPhotoPosition: BoardPhotoPosition
@@ -127,6 +179,11 @@ extension CKRecord {
         self[Schema.Field.status] = status.rawValue
         self[Schema.Field.addedBy] = addedBy
         self[Schema.Field.dateAdded] = dateAdded
+        self[Schema.Field.plannedDate] = plannedDate
+        self[Schema.Field.plannedDateHasTime] =
+            plannedDate == nil ? nil : plannedDateHasTime
+        self[Schema.Field.completionDates] =
+            completionDates.isEmpty ? nil : completionDates as CKRecordValue
         self[Schema.Field.itemPhoto] = ItemPhotoAsset.make(from: photoData)
         self[Schema.Field.showsPhotoOnBoard] = photoData != nil && showsPhotoOnBoard
         self[Schema.Field.boardPhotoPositionX] = boardPhotoPosition.x
@@ -142,6 +199,9 @@ nonisolated struct SharedFields {
     let status: ItemStatus
     let addedBy: CKRecord.Reference
     let dateAdded: Date
+    let plannedDate: Date?
+    let plannedDateHasTime: Bool
+    let completionDates: [Date]
     let photoData: Data?
     let showsPhotoOnBoard: Bool
     let boardPhotoPosition: BoardPhotoPosition
@@ -162,6 +222,12 @@ nonisolated struct SharedFields {
         self.status = status
         self.addedBy = addedBy
         self.dateAdded = dateAdded
+        self.plannedDate = record[Schema.Field.plannedDate] as? Date
+        self.plannedDateHasTime =
+            self.plannedDate != nil
+            && (record[Schema.Field.plannedDateHasTime] as? Bool ?? false)
+        self.completionDates =
+            record[Schema.Field.completionDates] as? [Date] ?? []
         let photoData = ItemPhotoAsset.data(from: record[Schema.Field.itemPhoto] as? CKAsset)
         self.photoData = photoData
         self.showsPhotoOnBoard =

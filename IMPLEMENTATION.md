@@ -20,6 +20,9 @@ The current app supports:
 - Joining, switching between, and leaving shared boards.
 - Owner-only membership management; participants collaborate on board content.
 - Restaurant, Bar, Recipe, and Movie items with category-specific fields.
+- One optional planned date (with an optional time) and repeatable completion
+  history on every item. Completion language adapts by category: Visited for
+  places, Cooked for recipes, Watched for movies, and Completed for activities.
 - Recipe source links (including Instagram and TikTok), structured shopping
   lists and instructions, and up to five detail-carousel photos.
 - A Share to Docket extension that captures web, Instagram, and TikTok links,
@@ -149,6 +152,14 @@ archive so change tags survive round-trips and concurrent writes produce a real
 
 `Support/ItemDraft.swift` is the shared, tested conversion path for both new
 items and inline edits.
+
+Every item can store one active `plannedDate`, whether that value includes a
+meaningful time, and a list of date-only completions. Existing records decode
+missing date fields to safe empty defaults. Adding a plan suggests Planned
+status. Logging a completion deduplicates that calendar day, clears an elapsed
+plan, and suggests Done; a future plan remains active alongside earlier
+history. Dates live only in the detail editor and do not add more content to
+already-dense board cards.
 
 Restaurants and Bars store an optional `ItemLocation` rather than freeform
 location text. A location retains the MapKit place name and identifier,
@@ -396,8 +407,23 @@ views.
   fields receive full-width wrapping; compact facts share aligned columns.
 - Board cards preserve their pin/shadow overflow in context-menu and matched
   transition captures without changing masonry spacing.
+- Board-card metadata is rendered as quiet, icon-led utility cues rather than
+  one flattened subtitle. Recipe cues cover cuisine, source, ingredients, and
+  steps; movies use year, humanized runtime, and service; places use their most
+  useful type, price, and neighborhood facts. Every cue owns a full-width row
+  and wraps instead of truncating; cuisine cues show the complete list. Empty
+  cues disappear, author names stay off cards, and category-aware status copy
+  remains in the footer. Paper cards rely on their category header, color, and
+  stripe instead of a redundant footer badge, allowing sparse cards to collapse
+  to their content. Poster cards keep the badge because they have no category
+  header; cards with fewer than three cues use a shorter crop while denser cards
+  preserve the artwork's native 2:3 character.
 - `DetailViews/` contains the typed Restaurant, Bar, Recipe, and Movie detail screens,
   the new-item screen, and their shared inline-editing components.
+- Each typed detail includes a shared Plans & History card. It edits an optional
+  planned date/time and repeatable completion dates, using category-specific
+  Visited, Cooked, Watched, or Completed copy. Planning and history are
+  intentionally absent from board cards.
 - Restaurant and Bar location rows open a MapKit-backed search sheet. Choosing
   the first location defaults a card without a photo to the map treatment; the
   On the Board selector can switch between map, photo, and no image. Saved
@@ -484,23 +510,25 @@ The root `Justfile` is the canonical command interface. Install its runner with
 latest installed simulator runtime. Override that with `DOCKET_SIMULATOR` and
 `DOCKET_SIMULATOR_OS`; `DOCKET_DERIVED_DATA` controls the `/tmp` build location.
 
-The repository currently contains **122 unit tests**:
+The repository currently contains **144 unit tests**:
 
-- `BoardStoreTests`: 59
-- `ModelConversionTests`: 14
-- `DocketThemeTests`: 7
-- `BoardFilterTests`: 12
+- `BoardStoreTests`: 65
+- `ModelConversionTests`: 18
+- `DocketThemeTests`: 8
+- `BoardFilterTests`: 16
 - `SpaceTests`: 4
-- `ItemDraftTests`: 9
-- `RecordDecoderTests`: 4
+- `ItemDraftTests`: 12
+- `RecordDecoderTests`: 5
 - `UserFacingErrorTests`: 3
 - `CloudKitFetchAccumulatorTests`: 2
 - `SampleDataTests`: 2
 - `TMDBServiceTests`: 3
 - `ShareAcceptanceRouterTests`: 3
+- `CuisineCatalogTests`: 3
 
 Coverage includes model/system-field round-trips, structured Recipe drafting,
-conflict behavior, profile identity, multi-board persistence and switching,
+planned/completion date defaults and status behavior, conflict behavior,
+profile identity, multi-board persistence and switching,
 board-creation rollback,
 remote-add notification decisions, offline refresh/switch handling, error-copy
 sanitization, multi-select OR/AND filter behavior, selection counts and clearing,
@@ -524,38 +552,41 @@ Important manual checks:
    only the owner manages membership, and the participant can leave.
 3. Add an item on device B. Confirm device A receives a notification and that
    tapping it selects the correct board.
-4. Pull to refresh and verify the new-item pill count, auto-dismissal, and
+4. On both devices, add/edit a planned date and log category-specific history.
+   Confirm the values sync, remain off board cards, and old items show empty
+   date defaults without errors.
+5. Pull to refresh and verify the new-item pill count, auto-dismissal, and
    swipe-down dismissal.
-5. Select multiple categories and statuses. Verify the compact count, CLEAR,
+6. Select multiple categories and statuses. Verify the compact count, CLEAR,
    Cancel, explicit apply, swipe-to-apply, and card reflow animations.
-6. Long-press a card. Verify the rich quick look, full address wrapping, and
+7. Long-press a card. Verify the rich quick look, full address wrapping, and
    that Edit opens the current detail editor rather than a legacy form.
-7. Double-tap a card and choose each reaction. Verify a top-right badge appears,
+8. Double-tap a card and choose each reaction. Verify a top-right badge appears,
    choosing another replaces yours, choosing yours again removes it, and
    holding the badge shows every participant grouped under their reaction.
-8. Add and delete items. Verify save progress, post-dismiss success feedback,
+9. Add and delete items. Verify save progress, post-dismiss success feedback,
    the standard destructive alert from the detail toolbar, and card
    insertion/removal animation.
-9. Enable airplane mode. Refresh should finish promptly, board switching should
+10. Enable airplane mode. Refresh should finish promptly, board switching should
    return to the previous board, and no technical CloudKit text should appear.
-10. Add a Recipe with an Instagram or TikTok URL, multiline ingredients and
+11. Add a Recipe with an Instagram or TikTok URL, multiline ingredients and
    instructions, and several photos. Verify the source opens, checklist toggles
    stay responsive, the carousel pages, and the chosen cover appears on board.
-11. Share a public Instagram Reel and a long-caption TikTok recipe. Verify that
+12. Share a public Instagram Reel and a long-caption TikTok recipe. Verify that
     URL-only shares recover the public caption when the platform exposes it;
     the generated recipe name, ingredients, and instructions are editable; a
     clean thumbnail is used when structured metadata exposes one, can be
     removed, and becomes the Recipe card cover; and multiple selected boards
     receive the saved recipe.
-12. Exercise social-import fallbacks with a private/login-gated post, no
+13. Exercise social-import fallbacks with a private/login-gated post, no
     network, and Apple Intelligence unavailable, disabled, or still
     downloading. Confirm that a short alert appears, the source URL/title are
     preserved where possible, and the manual editor remains usable without
     hanging.
-13. Repeat TikTok testing with both short and canonical links. Confirm an
+14. Repeat TikTok testing with both short and canonical links. Confirm an
     Instagram page that exposes only an overlay image can still import and save
     the recipe without requiring that image.
-14. Tap the top-bar dice with no filters and with filters/search active. Verify
+15. Tap the top-bar dice with no filters and with filters/search active. Verify
     the rolling overlay and haptics, the winner reveal, and navigation to the
     chosen item's detail screen.
 

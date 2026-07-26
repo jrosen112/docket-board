@@ -57,6 +57,22 @@ struct DetailPage<Details: View>: View {
                         }
 
                         DetailSectionCard(
+                            title: "Plans & history",
+                            symbol: "calendar",
+                            accent: accent,
+                            rotationDegrees: sectionRotation(for: "dates")
+                        ) {
+                            ItemDatesContent(
+                                item: item,
+                                isEditing: isEditing,
+                                accent: accent,
+                                draft: $draft,
+                                onEdit: { onEdit(.dates) }
+                            )
+                        }
+                        .id(ItemDraftField.dates)
+
+                        DetailSectionCard(
                             title: "A note for later",
                             symbol: "text.quote",
                             accent: accent,
@@ -144,7 +160,7 @@ struct DetailPage<Details: View>: View {
                         boardPhotoPosition: $draft.boardPhotoPosition,
                         accent: accent,
                         boardCropAspectRatio: draft.category == .movie
-                            ? DocketTheme.BoardCard.moviePosterAspectRatio
+                            ? DocketTheme.BoardCard.movieArtworkAspectRatio
                             : 4.0 / 3.0
                     )
                 }
@@ -153,23 +169,23 @@ struct DetailPage<Details: View>: View {
                     photos: recipe.allPhotoData,
                     coverPosition: recipe.boardPhotoPosition
                 )
-                    .contentShape(Rectangle())
-                    .onTapGesture { onEdit(.photo) }
-                    .accessibilityHint("Double tap to edit")
-                    .accessibilityAddTraits(.isButton)
+                .contentShape(Rectangle())
+                .onTapGesture { onEdit(.photo) }
+                .accessibilityHint("Double tap to edit")
+                .accessibilityAddTraits(.isButton)
             } else if let photoData = item.photoData {
                 CroppedDetailPhoto(
                     data: photoData,
                     position: item.boardPhotoPosition,
                     aspectRatio: item.category == .movie
-                        ? DocketTheme.BoardCard.moviePosterAspectRatio
+                        ? DocketTheme.BoardCard.movieArtworkAspectRatio
                         : 4.0 / 3.0
                 )
-                    .contentShape(Rectangle())
-                    .onTapGesture { onEdit(.photo) }
-                    .accessibilityLabel("Item photo")
-                    .accessibilityHint("Double tap to edit")
-                    .accessibilityAddTraits(.isButton)
+                .contentShape(Rectangle())
+                .onTapGesture { onEdit(.photo) }
+                .accessibilityLabel("Item photo")
+                .accessibilityHint("Double tap to edit")
+                .accessibilityAddTraits(.isButton)
             }
 
             HStack(alignment: .center, spacing: DocketDetailTheme.Hero.headerSpacing) {

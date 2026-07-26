@@ -13,6 +13,7 @@ nonisolated enum ItemDraftField: Hashable {
     case runtime
     case streamingService
     case releaseYear
+    case dates
     case notes
     case photo
     case showsPhotoOnBoard
@@ -46,6 +47,9 @@ nonisolated struct ItemDraft {
     var title = ""
     var notes = ""
     var status: ItemStatus = .wantToGo
+    var plannedDate: Date?
+    var plannedDateHasTime = false
+    var completionDates: [Date] = []
     var photoData: Data?
     var showsPhotoOnBoard = false
     var showsMapOnBoard = false
@@ -96,6 +100,9 @@ nonisolated struct ItemDraft {
         title = item.title
         notes = item.notes ?? ""
         status = item.status
+        plannedDate = item.plannedDate
+        plannedDateHasTime = item.plannedDateHasTime
+        completionDates = item.completionDates.sorted(by: >)
         photoData = item.photoData
         showsPhotoOnBoard = item.showsPhotoOnBoard
         boardPhotoPosition = item.boardPhotoPosition
@@ -135,6 +142,9 @@ nonisolated struct ItemDraft {
             restaurant.title = title.trimmed
             restaurant.notes = notes.orNil
             restaurant.status = status
+            restaurant.plannedDate = plannedDate
+            restaurant.plannedDateHasTime = plannedDate != nil && plannedDateHasTime
+            restaurant.completionDates = completionDates
             restaurant.photoData = photoData
             restaurant.showsPhotoOnBoard = boardMedia == .photo
             restaurant.boardPhotoPosition = boardPhotoPosition
@@ -147,6 +157,9 @@ nonisolated struct ItemDraft {
             bar.title = title.trimmed
             bar.notes = notes.orNil
             bar.status = status
+            bar.plannedDate = plannedDate
+            bar.plannedDateHasTime = plannedDate != nil && plannedDateHasTime
+            bar.completionDates = completionDates
             bar.photoData = photoData
             bar.showsPhotoOnBoard = boardMedia == .photo
             bar.boardPhotoPosition = boardPhotoPosition
@@ -158,6 +171,9 @@ nonisolated struct ItemDraft {
             movie.title = title.trimmed
             movie.notes = notes.orNil
             movie.status = status
+            movie.plannedDate = plannedDate
+            movie.plannedDateHasTime = plannedDate != nil && plannedDateHasTime
+            movie.completionDates = completionDates
             movie.photoData = photoData
             movie.showsPhotoOnBoard = boardMedia == .photo
             movie.boardPhotoPosition = boardPhotoPosition
@@ -170,6 +186,9 @@ nonisolated struct ItemDraft {
             recipe.title = title.trimmed
             recipe.notes = notes.orNil
             recipe.status = status
+            recipe.plannedDate = plannedDate
+            recipe.plannedDateHasTime = plannedDate != nil && plannedDateHasTime
+            recipe.completionDates = completionDates
             recipe.photoData = photoData
             recipe.additionalPhotoData = Array(
                 additionalPhotoData.prefix(Recipe.maximumPhotoCount - 1)
@@ -201,6 +220,9 @@ nonisolated struct ItemDraft {
                 status: status,
                 addedBy: addedBy,
                 dateAdded: dateAdded,
+                plannedDate: plannedDate,
+                plannedDateHasTime: plannedDate != nil && plannedDateHasTime,
+                completionDates: completionDates,
                 photoData: photoData,
                 showsPhotoOnBoard: boardMedia == .photo,
                 boardPhotoPosition: boardPhotoPosition,
@@ -217,6 +239,9 @@ nonisolated struct ItemDraft {
                 status: status,
                 addedBy: addedBy,
                 dateAdded: dateAdded,
+                plannedDate: plannedDate,
+                plannedDateHasTime: plannedDate != nil && plannedDateHasTime,
+                completionDates: completionDates,
                 photoData: photoData,
                 showsPhotoOnBoard: boardMedia == .photo,
                 boardPhotoPosition: boardPhotoPosition,
@@ -232,6 +257,9 @@ nonisolated struct ItemDraft {
                 status: status,
                 addedBy: addedBy,
                 dateAdded: dateAdded,
+                plannedDate: plannedDate,
+                plannedDateHasTime: plannedDate != nil && plannedDateHasTime,
+                completionDates: completionDates,
                 photoData: photoData,
                 showsPhotoOnBoard: boardMedia == .photo,
                 boardPhotoPosition: boardPhotoPosition,
@@ -248,6 +276,9 @@ nonisolated struct ItemDraft {
                 status: status,
                 addedBy: addedBy,
                 dateAdded: dateAdded,
+                plannedDate: plannedDate,
+                plannedDateHasTime: plannedDate != nil && plannedDateHasTime,
+                completionDates: completionDates,
                 photoData: photoData,
                 showsPhotoOnBoard: boardMedia == .photo,
                 boardPhotoPosition: boardPhotoPosition,
@@ -264,6 +295,44 @@ nonisolated struct ItemDraft {
 
     private var ingredientLines: [String] { listLines(from: ingredients) }
     private var instructionLines: [String] { listLines(from: instructions) }
+
+    mutating func addPlannedDate(
+        relativeTo now: Date = .now,
+        calendar: Calendar = .current
+    ) {
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: now) ?? now
+        plannedDate =
+            calendar.date(
+                bySettingHour: 19,
+                minute: 0,
+                second: 0,
+                of: tomorrow
+            ) ?? tomorrow
+        plannedDateHasTime = false
+        status = .planned
+    }
+
+    mutating func removePlannedDate() {
+        plannedDate = nil
+        plannedDateHasTime = false
+    }
+
+    mutating func logCompletion(
+        on date: Date = .now,
+        calendar: Calendar = .current
+    ) {
+        let day = calendar.startOfDay(for: date)
+        if !completionDates.contains(where: { calendar.isDate($0, inSameDayAs: day) }) {
+            completionDates.append(day)
+            completionDates.sort(by: >)
+        }
+
+        let nextDay = calendar.date(byAdding: .day, value: 1, to: day) ?? day
+        if let plannedDate, plannedDate < nextDay {
+            removePlannedDate()
+        }
+        status = plannedDate == nil ? .completed : .planned
+    }
 
     private func listLines(from value: String) -> [String] {
         value.components(separatedBy: .newlines)

@@ -2,9 +2,8 @@
 //  ItemPresentation.swift
 //  Docket
 //
-//  Presentation-only formatting for items (the category-specific subtitle line
-//  on cards). Lives in the UI layer on purpose — model files stay free of
-//  display concerns.
+//  Presentation-only formatting for board cards and quick looks. Lives in the
+//  UI layer on purpose — model files stay free of display concerns.
 //
 
 import Foundation
@@ -16,36 +15,51 @@ nonisolated struct ItemQuickLookFact: Identifiable, Equatable {
     let prefersFullWidth: Bool
 }
 
-/// One-line category-specific summary, e.g. "Thai · $$ · Mission" for a
-/// restaurant or "2023 · 105 min · Showtime" for a movie.
-nonisolated func cardSubtitle(for item: any SharedListItem) -> String? {
-    let parts: [String?]
+nonisolated struct BoardCardCue: Identifiable, Equatable {
+    let id: String
+    let symbol: String
+    let label: String
+}
+
+/// Compact, individually scannable facts for the board card. Keeping these
+/// structured prevents unrelated metadata from reading like one flat sentence.
+nonisolated func boardCardCues(for item: any SharedListItem) -> [BoardCardCue] {
     switch item {
     case let restaurant as Restaurant:
-        parts = [
-            cuisineSummary(restaurant.cuisines),
-            restaurant.priceRange?.rawValue,
-            restaurant.location?.boardLabel,
-        ]
+        return [
+            cue("cuisine", "fork.knife", cuisineSummary(restaurant.cuisines, limit: nil)),
+            cue("price", "dollarsign.circle", restaurant.priceRange?.rawValue),
+            cue("location", "mappin.and.ellipse", restaurant.location?.boardLabel),
+        ].compactMap(\.self)
     case let bar as Bar:
-        parts = [bar.barType.map { $0.rawValue.capitalized }, bar.location?.boardLabel]
+        return [
+            cue("vibe", "wineglass", bar.barType?.rawValue.capitalized),
+            cue("location", "mappin.and.ellipse", bar.location?.boardLabel),
+        ].compactMap(\.self)
     case let movie as Movie:
-        parts = [
-            movie.releaseYear.map(String.init),
-            movie.runtimeMinutes.map { "\($0) min" },
-            movie.streamingService,
-        ]
+        return [
+            cue("year", "calendar", movie.releaseYear.map(String.init)),
+            cue("runtime", "clock", movie.runtimeMinutes.flatMap(runtimeSummary)),
+            cue("service", "play.rectangle.fill", movie.streamingService),
+        ].compactMap(\.self)
     case let recipe as Recipe:
-        parts = [
-            cuisineSummary(recipe.cuisines),
-            recipe.ingredients.isEmpty ? nil : "\(recipe.ingredients.count) ingredients",
-            recipe.instructions.isEmpty ? nil : "\(recipe.instructions.count) steps",
-        ]
+        return [
+            cue("cuisine", "fork.knife", cuisineSummary(recipe.cuisines, limit: nil)),
+            cue("source", "book.closed", recipeSourceName(recipe)),
+            cue(
+                "ingredients",
+                "list.bullet",
+                recipe.ingredients.isEmpty ? nil : "\(recipe.ingredients.count) ingredients"
+            ),
+            cue(
+                "steps",
+                "list.number",
+                recipe.instructions.isEmpty ? nil : "\(recipe.instructions.count) steps"
+            ),
+        ].compactMap(\.self)
     default:
-        parts = []
+        return []
     }
-    let joined = parts.compactMap(\.self).joined(separator: " · ")
-    return joined.isEmpty ? nil : joined
 }
 
 /// Matches every word in a board query across the content visible on a card
@@ -72,7 +86,7 @@ nonisolated func itemMatchesBoardSearch(
         item.notes,
         item.category.label,
         item.status.label(for: item.category),
-        cardSubtitle(for: item),
+        boardCardCues(for: item).map(\.label).joined(separator: " "),
         recipeText,
     ]
     .compactMap(\.self)
@@ -104,7 +118,7 @@ nonisolated func quickLookFacts(for item: any SharedListItem) -> [ItemQuickLookF
     case let movie as Movie:
         return [
             fact("released", "Released", movie.releaseYear.map(String.init)),
-            fact("runtime", "Runtime", movie.runtimeMinutes.map { "\($0) min" }),
+            fact("runtime", "Runtime", movie.runtimeMinutes.flatMap(runtimeSummary)),
             fact("service", "Watch on", movie.streamingService),
         ].compactMap(\.self)
     case let recipe as Recipe:
@@ -132,6 +146,28 @@ private nonisolated func cuisineSummary(_ cuisines: [String], limit: Int? = 2) -
     let shown = limit.map { Array(cuisines.prefix($0)) } ?? cuisines
     let remaining = cuisines.count - shown.count
     return shown.joined(separator: ", ") + (remaining > 0 ? " +\(remaining)" : "")
+}
+
+private nonisolated func recipeSourceName(_ recipe: Recipe) -> String? {
+    guard let host = recipe.sourceLink?.host?.lowercased() else { return nil }
+    let domain = host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+
+    return switch domain {
+    case "cooking.nytimes.com": "NYT Cooking"
+    case "tiktok.com", "m.tiktok.com": "TikTok"
+    case "instagram.com": "Instagram"
+    case "youtube.com", "m.youtube.com", "youtu.be": "YouTube"
+    default: domain
+    }
+}
+
+private nonisolated func runtimeSummary(_ minutes: Int) -> String? {
+    guard minutes > 0 else { return nil }
+    let hours = minutes / 60
+    let remainingMinutes = minutes % 60
+    if hours == 0 { return "\(remainingMinutes)m" }
+    if remainingMinutes == 0 { return "\(hours)h" }
+    return "\(hours)h \(remainingMinutes)m"
 }
 
 nonisolated extension ItemCategory {
@@ -162,4 +198,13 @@ private nonisolated func fact(
         value: value,
         prefersFullWidth: prefersFullWidth
     )
+}
+
+private nonisolated func cue(
+    _ id: String,
+    _ symbol: String,
+    _ label: String?
+) -> BoardCardCue? {
+    guard let label = label?.orNil else { return nil }
+    return BoardCardCue(id: id, symbol: symbol, label: label)
 }

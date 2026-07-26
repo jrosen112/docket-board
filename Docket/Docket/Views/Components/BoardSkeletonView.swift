@@ -45,7 +45,7 @@ struct BoardSkeletonView: View {
                         colors: [
                             .clear,
                             DocketTheme.BoardSkeleton.shimmerColor,
-                            .clear
+                            .clear,
                         ],
                         startPoint: .leading,
                         endPoint: .trailing
@@ -92,10 +92,6 @@ private struct BoardSkeletonCard: View {
                     width: DocketTheme.BoardSkeleton.statusWidth,
                     height: DocketTheme.BoardSkeleton.statusHeight
                 )
-            placeholderLine(
-                height: DocketTheme.BoardSkeleton.authorLineHeight,
-                trailingInset: DocketTheme.BoardSkeleton.authorTrailingInset
-            )
         }
         .padding(DocketTheme.BoardSkeleton.cardPadding)
         .frame(

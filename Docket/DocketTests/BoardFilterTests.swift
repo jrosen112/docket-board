@@ -176,4 +176,37 @@ final class BoardFilterTests: XCTestCase {
         XCTAssertTrue(itemMatchesBoardSearch(recipe, query: "gochujang"))
         XCTAssertTrue(itemMatchesBoardSearch(recipe, query: "caramelized"))
     }
+
+    func testBoardCardCuesKeepMovieMetadataIndividuallyScannable() {
+        let movie = Movie(
+            id: CKRecord.ID(recordName: "cue-movie"),
+            title: "The Long Goodbye",
+            addedBy: addedBy,
+            runtimeMinutes: 143,
+            streamingService: "Max",
+            releaseYear: 2012
+        )
+
+        XCTAssertEqual(
+            boardCardCues(for: movie).map(\.label),
+            ["2012", "2h 23m", "Max"]
+        )
+    }
+
+    func testBoardCardCuesGiveRecipesStructuredUtilityFacts() {
+        let recipe = Recipe(
+            id: CKRecord.ID(recordName: "cue-recipe"),
+            title: "Spicy Rigatoni",
+            addedBy: addedBy,
+            sourceURL: "https://cooking.nytimes.com/recipes/rigatoni",
+            cuisines: ["Italian", "American"],
+            ingredients: ["Rigatoni", "Tomatoes", "Cream"],
+            instructions: ["Boil", "Sauce"]
+        )
+
+        XCTAssertEqual(
+            boardCardCues(for: recipe).map(\.label),
+            ["Italian, American", "NYT Cooking", "3 ingredients", "2 steps"]
+        )
+    }
 }

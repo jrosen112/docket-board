@@ -22,6 +22,9 @@ nonisolated struct Bar: LocatedListItem {
     var title: String
     var notes: String?
     var status: ItemStatus
+    var plannedDate: Date?
+    var plannedDateHasTime: Bool
+    var completionDates: [Date]
     var photoData: Data?
     var showsPhotoOnBoard: Bool
     var boardPhotoPosition: BoardPhotoPosition
@@ -43,6 +46,9 @@ nonisolated struct Bar: LocatedListItem {
         status: ItemStatus = .wantToGo,
         addedBy: CKRecord.Reference,
         dateAdded: Date = .now,
+        plannedDate: Date? = nil,
+        plannedDateHasTime: Bool = false,
+        completionDates: [Date] = [],
         photoData: Data? = nil,
         showsPhotoOnBoard: Bool = false,
         boardPhotoPosition: BoardPhotoPosition = .center,
@@ -56,6 +62,9 @@ nonisolated struct Bar: LocatedListItem {
         self.status = status
         self.addedBy = addedBy
         self.dateAdded = dateAdded
+        self.plannedDate = plannedDate
+        self.plannedDateHasTime = plannedDate != nil && plannedDateHasTime
+        self.completionDates = completionDates
         self.photoData = photoData
         self.showsPhotoOnBoard = showsPhotoOnBoard
         self.boardPhotoPosition = boardPhotoPosition
@@ -76,12 +85,16 @@ nonisolated struct Bar: LocatedListItem {
         self.status = shared.status
         self.addedBy = shared.addedBy
         self.dateAdded = shared.dateAdded
+        self.plannedDate = shared.plannedDate
+        self.plannedDateHasTime = shared.plannedDateHasTime
+        self.completionDates = shared.completionDates
         self.photoData = shared.photoData
         self.showsPhotoOnBoard = shared.showsPhotoOnBoard
         self.boardPhotoPosition = shared.boardPhotoPosition
         self.systemFields = shared.systemFields
         self.location = ItemLocation(record: record)
-        self.showsMapOnBoard = self.location != nil
+        self.showsMapOnBoard =
+            self.location != nil
             && (record[Schema.Field.showsMapOnBoard] as? Bool ?? false)
         if let raw = record[Schema.Field.barType] as? String {
             self.barType = BarType(rawValue: raw)
@@ -93,6 +106,9 @@ nonisolated struct Bar: LocatedListItem {
         record.applySharedFields(
             title: title, notes: notes, status: status,
             addedBy: addedBy, dateAdded: dateAdded,
+            plannedDate: plannedDate,
+            plannedDateHasTime: plannedDateHasTime,
+            completionDates: completionDates,
             photoData: photoData,
             showsPhotoOnBoard: showsPhotoOnBoard,
             boardPhotoPosition: boardPhotoPosition
