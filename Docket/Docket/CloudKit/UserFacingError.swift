@@ -15,7 +15,7 @@ nonisolated enum UserFacingError {
         if let urlError = error as? URLError {
             switch urlError.code {
             case .notConnectedToInternet, .networkConnectionLost,
-                 .cannotConnectToHost, .cannotFindHost, .timedOut:
+                .cannotConnectToHost, .cannotFindHost, .timedOut:
                 return "You're offline. Reconnect and try again."
             default:
                 break
@@ -26,7 +26,8 @@ nonisolated enum UserFacingError {
 
     private static func message(for error: CKError) -> String {
         if error.code == .partialFailure,
-           let nestedError = error.partialErrorsByItemID?.values.first {
+            let nestedError = error.partialErrorsByItemID?.values.first
+        {
             return message(for: nestedError)
         }
 
@@ -34,7 +35,7 @@ nonisolated enum UserFacingError {
         case .networkUnavailable, .networkFailure:
             return "You're offline. Reconnect and try again."
         case .serviceUnavailable, .requestRateLimited, .zoneBusy,
-             .accountTemporarilyUnavailable:
+            .accountTemporarilyUnavailable:
             return "iCloud is temporarily unavailable. Try again in a moment."
         case .notAuthenticated:
             return "Sign in to iCloud in Settings, then try again."
@@ -43,7 +44,8 @@ nonisolated enum UserFacingError {
         case .permissionFailure:
             return "You don't have permission to make that change."
         case .participantMayNeedVerification:
-            return "This invitation was sent to contact information that isn't linked to your iCloud account. Open the invitation again to verify it."
+            return
+                "This invitation was sent to contact information that isn't linked to your iCloud account. Open the invitation again to verify it."
         case .unknownItem, .zoneNotFound, .userDeletedZone:
             return "This board is no longer available."
         default:

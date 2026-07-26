@@ -5,8 +5,8 @@
 //  Created by Jared Rosen on 7/12/26.
 //
 
-import SwiftUI
 import CloudKit
+import SwiftUI
 
 @main
 @MainActor

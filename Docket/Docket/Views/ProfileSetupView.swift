@@ -87,10 +87,12 @@ struct ProfileSetupView: View {
             .docketPrimaryActionStyle()
             .disabled(isBusy)
 
-            Text("Already use Docket on another device? We’ll restore the profiles and boards tied to this iCloud account.")
-                .font(.caption)
-                .foregroundStyle(DocketTheme.ProfileSetup.bodyColor)
-                .multilineTextAlignment(.center)
+            Text(
+                "Already use Docket on another device? We’ll restore the profiles and boards tied to this iCloud account."
+            )
+            .font(.caption)
+            .foregroundStyle(DocketTheme.ProfileSetup.bodyColor)
+            .multilineTextAlignment(.center)
 
             if let cloudMessage {
                 Label(
@@ -236,9 +238,10 @@ struct ProfileSetupView: View {
             let result = await store.restoreFromICloud()
             switch result {
             case .restored:
-                break // ContentView advances to the restored board.
+                break  // ContentView advances to the restored board.
             case .notFound:
-                cloudMessage = "No existing Docket profile was found for this iCloud account. Create one below to get started."
+                cloudMessage =
+                    "No existing Docket profile was found for this iCloud account. Create one below to get started."
             case .failed(let message):
                 cloudMessage = message
                 cloudMessageIsError = true

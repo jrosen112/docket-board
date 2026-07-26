@@ -40,12 +40,14 @@ nonisolated struct ItemLocation: Equatable, Hashable, Sendable {
         if isUnitedStates {
             let unitedStatesLabels = ["united states", "united states of america", "usa", "us"]
             if let last = components.last,
-               unitedStatesLabels.contains(last.lowercased()) {
+                unitedStatesLabels.contains(last.lowercased())
+            {
                 components.removeLast()
             }
         } else if let country = country?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !country.isEmpty,
-                  !components.contains(where: { $0.caseInsensitiveCompare(country) == .orderedSame }) {
+            !country.isEmpty,
+            !components.contains(where: { $0.caseInsensitiveCompare(country) == .orderedSame })
+        {
             components.append(country)
         }
 

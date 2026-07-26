@@ -32,7 +32,8 @@ nonisolated struct MasonryLayout: Layout {
             let size = subview.sizeThatFits(ProposedViewSize(width: proposedWidth, height: nil))
             let contentHeight = max(size.height - contentOverflow * 2, 0)
             let column = shortestColumn(heights)
-            let x = bounds.minX
+            let x =
+                bounds.minX
                 + CGFloat(column) * (columnWidth + spacing)
                 - contentOverflow
             let y = bounds.minY + heights[column] - contentOverflow

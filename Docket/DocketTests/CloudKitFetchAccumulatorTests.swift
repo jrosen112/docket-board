@@ -1,5 +1,6 @@
 import CloudKit
 import XCTest
+
 @testable import Docket
 
 final class CloudKitFetchAccumulatorTests: XCTestCase {

@@ -14,41 +14,41 @@ struct BoardFilterHeader: View {
             onShowFilters: presentFilters,
             onClear: clearFilters
         )
-            .glassEffect(
-                .regular.tint(DocketTheme.BoardFilterHeader.glassTint),
-                in: RoundedRectangle(
-                    cornerRadius: DocketTheme.BoardFilterHeader.cornerRadius
-                )
+        .glassEffect(
+            .regular.tint(DocketTheme.BoardFilterHeader.glassTint),
+            in: RoundedRectangle(
+                cornerRadius: DocketTheme.BoardFilterHeader.cornerRadius
             )
-            .shadow(
-                color: DocketTheme.BoardFilterHeader.shadowColor,
-                radius: DocketTheme.BoardFilterHeader.shadowRadius,
-                y: DocketTheme.BoardFilterHeader.shadowY
+        )
+        .shadow(
+            color: DocketTheme.BoardFilterHeader.shadowColor,
+            radius: DocketTheme.BoardFilterHeader.shadowRadius,
+            y: DocketTheme.BoardFilterHeader.shadowY
+        )
+        .overlay(
+            RoundedRectangle(
+                cornerRadius: DocketTheme.BoardFilterHeader.cornerRadius
             )
-            .overlay(
-                RoundedRectangle(
-                    cornerRadius: DocketTheme.BoardFilterHeader.cornerRadius
-                )
-                .stroke(
-                    DocketTheme.BoardFilterHeader.borderColor,
-                    lineWidth: DocketTheme.BoardFilterHeader.borderWidth
-                )
+            .stroke(
+                DocketTheme.BoardFilterHeader.borderColor,
+                lineWidth: DocketTheme.BoardFilterHeader.borderWidth
             )
-            .padding(.vertical, DocketTheme.BoardFilterHeader.verticalMargin)
-            .sheet(
-                isPresented: $showingFilterSheet,
-                onDismiss: applyDismissedDraftIfNeeded
-            ) {
-                BoardFilterSheet(
-                    filter: $draftFilter,
-                    categories: categories,
-                    cuisines: cuisines,
-                    onCancel: cancelFilters,
-                    onApply: applyFilters
-                )
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-            }
+        )
+        .padding(.vertical, DocketTheme.BoardFilterHeader.verticalMargin)
+        .sheet(
+            isPresented: $showingFilterSheet,
+            onDismiss: applyDismissedDraftIfNeeded
+        ) {
+            BoardFilterSheet(
+                filter: $draftFilter,
+                categories: categories,
+                cuisines: cuisines,
+                onCancel: cancelFilters,
+                onApply: applyFilters
+            )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
     }
 
     private func presentFilters() {

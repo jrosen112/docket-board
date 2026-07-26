@@ -149,7 +149,7 @@ struct ItemPhotoEditor: View {
             data: data,
             maximumHeight: DocketDetailTheme.Photo.editorMaximumHeight
         )
-            .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity)
     }
 
     private var controls: some View {
@@ -299,20 +299,20 @@ struct RecipePhotoCarouselEditor: View {
                             data: data,
                             maximumHeight: DocketDetailTheme.Photo.editorMaximumHeight
                         )
-                            .overlay(alignment: .topTrailing) {
-                                Button(role: .destructive) {
-                                    removePhoto(at: index)
-                                } label: {
-                                    Image(systemName: "trash.fill")
-                                        .font(.caption.weight(.bold))
-                                        .foregroundStyle(.white)
-                                        .frame(width: 34, height: 34)
-                                        .background(.black.opacity(0.62), in: Circle())
-                                }
-                                .padding(10)
-                                .accessibilityLabel("Remove photo \(index + 1)")
+                        .overlay(alignment: .topTrailing) {
+                            Button(role: .destructive) {
+                                removePhoto(at: index)
+                            } label: {
+                                Image(systemName: "trash.fill")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 34, height: 34)
+                                    .background(.black.opacity(0.62), in: Circle())
                             }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .padding(10)
+                            .accessibilityLabel("Remove photo \(index + 1)")
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: photos.count > 1 ? .automatic : .never))
@@ -660,10 +660,12 @@ private struct BoardPhotoCropEditor: View {
                 let start = dragStart ?? workingPosition
                 if dragStart == nil { dragStart = start }
 
-                let x = layout.horizontalOverflow > 0
+                let x =
+                    layout.horizontalOverflow > 0
                     ? start.x - Double(value.translation.width / layout.horizontalOverflow)
                     : 0.5
-                let y = layout.verticalOverflow > 0
+                let y =
+                    layout.verticalOverflow > 0
                     ? start.y - Double(value.translation.height / layout.verticalOverflow)
                     : 0.5
                 workingPosition = BoardPhotoPosition(x: x, y: y)

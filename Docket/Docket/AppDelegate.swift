@@ -96,7 +96,7 @@ final class CloudKitShareAcceptanceRouter {
         let shareID = [
             metadata.containerIdentifier,
             metadata.share.recordID.zoneID.ownerName,
-            metadata.share.recordID.recordName
+            metadata.share.recordID.recordName,
         ].joined(separator: "|")
         guard acceptingShareIDs.insert(shareID).inserted else { return }
 
@@ -199,9 +199,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         didReceiveRemoteNotification userInfo: [AnyHashable: Any],
         fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
     ) {
-        guard let notification = CKNotification(
-            fromRemoteNotificationDictionary: userInfo
-        ) as? CKDatabaseNotification else {
+        guard
+            let notification = CKNotification(
+                fromRemoteNotificationDictionary: userInfo
+            ) as? CKDatabaseNotification
+        else {
             completionHandler(.noData)
             return
         }

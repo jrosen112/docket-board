@@ -5,8 +5,9 @@
 //  Space identity + persistence round-trips.
 //
 
-import XCTest
 import CloudKit
+import XCTest
+
 @testable import Docket
 
 final class SpaceTests: XCTestCase {

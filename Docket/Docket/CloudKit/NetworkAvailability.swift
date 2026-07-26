@@ -37,11 +37,12 @@ nonisolated final class SystemNetworkAvailability: NetworkAvailabilityProviding,
     }
 
     private func setAvailability(for status: NWPath.Status) {
-        let availability: NetworkAvailability = switch status {
-        case .satisfied: .available
-        case .unsatisfied, .requiresConnection: .unavailable
-        @unknown default: .unknown
-        }
+        let availability: NetworkAvailability =
+            switch status {
+            case .satisfied: .available
+            case .unsatisfied, .requiresConnection: .unavailable
+            @unknown default: .unknown
+            }
         lock.withLock { latestAvailability = availability }
     }
 

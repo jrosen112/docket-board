@@ -34,9 +34,10 @@ extension CKRecord {
     /// fresh record for never-saved models.
     nonisolated static func base(type: String, id: CKRecord.ID, systemFields: Data?) -> CKRecord {
         if let systemFields,
-           let record = decodeSystemFields(systemFields),
-           record.recordID == id,
-           record.recordType == type {
+            let record = decodeSystemFields(systemFields),
+            record.recordID == id,
+            record.recordType == type
+        {
             return record
         }
         return CKRecord(recordType: type, recordID: id)

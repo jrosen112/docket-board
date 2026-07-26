@@ -24,7 +24,8 @@ nonisolated enum CuisineCatalog {
     }
 
     static func normalizedName(_ value: String) -> String? {
-        let collapsed = value
+        let collapsed =
+            value
             .split(whereSeparator: \Character.isWhitespace)
             .joined(separator: " ")
         guard !collapsed.isEmpty else { return nil }

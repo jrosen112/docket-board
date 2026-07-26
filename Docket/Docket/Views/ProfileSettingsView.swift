@@ -132,7 +132,7 @@ struct ProfileSettingsView: View {
         LazyVGrid(
             columns: [
                 GridItem(.flexible(), spacing: DocketTheme.ProfileSettings.gridSpacing),
-                GridItem(.flexible())
+                GridItem(.flexible()),
             ],
             spacing: DocketTheme.ProfileSettings.gridSpacing
         ) {

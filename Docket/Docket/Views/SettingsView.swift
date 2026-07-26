@@ -49,7 +49,7 @@ struct SettingsView: View {
                                     ? "moon.stars.fill"
                                     : "circle.lefthalf.filled"
                             )
-                                .foregroundStyle(DocketTheme.brass)
+                            .foregroundStyle(DocketTheme.brass)
                         }
                     }
                     .tint(DocketTheme.brass)
@@ -61,7 +61,7 @@ struct SettingsView: View {
                     Text(
                         "Darkens cards and detail surfaces while keeping Docket's board palette."
                     )
-                        .foregroundStyle(DocketTheme.cream.opacity(0.62))
+                    .foregroundStyle(DocketTheme.cream.opacity(0.62))
                 }
 
                 Section {

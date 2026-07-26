@@ -22,7 +22,8 @@ nonisolated struct Space: Identifiable, Hashable, Sendable {
         self.zoneID = zoneID
         self.access = access
         let cleanedTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines)
-        self.title = cleanedTitle?.isEmpty == false
+        self.title =
+            cleanedTitle?.isEmpty == false
             ? cleanedTitle!
             : (access == .owned ? "My Board" : "Shared Board")
     }
@@ -103,7 +104,8 @@ nonisolated enum SpaceStore {
 
     static func loadAll(from defaults: UserDefaults = .standard) -> [Space] {
         if let data = defaults.data(forKey: catalogKey),
-           let stored = try? JSONDecoder().decode([StoredSpace].self, from: data) {
+            let stored = try? JSONDecoder().decode([StoredSpace].self, from: data)
+        {
             let spaces = unique(stored.map(\.space))
             if !spaces.isEmpty { return spaces }
         }

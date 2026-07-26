@@ -207,19 +207,21 @@ private struct LocationSearchView: View {
     }
 }
 
-private extension ItemLocation {
-    var stableID: String {
+extension ItemLocation {
+    fileprivate var stableID: String {
         mapItemIdentifier ?? "\(latitude),\(longitude),\(name)"
     }
 
-    init?(mapItem: MKMapItem) {
+    fileprivate init?(mapItem: MKMapItem) {
         let representations = mapItem.addressRepresentations
-        let fullAddress = representations?
+        let fullAddress =
+            representations?
             .fullAddress(includingRegion: true, singleLine: true)
             ?? mapItem.address?.fullAddress
         guard let fullAddress = fullAddress?.orNil else { return nil }
 
-        let name = mapItem.name?.orNil
+        let name =
+            mapItem.name?.orNil
             ?? mapItem.address?.shortAddress?.orNil
             ?? fullAddress
         let coordinate = mapItem.location.coordinate

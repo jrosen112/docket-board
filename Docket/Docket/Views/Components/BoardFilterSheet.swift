@@ -276,8 +276,8 @@ private struct FilterChoiceTile: View {
     }
 }
 
-private extension ItemStatus {
-    var symbol: String {
+extension ItemStatus {
+    fileprivate var symbol: String {
         switch self {
         case .wantToGo: "bookmark.fill"
         case .planned: "calendar.badge.checkmark"

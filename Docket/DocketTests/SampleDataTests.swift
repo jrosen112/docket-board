@@ -6,8 +6,9 @@
 //  samples never touches real items.
 //
 
-import XCTest
 import CloudKit
+import XCTest
+
 @testable import Docket
 
 @MainActor

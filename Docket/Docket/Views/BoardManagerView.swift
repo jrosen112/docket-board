@@ -51,13 +51,14 @@ struct BoardManagerView: View {
                             .accessibilityAddTraits(.isHeader)
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
-                            .listRowInsets(EdgeInsets(
-                                top: DocketTheme.BoardManager.sectionLabelTopPadding,
-                                leading: DocketTheme.BoardManager.horizontalPadding
-                                    + DocketTheme.BoardManager.sectionLabelLeadingPadding,
-                                bottom: 0,
-                                trailing: DocketTheme.BoardManager.horizontalPadding
-                            ))
+                            .listRowInsets(
+                                EdgeInsets(
+                                    top: DocketTheme.BoardManager.sectionLabelTopPadding,
+                                    leading: DocketTheme.BoardManager.horizontalPadding
+                                        + DocketTheme.BoardManager.sectionLabelLeadingPadding,
+                                    bottom: 0,
+                                    trailing: DocketTheme.BoardManager.horizontalPadding
+                                ))
 
                         ForEach(otherSpaces) { space in
                             boardCard(space, isActive: false)
@@ -332,11 +333,12 @@ struct BoardManagerView: View {
     }
 
     private func summary(for snapshot: BoardManagementSnapshot) -> String {
-        let pins = switch snapshot.itemCount {
-        case 0: "No pins yet"
-        case 1: "1 pin"
-        default: "\(snapshot.itemCount) pins"
-        }
+        let pins =
+            switch snapshot.itemCount {
+            case 0: "No pins yet"
+            case 1: "1 pin"
+            default: "\(snapshot.itemCount) pins"
+            }
         return "\(pins) · \(companionSummary(snapshot))"
     }
 
@@ -362,8 +364,9 @@ struct BoardManagerView: View {
     private func latestSummary(_ latest: BoardLatestUpdate) -> String {
         var summary = "Latest update: \(latest.title)"
         if let author = latest.authorName,
-           author != store.currentProfile?.displayName,
-           let first = author.split(separator: " ").first {
+            author != store.currentProfile?.displayName,
+            let first = author.split(separator: " ").first
+        {
             summary += " by \(first)"
         }
         let when = Self.relativeDateFormatter.localizedString(
@@ -426,12 +429,13 @@ private struct BoardManagerRow: ViewModifier {
         content
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
-            .listRowInsets(EdgeInsets(
-                top: DocketTheme.BoardManager.rowOverhangHeadroom,
-                leading: DocketTheme.BoardManager.horizontalPadding,
-                bottom: DocketTheme.BoardManager.rowOverhangHeadroom,
-                trailing: DocketTheme.BoardManager.horizontalPadding
-            ))
+            .listRowInsets(
+                EdgeInsets(
+                    top: DocketTheme.BoardManager.rowOverhangHeadroom,
+                    leading: DocketTheme.BoardManager.horizontalPadding,
+                    bottom: DocketTheme.BoardManager.rowOverhangHeadroom,
+                    trailing: DocketTheme.BoardManager.horizontalPadding
+                ))
     }
 }
 
