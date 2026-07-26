@@ -152,6 +152,12 @@ struct MovieDetailView: View {
             draft.photoData = preparedPoster
             draft.showsPhotoOnBoard = true
             draft.boardPhotoPosition = .center
+            // Set after the photo: assigning `photoData` clears any stale path.
+            draft.tmdbPosterPath = selection.posterPath
+        } else {
+            // Poster unavailable — whatever photo is already on the draft belongs
+            // to a different movie now, so it gets no full-resolution source.
+            draft.tmdbPosterPath = nil
         }
     }
 }

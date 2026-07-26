@@ -1,5 +1,23 @@
 import Foundation
 import SwiftUI
+import UIKit
+
+/// One photo in the full-screen viewer.
+///
+/// `data` is the copy stored on the item — always present, renders instantly,
+/// and works offline. `highResolutionURL` is an optional sharper source for the
+/// same image (a movie's TMDB poster, whose stored copy is downsized for the
+/// board). The viewer fades it in when it loads and falls back to `data` in
+/// every failure case.
+struct BoardPhoto {
+    let data: Data
+    let highResolutionURL: URL?
+
+    init(data: Data, highResolutionURL: URL? = nil) {
+        self.data = data
+        self.highResolutionURL = highResolutionURL
+    }
+}
 
 /// Full-screen, swipeable photo presentation for a board item. Recipes supply
 /// all of their photos; other item types supply their single shared photo.
@@ -7,7 +25,7 @@ struct BoardPhotoViewer: View {
     @Environment(\.dismiss) private var dismiss
 
     let title: String
-    let photos: [Data]
+    let photos: [BoardPhoto]
 
     @State private var selectedIndex = 0
     @State private var isCurrentPhotoZoomed = false
@@ -18,9 +36,9 @@ struct BoardPhotoViewer: View {
                 .ignoresSafeArea()
 
             TabView(selection: $selectedIndex) {
-                ForEach(Array(photos.enumerated()), id: \.offset) { index, photoData in
+                ForEach(Array(photos.enumerated()), id: \.offset) { index, photo in
                     ZoomablePhotoPage(
-                        data: photoData,
+                        photo: photo,
                         isSelected: selectedIndex == index,
                         onZoomStateChanged: { isZoomed in
                             guard selectedIndex == index else { return }
@@ -111,7 +129,7 @@ struct BoardPhotoViewer: View {
 }
 
 private struct ZoomablePhotoPage: View {
-    let data: Data
+    let photo: BoardPhoto
     let isSelected: Bool
     let onZoomStateChanged: (Bool) -> Void
 
@@ -119,10 +137,11 @@ private struct ZoomablePhotoPage: View {
     @State private var settledScale: CGFloat = 1
     @State private var offset: CGSize = .zero
     @State private var settledOffset: CGSize = .zero
+    @State private var highResolutionImage: UIImage?
 
     var body: some View {
         GeometryReader { geometry in
-            ItemPhotoImage(data: data, contentMode: .fit)
+            photoLayers
                 .frame(width: geometry.size.width, height: geometry.size.height)
                 .scaleEffect(scale)
                 .offset(offset)
@@ -137,9 +156,59 @@ private struct ZoomablePhotoPage: View {
                     toggleDoubleTapZoom(in: geometry.size)
                 }
         }
+        .task(id: isSelected) {
+            await loadHighResolutionImage()
+        }
         .onChange(of: isSelected) { _, selected in
             guard !selected else { return }
             resetZoom()
+            // A decoded full-resolution poster costs tens of megabytes. Only the
+            // page on screen keeps one.
+            highResolutionImage = nil
+        }
+    }
+
+    /// The stored photo always renders underneath, so the sharper source fades
+    /// in over a complete image instead of replacing a placeholder. Both use the
+    /// same aspect ratio and `.fit`, making this a crossfade with no reflow.
+    private var photoLayers: some View {
+        ZStack {
+            ItemPhotoImage(data: photo.data, contentMode: .fit)
+
+            if let highResolutionImage {
+                Image(uiImage: highResolutionImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .transition(.opacity)
+            }
+        }
+    }
+
+    private func loadHighResolutionImage() async {
+        guard isSelected,
+            highResolutionImage == nil,
+            let url = photo.highResolutionURL
+        else { return }
+
+        var request = URLRequest(url: url)
+        request.timeoutInterval = DocketTheme.PhotoViewer.highResolutionTimeout
+        // Reuse the shared cache so reopening a poster is free, and let Low Data
+        // Mode keep the stored photo rather than pulling a multi-megabyte image.
+        request.cachePolicy = .returnCacheDataElseLoad
+        request.allowsConstrainedNetworkAccess = false
+
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+            let httpResponse = response as? HTTPURLResponse,
+            (200..<300).contains(httpResponse.statusCode),
+            let image = UIImage(data: data),
+            // Decode off the main thread; decoding a full-resolution poster
+            // mid-pinch would hitch the gesture.
+            let prepared = await image.byPreparingForDisplay(),
+            !Task.isCancelled
+        else { return }
+
+        withAnimation(DocketTheme.PhotoViewer.highResolutionFadeAnimation) {
+            highResolutionImage = prepared
         }
     }
 

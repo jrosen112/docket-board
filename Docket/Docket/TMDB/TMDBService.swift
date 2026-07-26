@@ -10,7 +10,7 @@ nonisolated struct TMDBMovieSummary: Decodable, Identifiable, Hashable, Sendable
 
     var releaseYear: Int? {
         guard let releaseDate,
-              let year = releaseDate.split(separator: "-").first
+            let year = releaseDate.split(separator: "-").first
         else { return nil }
         return Int(year)
     }
@@ -43,6 +43,9 @@ nonisolated struct TMDBMovieSelection: Equatable, Sendable {
     let releaseYear: Int?
     let runtimeMinutes: Int?
     let posterData: Data?
+    /// Path behind `posterData`, kept so the stored artwork can be re-fetched at
+    /// full resolution later. `nil` when no poster was downloaded.
+    let posterPath: String?
 }
 
 nonisolated enum TMDBServiceError: Error, Equatable, Sendable {
@@ -108,7 +111,7 @@ nonisolated struct TMDBService: Sendable {
             queryItems: [
                 URLQueryItem(name: "query", value: trimmedQuery),
                 URLQueryItem(name: "include_adult", value: "false"),
-                URLQueryItem(name: "language", value: "en-US")
+                URLQueryItem(name: "language", value: "en-US"),
             ]
         )
 
@@ -129,7 +132,10 @@ nonisolated struct TMDBService: Sendable {
             title: details.title,
             releaseYear: details.releaseYear ?? summary.releaseYear,
             runtimeMinutes: details.runtime,
-            posterData: posterData
+            posterData: posterData,
+            // Only report a path when its artwork actually downloaded, so callers
+            // never pair a stored photo with a different movie's poster.
+            posterPath: posterData == nil ? nil : posterPath
         )
     }
 
@@ -137,6 +143,14 @@ nonisolated struct TMDBService: Sendable {
         guard let path, !path.isEmpty else { return nil }
         let normalizedPath = path.hasPrefix("/") ? String(path.dropFirst()) : path
         return URL(string: "https://image.tmdb.org/t/p/\(size)/\(normalizedPath)")
+    }
+
+    /// Highest resolution TMDB publishes for a poster. `image.tmdb.org` is an
+    /// unauthenticated CDN, so this needs no API key and no API request — a
+    /// stored poster path is enough to load full-resolution artwork offline of
+    /// the API.
+    static func fullResolutionPosterURL(path: String?) -> URL? {
+        posterURL(path: path, size: "original")
     }
 
     private func movieDetails(id: Int) async throws -> MovieDetails {
@@ -158,8 +172,8 @@ nonisolated struct TMDBService: Sendable {
         do {
             let (data, response) = try await session.data(from: url)
             guard let response = response as? HTTPURLResponse,
-                  (200..<300).contains(response.statusCode),
-                  !data.isEmpty
+                (200..<300).contains(response.statusCode),
+                !data.isEmpty
             else { return nil }
             return data
         } catch {
@@ -168,10 +182,12 @@ nonisolated struct TMDBService: Sendable {
     }
 
     private func request(path: String, queryItems: [URLQueryItem]) async throws -> Data {
-        guard var components = URLComponents(
-            url: apiBaseURL.appending(path: path),
-            resolvingAgainstBaseURL: false
-        ) else {
+        guard
+            var components = URLComponents(
+                url: apiBaseURL.appending(path: path),
+                resolvingAgainstBaseURL: false
+            )
+        else {
             throw TMDBServiceError.invalidRequest
         }
 
@@ -227,7 +243,7 @@ private nonisolated struct MovieDetails: Decodable {
 
     var releaseYear: Int? {
         guard let releaseDate,
-              let year = releaseDate.split(separator: "-").first
+            let year = releaseDate.split(separator: "-").first
         else { return nil }
         return Int(year)
     }

@@ -239,6 +239,7 @@ extension BoardStore {
                 movie.streamingService ?? "",
                 movie.releaseYear.map(String.init) ?? "",
                 movie.tmdbID.map(String.init) ?? "",
+                movie.tmdbPosterPath ?? "",
             ]
         case let recipe as Recipe:
             fields += [

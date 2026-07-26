@@ -91,6 +91,7 @@ final class ItemDraftTests: XCTestCase {
         draft.streamingService = "Max"
         draft.notes = "Friday night"
         draft.tmdbID = 949
+        draft.tmdbPosterPath = "/heat.jpg"
 
         let edited = try XCTUnwrap(draft.applying(to: movie) as? Movie)
 
@@ -99,6 +100,56 @@ final class ItemDraftTests: XCTestCase {
         XCTAssertEqual(edited.streamingService, "Max")
         XCTAssertEqual(edited.notes, "Friday night")
         XCTAssertEqual(edited.tmdbID, 949)
+        XCTAssertEqual(edited.tmdbPosterPath, "/heat.jpg")
+    }
+
+    func testEditingMovieCarriesExistingPosterPathIntoDraft() {
+        let movie = Movie(
+            id: CKRecord.ID(recordName: "movie-2"),
+            title: "Past Lives",
+            addedBy: addedBy,
+            photoData: Data([0x01, 0x02]),
+            tmdbID: 666_277,
+            tmdbPosterPath: "/past-lives.jpg"
+        )
+
+        let draft = ItemDraft(item: movie)
+
+        XCTAssertEqual(draft.tmdbPosterPath, "/past-lives.jpg")
+    }
+
+    /// The poster path describes the artwork in `photoData`. Choosing a different
+    /// photo must drop it so the viewer never sharpens a hand-picked image into
+    /// some other movie's poster.
+    func testReplacingDraftPhotoClearsPosterPath() {
+        var draft = ItemDraft(category: .movie)
+        draft.photoData = Data([0x01, 0x02])
+        draft.tmdbPosterPath = "/past-lives.jpg"
+
+        draft.photoData = Data([0x03, 0x04])
+
+        XCTAssertNil(draft.tmdbPosterPath)
+    }
+
+    func testRemovingDraftPhotoClearsPosterPath() {
+        var draft = ItemDraft(category: .movie)
+        draft.photoData = Data([0x01, 0x02])
+        draft.tmdbPosterPath = "/past-lives.jpg"
+
+        draft.photoData = nil
+
+        XCTAssertNil(draft.tmdbPosterPath)
+    }
+
+    /// Rewriting the same bytes is not a photo change, so the path survives.
+    func testReassigningIdenticalPhotoKeepsPosterPath() {
+        var draft = ItemDraft(category: .movie)
+        draft.photoData = Data([0x01, 0x02])
+        draft.tmdbPosterPath = "/past-lives.jpg"
+
+        draft.photoData = Data([0x01, 0x02])
+
+        XCTAssertEqual(draft.tmdbPosterPath, "/past-lives.jpg")
     }
 
     func testDraftBuildsNewTypedItem() throws {

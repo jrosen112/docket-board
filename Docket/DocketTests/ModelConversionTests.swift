@@ -145,7 +145,8 @@ final class ModelConversionTests: XCTestCase {
             runtimeMinutes: 105,
             streamingService: "Showtime",
             releaseYear: 2023,
-            tmdbID: 666277
+            tmdbID: 666277,
+            tmdbPosterPath: "/past-lives.jpg"
         )
 
         let decoded = try XCTUnwrap(Movie(record: original.toRecord()))
@@ -155,6 +156,26 @@ final class ModelConversionTests: XCTestCase {
         XCTAssertEqual(decoded.streamingService, original.streamingService)
         XCTAssertEqual(decoded.releaseYear, original.releaseYear)
         XCTAssertEqual(decoded.tmdbID, original.tmdbID)
+        XCTAssertEqual(decoded.tmdbPosterPath, original.tmdbPosterPath)
+    }
+
+    /// Movies saved before the poster path existed decode with a nil path rather
+    /// than failing, and keep working without full-resolution artwork.
+    func testMovieWithoutPosterPathDecodes() throws {
+        let original = Movie(
+            id: CKRecord.ID(recordName: "m2"),
+            title: "Heat",
+            addedBy: addedBy,
+            dateAdded: fixedDate,
+            tmdbID: 949
+        )
+
+        let record = original.toRecord()
+        XCTAssertNil(record[Schema.Field.tmdbPosterPath])
+
+        let decoded = try XCTUnwrap(Movie(record: record))
+        XCTAssertNil(decoded.tmdbPosterPath)
+        XCTAssertEqual(decoded.tmdbID, 949)
     }
 
     // MARK: Recipe

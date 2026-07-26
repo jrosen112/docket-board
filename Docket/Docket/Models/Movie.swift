@@ -30,6 +30,11 @@ nonisolated struct Movie: SharedListItem {
     var streamingService: String?
     var releaseYear: Int?
     var tmdbID: Int?
+    /// TMDB's poster path (e.g. `/abc123.jpg`) for the artwork in `photoData`.
+    /// `photoData` holds a downsized copy for the board; this path rebuilds the
+    /// full-resolution CDN URL for the photo viewer without another API call.
+    /// Only set while it describes the currently stored artwork.
+    var tmdbPosterPath: String?
 
     init(
         id: CKRecord.ID,
@@ -47,7 +52,8 @@ nonisolated struct Movie: SharedListItem {
         runtimeMinutes: Int? = nil,
         streamingService: String? = nil,
         releaseYear: Int? = nil,
-        tmdbID: Int? = nil
+        tmdbID: Int? = nil,
+        tmdbPosterPath: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -65,6 +71,7 @@ nonisolated struct Movie: SharedListItem {
         self.streamingService = streamingService
         self.releaseYear = releaseYear
         self.tmdbID = tmdbID
+        self.tmdbPosterPath = tmdbPosterPath
     }
 
     init?(record: CKRecord) {
@@ -90,6 +97,7 @@ nonisolated struct Movie: SharedListItem {
         self.streamingService = record[Schema.Field.streamingService] as? String
         self.releaseYear = record[Schema.Field.releaseYear] as? Int
         self.tmdbID = record[Schema.Field.tmdbID] as? Int
+        self.tmdbPosterPath = record[Schema.Field.tmdbPosterPath] as? String
     }
 
     func toRecord() -> CKRecord {
@@ -108,6 +116,7 @@ nonisolated struct Movie: SharedListItem {
         record[Schema.Field.streamingService] = streamingService
         record[Schema.Field.releaseYear] = releaseYear
         record[Schema.Field.tmdbID] = tmdbID
+        record[Schema.Field.tmdbPosterPath] = tmdbPosterPath
         return record
     }
 }

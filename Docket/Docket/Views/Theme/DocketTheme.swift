@@ -94,13 +94,6 @@ nonisolated enum DocketTheme {
         static let movieBadgeHorizontalPadding: CGFloat = 7
         static let movieBadgeVerticalPadding: CGFloat = 5
         static let movieBadgeBackground = Color.black.opacity(0.52)
-
-        /// Dense cards preserve the poster's native 2:3 character. Sparse
-        /// cards use a slightly shorter 3:4 crop so artwork does not create
-        /// unnecessary vertical real estate around only one or two cues.
-        static func moviePosterAspectRatio(forCueCount cueCount: Int) -> CGFloat {
-            cueCount < 3 ? 3.0 / 4.0 : movieArtworkAspectRatio
-        }
     }
 
     enum BoardReaction {
@@ -488,6 +481,10 @@ nonisolated enum DocketTheme {
             dampingFraction: 0.82
         )
         static let pageIndicatorAnimation = Animation.snappy(duration: 0.2)
+
+        /// Crossfade from the stored photo to full-resolution source artwork.
+        static let highResolutionFadeAnimation = Animation.easeOut(duration: 0.25)
+        static let highResolutionTimeout: TimeInterval = 20
     }
 
     enum RefreshPill {

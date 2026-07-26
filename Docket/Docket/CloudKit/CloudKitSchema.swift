@@ -99,6 +99,7 @@ nonisolated enum Schema {
         static let streamingService = "streamingService"
         static let releaseYear = "releaseYear"
         static let tmdbID = "tmdbID"
+        static let tmdbPosterPath = "tmdbPosterPath"
     }
 
     /// The single shared record zone that a "space" (two participants) lives in.

@@ -180,10 +180,7 @@ struct BoardCard: View {
             }
             .padding(DocketTheme.BoardCard.movieContentPadding)
         }
-        .aspectRatio(
-            DocketTheme.BoardCard.moviePosterAspectRatio(forCueCount: cues.count),
-            contentMode: .fit
-        )
+        .aspectRatio(DocketTheme.BoardCard.movieArtworkAspectRatio, contentMode: .fit)
         .frame(maxWidth: .infinity)
         .clipShape(
             RoundedRectangle(

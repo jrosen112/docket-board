@@ -50,7 +50,16 @@ nonisolated struct ItemDraft {
     var plannedDate: Date?
     var plannedDateHasTime = false
     var completionDates: [Date] = []
-    var photoData: Data?
+    var photoData: Data? {
+        didSet {
+            // Replacing or clearing the photo invalidates the remote artwork it
+            // was downsized from, so a hand-picked image can never inherit the
+            // previous movie's poster. Callers that supply both — TMDB
+            // selection — set the path after assigning the photo.
+            guard photoData != oldValue else { return }
+            tmdbPosterPath = nil
+        }
+    }
     var showsPhotoOnBoard = false
     var showsMapOnBoard = false
     var boardPhotoPosition: BoardPhotoPosition = .center
@@ -72,6 +81,7 @@ nonisolated struct ItemDraft {
     var streamingService = ""
     var releaseYear = ""
     var tmdbID: Int?
+    var tmdbPosterPath: String?
 
     var isValid: Bool { !title.trimmed.isEmpty }
 
@@ -122,6 +132,7 @@ nonisolated struct ItemDraft {
             streamingService = movie.streamingService ?? ""
             releaseYear = movie.releaseYear.map(String.init) ?? ""
             tmdbID = movie.tmdbID
+            tmdbPosterPath = movie.tmdbPosterPath
         case let recipe as Recipe:
             cuisines = recipe.cuisines
             sourceURL = recipe.sourceURL ?? ""
@@ -181,6 +192,7 @@ nonisolated struct ItemDraft {
             movie.streamingService = streamingService.orNil
             movie.releaseYear = Int(releaseYear)
             movie.tmdbID = tmdbID
+            movie.tmdbPosterPath = tmdbPosterPath
             return movie
         case var recipe as Recipe:
             recipe.title = title.trimmed
@@ -266,7 +278,8 @@ nonisolated struct ItemDraft {
                 runtimeMinutes: Int(runtime),
                 streamingService: streamingService.orNil,
                 releaseYear: Int(releaseYear),
-                tmdbID: tmdbID
+                tmdbID: tmdbID,
+                tmdbPosterPath: tmdbPosterPath
             )
         case .recipe:
             Recipe(

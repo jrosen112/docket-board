@@ -33,6 +33,10 @@ The current app supports:
 - Optional pinned map snapshots on place cards, alongside the existing photo
   and paper-only card treatments.
 - TMDB movie lookup that fills titles, release years, runtimes, and posters.
+- Full-resolution poster loading in the photo viewer. Movies store the TMDB
+  poster path alongside their board-sized copy, so pinching a poster open fades
+  in original artwork from TMDB's unauthenticated image CDN — no API key, no API
+  request — and falls back silently to the stored copy.
 - Add, inline detail editing, detail-toolbar and long-press deletion with a
   standard destructive confirmation alert, conflict detection, and
   attribution.
@@ -589,6 +593,15 @@ Important manual checks:
 15. Tap the top-bar dice with no filters and with filters/search active. Verify
     the rolling overlay and haptics, the winner reveal, and navigation to the
     chosen item's detail screen.
+16. Add a Movie through TMDB search, then pinch its poster open. Verify the
+    stored poster appears instantly and visibly sharpens a beat later, and that
+    zooming to 4x stays crisp. Note how quickly a reopen sharpens: the request
+    is cache-eligible, but an original poster can exceed what the default
+    shared `URLCache` retains, so it may refetch.
+    Then confirm the fallbacks: airplane mode, Low Data Mode, a movie added
+    before this field existed, and a movie whose poster was replaced with a
+    hand-picked photo — each should keep showing the stored image with no error
+    and no swap to unrelated artwork.
 
 ## Remaining work
 
@@ -625,4 +638,12 @@ Important manual checks:
   The user reviews it before the existing Recipe/CloudKit save path runs.
 - Keep imported thumbnails optional and non-blocking; prefer structured clean
   images, but allow removal and save successfully without one.
+- Keep a movie's `tmdbPosterPath` describing the artwork actually stored in its
+  `photoData`. `ItemDraft` clears the path whenever the photo changes and TMDB
+  selection re-sets it immediately afterward; `TMDBService` reports a path only
+  when its poster really downloaded. A stale pairing would sharpen one movie's
+  photo into another movie's poster.
+- Keep the photo viewer's high-resolution upgrade additive: the stored copy
+  always renders first, the remote image only fades in over it, and every
+  failure path leaves the stored copy on screen with no error UI.
 - Preserve unrelated workspace changes and do not add tool/author attribution.

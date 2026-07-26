@@ -47,12 +47,6 @@ final class DocketThemeTests: XCTestCase {
         XCTAssertGreaterThan(tilts.count, 10)
     }
 
-    func testSparseMovieCardsUseShorterPosterRatio() {
-        XCTAssertEqual(DocketTheme.BoardCard.moviePosterAspectRatio(forCueCount: 0), 3.0 / 4.0)
-        XCTAssertEqual(DocketTheme.BoardCard.moviePosterAspectRatio(forCueCount: 2), 3.0 / 4.0)
-        XCTAssertEqual(DocketTheme.BoardCard.moviePosterAspectRatio(forCueCount: 3), 2.0 / 3.0)
-    }
-
     func testScrollNoteIsHiddenBeforeFadeRange() {
         XCTAssertEqual(DocketTheme.BoardScrollNote.progress(for: 0), 0)
         XCTAssertEqual(

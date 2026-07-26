@@ -645,11 +645,25 @@ struct BoardView: View {
         DocketTheme.stableHash(for: itemID.recordName + "#insert") % 2 == 0 ? -1 : 1
     }
 
-    private func photoViewerPhotos(for item: any SharedListItem) -> [Data] {
+    private func photoViewerPhotos(for item: any SharedListItem) -> [BoardPhoto] {
         if let recipe = item as? Recipe {
-            return recipe.allPhotoData
+            return recipe.allPhotoData.map { BoardPhoto(data: $0) }
         }
-        return [item.photoData].compactMap(\.self)
+        guard let photoData = item.photoData else { return [] }
+        return [
+            BoardPhoto(
+                data: photoData,
+                highResolutionURL: highResolutionPhotoURL(for: item)
+            )
+        ]
+    }
+
+    /// A sharper source for an item's stored photo, when one is known. Movies
+    /// keep a board-sized copy of TMDB artwork, so the viewer can load the
+    /// original from TMDB's unauthenticated image CDN.
+    private func highResolutionPhotoURL(for item: any SharedListItem) -> URL? {
+        guard let movie = item as? Movie else { return nil }
+        return TMDBService.fullResolutionPosterURL(path: movie.tmdbPosterPath)
     }
 
     private func beginTransfer(
@@ -1121,7 +1135,7 @@ extension AnyTransition {
 private struct BoardPhotoViewerTarget: Identifiable {
     let id: CKRecord.ID
     let title: String
-    let photos: [Data]
+    let photos: [BoardPhoto]
 }
 
 private struct DiceRoll: Identifiable {

@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import Docket
 
 final class TMDBServiceTests: XCTestCase {
@@ -54,5 +55,14 @@ final class TMDBServiceTests: XCTestCase {
             TMDBService.posterURL(path: "poster.jpg", size: "w185")?.absoluteString,
             "https://image.tmdb.org/t/p/w185/poster.jpg"
         )
+    }
+
+    func testFullResolutionPosterURLRequestsOriginalSize() {
+        XCTAssertEqual(
+            TMDBService.fullResolutionPosterURL(path: "/poster.jpg")?.absoluteString,
+            "https://image.tmdb.org/t/p/original/poster.jpg"
+        )
+        XCTAssertNil(TMDBService.fullResolutionPosterURL(path: nil))
+        XCTAssertNil(TMDBService.fullResolutionPosterURL(path: ""))
     }
 }
