@@ -40,7 +40,9 @@ The current app supports:
 - Add, inline detail editing, detail-toolbar and long-press deletion with a
   standard destructive confirmation alert, conflict detection, and
   attribution.
-- Multi-select category/status filtering over a two-column masonry board.
+- Multi-select category/status filtering over a masonry board whose column
+  count follows the available width: two columns at phone widths, more (at the
+  same card size) on iPad and in wide split-view panes.
 - A custom long-press surface in place of `.contextMenu`: the pressed item
   lifts off the board and floats to a centered column of tapback picker, rich
   quick look, attribution chips, and a pinned paper action menu whose
@@ -85,8 +87,14 @@ database.
 `SpaceStore` persists the full board catalog and selected board, deduplicates
 memberships by stable space ID, and migrates the original single-space keys.
 
-On a fresh device, the welcome screen can rebuild that local catalog from
-CloudKit. `CloudKitService.discoverSpaces()` enumerates Docket zones in both the
+Because that catalog is device-local, a device that never discovers it sees
+only the default board. Discovery therefore runs from three places: the welcome
+screen's restore button, the first bootstrap on an install that has no stored
+account identity yet (a second device of the same account), and pull-to-refresh
+in the Boards sheet, which is also how a board created on another device
+appears on this one.
+
+`CloudKitService.discoverSpaces()` enumerates Docket zones in both the
 private and shared databases. `BoardStore.restoreFromICloud()` admits only zones
 containing a `UserProfile` whose CloudKit `creatorUserRecordID` matches the
 currently signed-in account, then restores each per-board profile pointer
@@ -94,6 +102,12 @@ without creating duplicate records. Owned private-database profiles also match
 CloudKit's `CKCurrentUserDefaultName` owner alias; joined boards intentionally
 require the explicit account record ID so the zone owner's profile cannot be
 mistaken for the current participant.
+
+Discovered zones take their name from the zone's `Board` record where one
+exists. Failing that, `SharedBoardTitle` resolves a name from the zone's share
+— its title, or the owner's name for a board someone else owns — which is the
+same resolution invite acceptance performs, so a joined board does not degrade
+from "Dana's Board" on the accepting device to "Shared Board" on the next one.
 
 Local state that belongs to one board is keyed by `Space.id`, including the
 current profile record and remembered item IDs. Switching boards never destroys
@@ -148,6 +162,16 @@ same shared zone. Profiles are first-class records and the current device's
 profile identity is remembered per board. A decoded profile also retains its
 CloudKit creator identity so the same iCloud user can reclaim it on another
 device without adding an app-specific account field.
+
+`Models/BoardInfo.swift` is the board's own name, stored as a `Board` record at
+a fixed record name inside the zone, so publishing a title is an upsert. This
+exists because titles previously lived only in the creating device's local
+defaults: a second device, or the person on the other side of a share, had
+nothing to read and fell back to "Shared Board"/"Recovered Board". Every load
+reconciles the two — a CloudKit title always wins over the local one, and an
+owner whose board predates the record publishes its local title once.
+Participants never publish, since they would otherwise overwrite the owner's
+real name with the fallback their own device invented at invite time.
 
 `BoardReactionKind` is a validated single-emoji string rather than a closed
 enum, so the picker's `+` can produce any emoji; the six standard kinds are

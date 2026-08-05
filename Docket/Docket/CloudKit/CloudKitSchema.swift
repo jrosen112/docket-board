@@ -18,6 +18,9 @@ nonisolated enum Schema {
 
     /// CKRecord type names.
     enum RecordType {
+        /// One per zone: the board's own name, so it is not stranded in the
+        /// creating device's local defaults.
+        static let board = "Board"
         static let userProfile = "UserProfile"
         static let restaurant = "Restaurant"
         static let bar = "Bar"
@@ -53,6 +56,11 @@ nonisolated enum Schema {
         static let locationCoordinate = "locationCoordinate"  // CLLocation
         static let locationMapItemIdentifier = "locationMapItemIdentifier"
         static let showsMapOnBoard = "showsMapOnBoard"
+
+        // MARK: Board
+        /// The board's name reuses `title`; this records when it was last set
+        /// so two devices publishing at once resolve to the newer name.
+        static let titleUpdatedAt = "titleUpdatedAt"
 
         // MARK: UserProfile
         static let firstName = "firstName"

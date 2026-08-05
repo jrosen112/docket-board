@@ -19,6 +19,21 @@ nonisolated struct SpaceContents {
     var items: [any SharedListItem]
     let profiles: [UserProfile]
     let reactions: [BoardReaction]
+    /// The board's name as CloudKit knows it. Nil for a board whose owner has
+    /// not published one yet, in which case the local title stands.
+    var boardInfo: BoardInfo?
+
+    init(
+        items: [any SharedListItem],
+        profiles: [UserProfile],
+        reactions: [BoardReaction],
+        boardInfo: BoardInfo? = nil
+    ) {
+        self.items = items
+        self.profiles = profiles
+        self.reactions = reactions
+        self.boardInfo = boardInfo
+    }
 }
 
 nonisolated protocol SpaceDataService: Sendable {

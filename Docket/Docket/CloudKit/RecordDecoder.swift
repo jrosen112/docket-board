@@ -43,10 +43,17 @@ nonisolated enum RecordDecoder {
             guard record.recordType == Schema.RecordType.boardReaction else { return nil }
             return BoardReaction(record: record)
         }
+        // A zone holds at most one board record, but tolerate more than one by
+        // taking the most recently titled rather than an arbitrary match.
+        let boardInfo =
+            records
+            .compactMap(BoardInfo.init(record:))
+            .max { $0.titleUpdatedAt < $1.titleUpdatedAt }
         return SpaceContents(
             items: partitioned.items,
             profiles: partitioned.profiles,
-            reactions: reactions
+            reactions: reactions,
+            boardInfo: boardInfo
         )
     }
 }

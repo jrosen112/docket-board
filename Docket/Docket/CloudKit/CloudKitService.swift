@@ -62,7 +62,7 @@ actor CloudKitService: SpaceDataService {
 
         var discovered: [Space] = []
         for zone in ownedZones where Self.isDocketZone(zone.zoneID) {
-            let title = await Self.boardTitle(for: zone, in: privateDatabase)
+            let title = await Self.boardTitle(for: zone, in: privateDatabase, access: .owned)
             discovered.append(
                 Space(
                     zoneID: zone.zoneID,
@@ -72,7 +72,7 @@ actor CloudKitService: SpaceDataService {
             )
         }
         for zone in joinedZones where Self.isDocketZone(zone.zoneID) {
-            let title = await Self.boardTitle(for: zone, in: sharedDatabase)
+            let title = await Self.boardTitle(for: zone, in: sharedDatabase, access: .joined)
             discovered.append(
                 Space(
                     zoneID: zone.zoneID,
@@ -98,14 +98,29 @@ actor CloudKitService: SpaceDataService {
         return access == .owned ? "Recovered Board" : "Shared Board"
     }
 
+    /// A discovered zone's name comes off its share: the title the owner gave
+    /// it, or — for a board someone else owns — that owner's name, the same
+    /// resolution invite acceptance performs. Without this second step a board
+    /// named "Dana's Board" on the device that accepted the invite came back
+    /// as a bare "Shared Board" on every later device. An owned board takes no
+    /// owner-name fallback, since possessive-naming your own board reads as
+    /// someone else's.
     private nonisolated static func boardTitle(
         for zone: CKRecordZone,
-        in database: CKDatabase
+        in database: CKDatabase,
+        access: Space.Access
     ) async -> String? {
         guard let shareID = zone.share?.recordID,
             let share = try? await database.record(for: shareID) as? CKShare
         else { return nil }
-        return share[CKShare.SystemFieldKey.title] as? String
+        let ownerName =
+            access == .joined
+            ? SharedBoardTitle.ownerName(from: share.owner.userIdentity.nameComponents)
+            : nil
+        return SharedBoardTitle.resolve(
+            shareTitle: share[CKShare.SystemFieldKey.title] as? String,
+            ownerName: ownerName
+        )
     }
 
     private nonisolated static func unique(_ spaces: [Space]) -> [Space] {

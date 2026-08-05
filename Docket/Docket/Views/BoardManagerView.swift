@@ -83,7 +83,7 @@ struct BoardManagerView: View {
                     DocketTheme.BoardManager.bottomPadding,
                     for: .scrollContent
                 )
-                .refreshable { await reloadSnapshots() }
+                .refreshable { await rediscoverBoards() }
             }
             .navigationTitle("Boards")
             .navigationBarTitleDisplayMode(.inline)
@@ -381,6 +381,14 @@ struct BoardManagerView: View {
         let loaded = await store.loadBoardManagementSnapshots()
         snapshots = Dictionary(uniqueKeysWithValues: loaded.map { ($0.id, $0) })
         isLoading = false
+    }
+
+    /// Pulling down here asks CloudKit which boards this account belongs to,
+    /// not just for fresher activity. The catalog is device-local, so this is
+    /// how a board created on another device shows up on this one.
+    private func rediscoverBoards() async {
+        _ = await store.restoreFromICloud()
+        await reloadSnapshots()
     }
 
     private func openBoard(_ space: Space) {

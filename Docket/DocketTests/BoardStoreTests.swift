@@ -103,6 +103,12 @@ final class BoardStoreTests: XCTestCase {
             selected: .default,
             in: defaults
         )
+        // An install that has already launched with this account, so bootstrap
+        // keeps the local catalog instead of rediscovering it from scratch.
+        defaults.set(
+            mock.accountUserID.recordName,
+            forKey: BoardStore.accountRecordNameKey
+        )
         let sourceService = mock!
         let transferStore = BoardStore(
             defaults: defaults,
@@ -649,6 +655,167 @@ final class BoardStoreTests: XCTestCase {
 
         await restoringStore.switchTo(space: joined)
         XCTAssertEqual(restoringStore.currentProfile?.id, joinedProfile.id)
+    }
+
+    // MARK: - Board names
+
+    /// The name lives in the zone, so a device that only ever learned a
+    /// fallback name corrects itself the moment it reads the board.
+    func testLoadAdoptsTheBoardNameStoredInTheZone() async {
+        _ = seedProfile()
+        let info = BoardInfo(zoneID: mock.space.zoneID, title: "Date Nights")
+        mock.records[info.id] = info.toRecord()
+
+        await store.bootstrap()
+
+        XCTAssertEqual(store.space.title, "Date Nights")
+        XCTAssertEqual(
+            SpaceStore.load(from: defaults).title,
+            "Date Nights",
+            "the corrected name should survive a relaunch"
+        )
+    }
+
+    /// An owned board created before the record existed publishes its local
+    /// name once, which is what makes it visible to the other participant.
+    func testOwnerPublishesLocalBoardNameWhenTheZoneHasNone() async throws {
+        _ = seedProfile()
+
+        await store.bootstrap()
+
+        let record = try XCTUnwrap(mock.records[BoardInfo.recordID(in: mock.space.zoneID)])
+        XCTAssertEqual(BoardInfo(record: record)?.title, Space.default.title)
+    }
+
+    /// The iPad case: the catalog was rebuilt from CloudKit before the name
+    /// existed, so the cached fallback has to lose to the zone's name.
+    func testRestoreReplacesACachedFallbackNameWithTheZonesName() async {
+        _ = seedProfile()
+        let joined = Space(
+            zoneID: CKRecordZone.ID(zoneName: "DocketBoard-joined", ownerName: "partner"),
+            access: .joined,
+            title: "Shared Board"
+        )
+        let joinedService = MockSpaceService(space: joined)
+        joinedService.accountUserID = mock.accountUserID
+        let profile = UserProfile(
+            id: CKRecord.ID(recordName: "profile-me-joined", zoneID: joined.zoneID),
+            firstName: "Alice",
+            lastName: "Nguyen",
+            accountRecordName: mock.accountUserID.recordName
+        )
+        joinedService.records[profile.id] = profile.toRecord()
+        let info = BoardInfo(zoneID: joined.zoneID, title: "Date Nights")
+        joinedService.records[info.id] = info.toRecord()
+        mock.discoveredSpaces = [.default, joined]
+        SpaceStore.replace(with: [.default, joined], selected: .default, in: defaults)
+        let defaultService = mock!
+        let restoringStore = BoardStore(
+            defaults: defaults,
+            makeService: { space in
+                space == joined ? joinedService : defaultService
+            },
+            notificationService: notificationMock,
+            networkAvailability: networkMock
+        )
+
+        _ = await restoringStore.restoreFromICloud()
+
+        XCTAssertEqual(
+            restoringStore.spaces.first(where: { $0.id == joined.id })?.title,
+            "Date Nights"
+        )
+    }
+
+    /// A participant's device invents a fallback name at invite time. Writing
+    /// that back would overwrite the owner's real name for everyone.
+    func testParticipantNeverPublishesItsOwnFallbackBoardName() async {
+        let joined = Space(
+            zoneID: CKRecordZone.ID(zoneName: "DocketBoard-joined", ownerName: "partner"),
+            access: .joined,
+            title: "Shared Board"
+        )
+        let joinedService = MockSpaceService(space: joined)
+        joinedService.accountUserID = mock.accountUserID
+        let profile = UserProfile(
+            id: CKRecord.ID(recordName: "profile-me-joined", zoneID: joined.zoneID),
+            firstName: "Alice",
+            lastName: "Nguyen",
+            accountRecordName: mock.accountUserID.recordName
+        )
+        joinedService.records[profile.id] = profile.toRecord()
+        SpaceStore.replace(with: [.default, joined], selected: joined, in: defaults)
+        defaults.set(
+            mock.accountUserID.recordName,
+            forKey: BoardStore.accountRecordNameKey
+        )
+        let sourceService = mock!
+        let participant = BoardStore(
+            defaults: defaults,
+            makeService: { space in
+                space == joined ? joinedService : sourceService
+            },
+            notificationService: notificationMock,
+            networkAvailability: networkMock
+        )
+
+        await participant.bootstrap()
+
+        XCTAssertNil(joinedService.records[BoardInfo.recordID(in: joined.zoneID)])
+        XCTAssertEqual(participant.space.title, "Shared Board")
+    }
+
+    /// A second device of the same account: the board catalog is device-local,
+    /// so a first launch that skipped discovery left the user staring at the
+    /// default board with every other board missing.
+    func testFirstLaunchOnNewDeviceDiscoversBoardCatalog() async {
+        _ = seedProfile()
+        let solo = Space(
+            zoneID: CKRecordZone.ID(
+                zoneName: "DocketBoard-solo",
+                ownerName: CKCurrentUserDefaultName
+            ),
+            access: .owned,
+            title: "Solo Board"
+        )
+        let soloService = MockSpaceService(space: solo)
+        soloService.accountUserID = mock.accountUserID
+        let soloProfile = UserProfile(
+            id: CKRecord.ID(recordName: "profile-me-solo", zoneID: solo.zoneID),
+            firstName: "Alice",
+            lastName: "Nguyen",
+            accountRecordName: mock.accountUserID.recordName
+        )
+        soloService.records[soloProfile.id] = soloProfile.toRecord()
+        mock.discoveredSpaces = [.default, solo]
+        let defaultService = mock!
+
+        // No prior account identity in `defaults` — a fresh install.
+        let newDevice = BoardStore(
+            defaults: defaults,
+            makeService: { space in
+                space == solo ? soloService : defaultService
+            },
+            notificationService: notificationMock,
+            networkAvailability: networkMock
+        )
+
+        await newDevice.bootstrap()
+
+        XCTAssertEqual(Set(newDevice.spaces.map(\.id)), Set([Space.default.id, solo.id]))
+    }
+
+    /// A genuinely new account has nothing to discover, and must still land in
+    /// profile setup rather than an error.
+    func testFirstLaunchWithoutExistingBoardsLeavesProfileSetupAvailable() async {
+        mock.discoveredSpaces = []
+
+        await store.bootstrap()
+
+        XCTAssertNil(store.currentProfile)
+        XCTAssertNil(store.errorMessage)
+        XCTAssertFalse(store.needsMembershipRecovery)
+        XCTAssertEqual(store.spaces.map(\.id), [Space.default.id])
     }
 
     func testRestoreKeepsDiscoveredBoardWhenItsLoadFailsTransiently() async {

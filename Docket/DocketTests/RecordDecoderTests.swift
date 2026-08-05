@@ -87,4 +87,33 @@ final class RecordDecoderTests: XCTestCase {
         XCTAssertEqual(decoded.kind, .love)
         XCTAssertEqual(decoded.dateAdded, Date(timeIntervalSince1970: 100))
     }
+
+    func testContentsDecodesTheBoardName() throws {
+        let zoneID = CKRecordZone.ID(zoneName: "DocketBoard-1", ownerName: "partner")
+        let info = BoardInfo(zoneID: zoneID, title: "Date Nights")
+
+        let contents = RecordDecoder.contents(from: [info.toRecord()])
+
+        XCTAssertEqual(contents.boardInfo?.title, "Date Nights")
+        XCTAssertEqual(contents.boardInfo?.id.recordName, BoardInfo.fixedRecordName)
+        XCTAssertTrue(contents.items.isEmpty)
+    }
+
+    /// One record per zone is the intent, but a duplicate must not make the
+    /// name flip between loads.
+    func testContentsPrefersTheMostRecentlyTitledBoardRecord() {
+        let zoneID = CKRecordZone.ID(zoneName: "DocketBoard-1", ownerName: "partner")
+        let older = BoardInfo(
+            zoneID: zoneID,
+            title: "Old Name",
+            titleUpdatedAt: Date(timeIntervalSince1970: 100)
+        )
+        var newer = older
+        newer.title = "Date Nights"
+        newer.titleUpdatedAt = Date(timeIntervalSince1970: 200)
+
+        let contents = RecordDecoder.contents(from: [newer.toRecord(), older.toRecord()])
+
+        XCTAssertEqual(contents.boardInfo?.title, "Date Nights")
+    }
 }

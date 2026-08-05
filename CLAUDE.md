@@ -48,7 +48,8 @@ The project does not currently require backward-compatible migrations for
 unreleased model/schema changes.
 
 ## Design Direction — "The Board"
-Pinned corkboard aesthetic, not a plain list. Reference: two-column masonry grid, variable card height by content (photo-bearing categories like Hike/Landmark/Restaurant/Activity get taller cards; text-only categories like HappyHour stay short; a Movie with poster artwork becomes a bare full-bleed 2:3 poster carrying only its status), color-coded accent per category, slight per-card rotation for a tactile feel.
+Pinned corkboard aesthetic, not a plain list. Reference: masonry grid — two columns on a phone, more columns rather than
+bigger cards as the screen widens — variable card height by content (photo-bearing categories like Hike/Landmark/Restaurant/Activity get taller cards; text-only categories like HappyHour stay short; a Movie with poster artwork becomes a bare full-bleed 2:3 poster carrying only its status), color-coded accent per category, slight per-card rotation for a tactile feel.
 
 Palette: ink-navy background (`#14181F`), warm cream cards (`#EFE6D3`), brass/gold primary accent (`#D9A441`). Serif display type (Georgia) for titles.
 
@@ -105,12 +106,14 @@ structured MapKit locations and maps, photo/map card treatments, item and board
 deletion, board management, conflict handling, silent push reconciliation,
 local notifications, caption-to-Recipe sharing with generated cover photos and
 board selection, shared planned dates and completion history, Pick for us dice,
-per-person item reactions, and current board interaction polish. The
+per-person item reactions, zone-stored board names with second-device board
+discovery, and current board interaction polish. The
 asset catalog also contains the production app icon. See `IMPLEMENTATION.md`
 for authoritative details.
 
 Next: Happy Hour/Landmark/Hike/Activity record types, profile images,
-board renaming, additional real-device CloudKit testing, and
+board renaming (the `Board` record it writes to already exists),
+additional real-device CloudKit testing, and
 production/TestFlight work. Continue testing social recipe extraction across
 public/private posts, short links, supported languages, and Apple Intelligence
 availability states.

@@ -178,6 +178,13 @@ final class BoardStore {
             resetLocalStateForNewAccount()
             await loadForPresentation()
             _ = await restoreFromICloud()
+        case .firstRun:
+            // A second device of the same account: pull the board catalog down
+            // rather than leaving the user on the default board alone. A
+            // genuinely new account discovers nothing and falls through to
+            // profile setup unchanged.
+            await loadForPresentation()
+            _ = await restoreFromICloud()
         case .signedOut(let message):
             presentSignedOutState(message: message)
         case .unchanged, .indeterminate:
@@ -229,7 +236,7 @@ final class BoardStore {
         case .signedOut(let message):
             notificationsPrepared = false
             presentSignedOutState(message: message)
-        case .unchanged, .indeterminate:
+        case .firstRun, .unchanged, .indeterminate:
             if needsMembershipRecovery {
                 _ = await restoreFromICloud()
             } else {
@@ -243,6 +250,11 @@ final class BoardStore {
 
     private enum AccountIdentityResult {
         case unchanged
+        /// This install has never seen an account before. Distinct from
+        /// `changed`: there is no stale local state to wipe, but the board
+        /// catalog is device-local, so memberships still have to be discovered
+        /// from CloudKit or the device shows nothing but the default board.
+        case firstRun
         case changed
         case signedOut(message: String)
         case indeterminate
@@ -253,7 +265,7 @@ final class BoardStore {
             let currentRecordName = try await service.accountUserRecordID().recordName
             let previousRecordName = defaults.string(forKey: Self.accountRecordNameKey)
             defaults.set(currentRecordName, forKey: Self.accountRecordNameKey)
-            guard let previousRecordName else { return .unchanged }
+            guard let previousRecordName else { return .firstRun }
             return previousRecordName == currentRecordName ? .unchanged : .changed
         } catch let error as CKError where error.code == .notAuthenticated {
             return .signedOut(message: Self.message(for: error))
@@ -359,6 +371,7 @@ final class BoardStore {
         refreshGeneration += 1
         let generation = refreshGeneration
         let requestedService = service
+        let requestedSpace = space
         isLoading = true
         do {
             try await requireNetwork()
@@ -371,6 +384,11 @@ final class BoardStore {
             remember(items: loaded.items, in: space)
             errorMessage = nil
             isLoading = false
+            await reconcileBoardTitle(
+                from: loaded,
+                in: requestedSpace,
+                using: requestedService
+            )
             return .loaded
         } catch {
             guard generation == refreshGeneration else { return .superseded }

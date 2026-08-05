@@ -145,6 +145,20 @@ nonisolated enum SpaceStore {
         defaults.set(selected.id, forKey: selectedIDKey)
     }
 
+    /// Renames one cataloged board without changing which board is selected —
+    /// this runs for any board whose CloudKit title turns out to differ from
+    /// the local one, including boards that are not currently open.
+    static func updateTitle(
+        _ title: String,
+        for space: Space,
+        in defaults: UserDefaults = .standard
+    ) {
+        var spaces = loadAll(from: defaults)
+        guard let index = spaces.firstIndex(where: { $0.id == space.id }) else { return }
+        spaces[index] = Space(zoneID: space.zoneID, access: space.access, title: title)
+        persist(spaces, in: defaults)
+    }
+
     /// Removes one local membership while preserving an explicit valid
     /// selection. CloudKit deletion/leaving is performed by the caller first.
     static func remove(

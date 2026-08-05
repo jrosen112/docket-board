@@ -19,6 +19,33 @@ extension BoardStore {
         }
     }
 
+    /// Keeps a board's name in step with the name stored in its zone. The zone
+    /// is the only place both participants and all of a person's devices can
+    /// read it from — a title that lives only in local defaults comes back as
+    /// "Shared Board" everywhere else. A board whose owner has not published a
+    /// name yet keeps whatever this device already knows.
+    func reconcileBoardTitle(
+        from contents: SpaceContents,
+        in targetSpace: Space,
+        using targetService: any SpaceDataService
+    ) async {
+        if let cloudTitle = contents.boardInfo?.title.orNil {
+            guard cloudTitle != targetSpace.title else { return }
+            SpaceStore.updateTitle(cloudTitle, for: targetSpace, in: defaults)
+            spaces = SpaceStore.loadAll(from: defaults)
+            if space.id == targetSpace.id {
+                space = spaces.first(where: { $0.id == targetSpace.id }) ?? space
+            }
+            return
+        }
+
+        // Only the owner publishes. A participant would otherwise overwrite the
+        // real name with the fallback its own device invented at invite time.
+        guard targetSpace.isOwned else { return }
+        let info = BoardInfo(zoneID: targetSpace.zoneID, title: targetSpace.title)
+        _ = try? await targetService.save(info.toRecord())
+    }
+
     func clearPreparedShare() {
         activeShare = nil
         activeShareSpace = nil
@@ -181,6 +208,11 @@ extension BoardStore {
             // then makes the board immediately usable when it becomes current.
             _ = try await newService.loadEverything()
             try await newService.save(newProfile.toRecord())
+            // The name goes into the zone, not just this device's defaults, so
+            // every other device and every participant reads the same one.
+            try await newService.save(
+                BoardInfo(zoneID: newSpace.zoneID, title: cleanedTitle).toRecord()
+            )
             let loaded = try await newService.loadEverything()
 
             refreshGeneration += 1

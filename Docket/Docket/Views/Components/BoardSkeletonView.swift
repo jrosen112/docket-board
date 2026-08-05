@@ -2,6 +2,7 @@ import SwiftUI
 
 struct BoardSkeletonView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     var body: some View {
         skeletonCards
@@ -22,12 +23,21 @@ struct BoardSkeletonView: View {
             .accessibilityLabel("Loading board items")
     }
 
+    /// Wide layouts run more columns, so the phone's ten placeholders would
+    /// only fill a row and a half of an iPad board.
+    private var cardCount: Int {
+        horizontalSizeClass == .regular
+            ? DocketTheme.BoardSkeleton.wideCardCount
+            : DocketTheme.BoardSkeleton.cardCount
+    }
+
     private var skeletonCards: some View {
         MasonryLayout(
-            columns: DocketTheme.BoardSkeleton.columns,
+            targetColumnWidth: DocketTheme.BoardItems.targetColumnWidth,
+            minimumColumns: DocketTheme.BoardItems.minimumColumns,
             spacing: DocketTheme.BoardSkeleton.cardSpacing
         ) {
-            ForEach(0..<DocketTheme.BoardSkeleton.cardCount, id: \.self) { index in
+            ForEach(0..<cardCount, id: \.self) { index in
                 BoardSkeletonCard(index: index)
             }
         }

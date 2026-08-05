@@ -139,24 +139,14 @@ final class CloudKitShareAcceptanceRouter {
         from metadata: CKShare.Metadata,
         inviterName: String?
     ) -> String {
-        if let title = (metadata.share[CKShare.SystemFieldKey.title] as? String)?.orNil {
-            return title
-        }
-        if let inviterName {
-            return inviterName.hasSuffix("s")
-                ? "\(inviterName)’ Board"
-                : "\(inviterName)’s Board"
-        }
-        return "Shared Board"
+        SharedBoardTitle.resolve(
+            shareTitle: metadata.share[CKShare.SystemFieldKey.title] as? String,
+            ownerName: inviterName
+        ) ?? "Shared Board"
     }
 
     private static func inviterName(from metadata: CKShare.Metadata) -> String? {
-        guard let components = metadata.ownerIdentity.nameComponents else { return nil }
-        return PersonNameComponentsFormatter.localizedString(
-            from: components,
-            style: .short,
-            options: []
-        ).orNil
+        SharedBoardTitle.ownerName(from: metadata.ownerIdentity.nameComponents)
     }
 }
 

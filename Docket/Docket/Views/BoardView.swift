@@ -281,8 +281,9 @@ struct BoardView: View {
             )
         } else {
             MasonryLayout(
-                columns: 2,
-                spacing: 14,
+                targetColumnWidth: DocketTheme.BoardItems.targetColumnWidth,
+                minimumColumns: DocketTheme.BoardItems.minimumColumns,
+                spacing: DocketTheme.BoardItems.columnSpacing,
                 contentOverflow: DocketTheme.BoardCard.transitionCaptureInset
             ) {
                 ForEach(filteredItems, id: \.id) { item in

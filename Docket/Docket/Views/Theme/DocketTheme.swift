@@ -394,7 +394,9 @@ nonisolated enum DocketTheme {
 
     enum BoardSkeleton {
         static let cardCount = 10
-        static let columns = 2
+        /// Enough placeholders to fill a regular-width board, which runs
+        /// roughly twice the phone's column count.
+        static let wideCardCount = 24
         static let cardSpacing: CGFloat = 14
         static let cardHeights: [CGFloat] = [174, 208, 192, 156, 220, 182]
         static let cardCornerRadius: CGFloat = 5
@@ -446,6 +448,15 @@ nonisolated enum DocketTheme {
     }
 
     enum BoardItems {
+        /// Board grid metrics. The masonry derives its column count from the
+        /// available width against this target width, so an iPad shows more
+        /// pins at phone size instead of the same pins blown up. A standard
+        /// phone (390pt wide, 16pt board margins) lands on exactly two columns
+        /// of 172pt, which is where the number comes from.
+        static let targetColumnWidth: CGFloat = 172
+        static let minimumColumns = 2
+        static let columnSpacing: CGFloat = 14
+
         static let insertionScale = 0.92
         static let removalScale = 0.96
         static let changeResponse: TimeInterval = 0.42

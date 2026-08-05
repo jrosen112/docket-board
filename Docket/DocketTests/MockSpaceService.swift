@@ -60,7 +60,9 @@ nonisolated final class MockSpaceService: SpaceDataService, @unchecked Sendable 
         return SpaceContents(
             items: decoded.items,
             profiles: profiles,
-            reactions: Array(records.values).compactMap(BoardReaction.init(record:))
+            reactions: Array(records.values).compactMap(BoardReaction.init(record:)),
+            boardInfo: Array(records.values).compactMap(BoardInfo.init(record:))
+                .max { $0.titleUpdatedAt < $1.titleUpdatedAt }
         )
     }
 

@@ -2,20 +2,39 @@
 //  MasonryLayout.swift
 //  Docket
 //
-//  Two-column (configurable) masonry: each subview is measured at column width
-//  and placed into the currently-shortest column, so variable-height cards pack
-//  like a pinboard. Pure Layout — no state, no model knowledge.
+//  Width-driven masonry: the column count comes from how much width there is,
+//  each subview is measured at column width and placed into the currently-
+//  shortest column, so variable-height cards pack like a pinboard. Pure Layout
+//  — no state, no model knowledge.
 //
 
 import SwiftUI
 
 nonisolated struct MasonryLayout: Layout {
-    var columns: Int = 2
+    /// The column width the board aims for. Count is derived from the available
+    /// width against this, so a wider screen gets *more* cards rather than
+    /// bigger ones — an iPad card should read like a phone card, not a blown-up
+    /// one. On a standard phone the math lands back on two columns exactly.
+    var targetColumnWidth: CGFloat
+    /// Floor for narrow widths, so a small phone or a slim split-view pane
+    /// still reads as a board rather than a single stack.
+    var minimumColumns: Int = 2
     var spacing: CGFloat = 14
     /// Extra transparent space each subview carries around its visible content.
     /// The layout removes it from measurement and placement calculations so
     /// visual column widths and gaps remain unchanged.
     var contentOverflow: CGFloat = 0
+
+    /// How many columns fit `totalWidth` at roughly `targetColumnWidth` each.
+    /// Rounded, not floored: at 1.9 targets' worth of width, two slightly-narrow
+    /// columns beat one very wide one.
+    func columnCount(totalWidth: CGFloat) -> Int {
+        guard totalWidth.isFinite, totalWidth > 0, targetColumnWidth > 0 else {
+            return minimumColumns
+        }
+        let fit = (totalWidth + spacing) / (targetColumnWidth + spacing)
+        return max(minimumColumns, Int(fit.rounded()))
+    }
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let width = proposal.width ?? 0
@@ -24,6 +43,7 @@ nonisolated struct MasonryLayout: Layout {
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let columns = columnCount(totalWidth: bounds.width)
         let columnWidth = self.columnWidth(totalWidth: bounds.width)
         let proposedWidth = columnWidth + contentOverflow * 2
         var heights = [CGFloat](repeating: 0, count: columns)
@@ -48,8 +68,9 @@ nonisolated struct MasonryLayout: Layout {
 
     // MARK: Internals
 
-    private func columnWidth(totalWidth: CGFloat) -> CGFloat {
-        max((totalWidth - spacing * CGFloat(columns - 1)) / CGFloat(columns), 0)
+    func columnWidth(totalWidth: CGFloat) -> CGFloat {
+        let columns = columnCount(totalWidth: totalWidth)
+        return max((totalWidth - spacing * CGFloat(columns - 1)) / CGFloat(columns), 0)
     }
 
     private func shortestColumn(_ heights: [CGFloat]) -> Int {
@@ -59,7 +80,7 @@ nonisolated struct MasonryLayout: Layout {
     private func columnHeights(subviews: Subviews, totalWidth: CGFloat) -> (heights: [CGFloat], columnWidth: CGFloat) {
         let columnWidth = self.columnWidth(totalWidth: totalWidth)
         let proposedWidth = columnWidth + contentOverflow * 2
-        var heights = [CGFloat](repeating: 0, count: columns)
+        var heights = [CGFloat](repeating: 0, count: columnCount(totalWidth: totalWidth))
         for subview in subviews {
             let size = subview.sizeThatFits(ProposedViewSize(width: proposedWidth, height: nil))
             let contentHeight = max(size.height - contentOverflow * 2, 0)

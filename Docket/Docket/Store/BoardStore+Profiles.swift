@@ -34,11 +34,16 @@ extension BoardStore {
                     profile: UserProfile
                 )] = []
             var firstLoadError: Error?
+            // Titles CloudKit knows win over whatever this device cached — a
+            // device that only ever saw "Shared Board" corrects itself here.
+            var resolvedCandidates: [Space] = []
 
             for candidate in candidates {
                 let candidateService = makeService(candidate)
                 do {
                     let loaded = try await candidateService.loadEverything()
+                    let candidate = Self.retitled(candidate, from: loaded.boardInfo)
+                    resolvedCandidates.append(candidate)
                     guard
                         let profile = profileForCurrentAccount(
                             in: loaded.profiles,
@@ -85,7 +90,10 @@ extension BoardStore {
             // Discovery succeeded for every candidate even if loading one of
             // those zones failed transiently. Keep all discovered memberships
             // so one flaky board never disappears from the local switcher.
-            SpaceStore.replace(with: candidates, selected: selected.space, in: defaults)
+            let catalog = candidates.map { candidate in
+                resolvedCandidates.first(where: { $0.id == candidate.id }) ?? candidate
+            }
+            SpaceStore.replace(with: catalog, selected: selected.space, in: defaults)
             for board in restored {
                 defaults.set(
                     board.profile.id.recordName,
@@ -118,6 +126,14 @@ extension BoardStore {
             isLoading = false
             return .failed(message: message)
         }
+    }
+
+    /// A board named in its own zone overrides the local title, which may be
+    /// nothing more than the fallback this device invented when it discovered
+    /// the zone.
+    private static func retitled(_ space: Space, from boardInfo: BoardInfo?) -> Space {
+        guard let title = boardInfo?.title.orNil, title != space.title else { return space }
+        return Space(zoneID: space.zoneID, access: space.access, title: title)
     }
 
     /// New records use the explicit account field. CloudKit creator metadata
