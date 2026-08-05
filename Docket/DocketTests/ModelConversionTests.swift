@@ -240,6 +240,30 @@ final class ModelConversionTests: XCTestCase {
         XCTAssertEqual(decoded, original)
         XCTAssertEqual(decoded.displayName, "Alice Nguyen")
         XCTAssertEqual(decoded.accountRecordName, "opaque-icloud-account-id")
+        XCTAssertEqual(decoded.initials, "AN")
+    }
+
+    /// Initials back the avatar until profile pictures exist, so they must always
+    /// produce something drawable.
+    func testProfileInitialsHandleMissingAndAwkwardNames() {
+        func profile(_ first: String, _ last: String) -> UserProfile {
+            UserProfile(
+                id: CKRecord.ID(recordName: "p"),
+                firstName: first,
+                lastName: last
+            )
+        }
+
+        XCTAssertEqual(profile("Alice", "Nguyen").initials, "AN")
+        XCTAssertEqual(profile("alice", "nguyen").initials, "AN")
+        // Only a first name still yields one letter rather than a blank circle.
+        XCTAssertEqual(profile("Alice", "").initials, "A")
+        XCTAssertEqual(profile("", "Nguyen").initials, "N")
+        // Whitespace-only names fall back rather than rendering a space.
+        XCTAssertEqual(profile("   ", "  ").initials, "?")
+        XCTAssertEqual(profile("", "").initials, "?")
+        // A multi-scalar grapheme stays intact instead of splitting.
+        XCTAssertEqual(profile("🇬🇧", "").initials, "🇬🇧")
     }
 
     // MARK: Guard rails

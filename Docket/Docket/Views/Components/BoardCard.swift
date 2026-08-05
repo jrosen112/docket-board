@@ -17,7 +17,6 @@ struct BoardCard: View {
 
     let item: any SharedListItem
     let reactionGroups: [BoardReactionGroup]
-    let onReactionHold: () -> Void
     var showsPin = true
 
     private var accent: Color { item.category.accent }
@@ -138,6 +137,10 @@ struct BoardCard: View {
         return locatedItem.location
     }
 
+    /// Poster art carries the title and the fact that this is a movie on its own,
+    /// so the card overlays nothing but status. No title, cues, category badge,
+    /// or scrim — the artwork stays fully unobscured, and the status chip's own
+    /// capsule is what keeps it legible over arbitrary posters.
     private func moviePosterCard(_ photoData: Data) -> some View {
         ZStack(alignment: .bottomLeading) {
             DocketTheme.ink
@@ -149,37 +152,14 @@ struct BoardCard: View {
                 )
                 .frame(width: geometry.size.width, height: geometry.size.height)
             }
-            .accessibilityHidden(true)
 
-            LinearGradient(
-                colors: DocketTheme.BoardCard.moviePosterGradientColors,
-                startPoint: .top,
-                endPoint: .bottom
-            )
-
-            VStack(alignment: .leading, spacing: DocketTheme.BoardCard.movieTextSpacing) {
-                Text(item.title)
-                    .font(DocketTheme.BoardCard.movieTitleFont)
-                    .foregroundStyle(DocketTheme.BoardCard.moviePrimaryText)
-                    .lineLimit(DocketTheme.BoardCard.movieTitleLineLimit)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if !cues.isEmpty {
-                    BoardCardCueList(
-                        cues: cues,
-                        foregroundColor: DocketTheme.BoardCard.movieSecondaryText
-                    )
-                }
-
-                HStack(alignment: .bottom, spacing: DocketTheme.BoardCard.categoryFooterSpacing) {
-                    posterStatusChip
-
-                    Spacer(minLength: 0)
-                    categoryBadge
-                }
-            }
-            .padding(DocketTheme.BoardCard.movieContentPadding)
+            posterStatusChip
+                .padding(DocketTheme.BoardCard.movieContentPadding)
         }
+        // The poster is the title, so VoiceOver has to speak what sighted users
+        // read off the artwork.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(posterAccessibilityLabel)
         .aspectRatio(DocketTheme.BoardCard.movieArtworkAspectRatio, contentMode: .fit)
         .frame(maxWidth: .infinity)
         .clipShape(
@@ -211,27 +191,16 @@ struct BoardCard: View {
     @ViewBuilder
     private var reactionCluster: some View {
         if !reactionGroups.isEmpty {
-            BoardReactionCluster(
-                groups: reactionGroups,
-                onLongPress: onReactionHold
-            )
-            .offset(
-                x: DocketTheme.BoardReaction.clusterOffsetX,
-                y: DocketTheme.BoardReaction.clusterOffsetY
-            )
+            BoardReactionCluster(groups: reactionGroups)
+                .offset(
+                    x: DocketTheme.BoardReaction.clusterOffsetX,
+                    y: DocketTheme.BoardReaction.clusterOffsetY
+                )
         }
     }
 
-    private var categoryBadge: some View {
-        Image(systemName: item.category.symbol)
-            .font(DocketTheme.BoardCard.categoryBadgeSymbolFont)
-            .foregroundStyle(.white)
-            .frame(
-                width: DocketTheme.BoardCard.categoryBadgeSize,
-                height: DocketTheme.BoardCard.categoryBadgeSize
-            )
-            .background(accent, in: Circle())
-            .accessibilityHidden(true)
+    private var posterAccessibilityLabel: String {
+        "\(item.title), \(item.status.label(for: item.category))"
     }
 
     private var posterStatusChip: some View {
@@ -288,9 +257,10 @@ private struct BoardCardCueList: View {
     }
 }
 
+/// The tapback badge on a board card. Read-only: reacting, and seeing who
+/// reacted, both live in the long-press surface.
 private struct BoardReactionCluster: View {
     let groups: [BoardReactionGroup]
-    let onLongPress: () -> Void
 
     private var visibleGroups: ArraySlice<BoardReactionGroup> {
         groups.prefix(DocketTheme.BoardReaction.maximumVisibleKinds)
@@ -349,46 +319,8 @@ private struct BoardReactionCluster: View {
             Capsule()
                 .stroke(DocketTheme.brass.opacity(0.45), lineWidth: 0.75)
         }
-        .contentShape(Capsule())
-        .highPriorityGesture(
-            LongPressGesture(minimumDuration: DocketTheme.BoardReaction.holdDuration)
-                .onEnded { _ in onLongPress() }
-        )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Reactions: \(accessibilityDescription)")
-        .accessibilityHint("Touch and hold to see who reacted")
-        .accessibilityAction(named: "Show who reacted", onLongPress)
-    }
-}
-
-/// The paper-and-pin silhouette used by the lifted context-menu preview.
-/// The surrounding transition capture area stays transparent instead of
-/// receiving the system's rectangular highlight.
-struct BoardCardPreviewShape: Shape {
-    let captureInset: CGFloat
-    let rotationDegrees: Double
-
-    func path(in rect: CGRect) -> Path {
-        let cardRect = rect.insetBy(dx: captureInset, dy: captureInset)
-        var path = Path(
-            roundedRect: cardRect,
-            cornerRadius: 5,
-            style: .continuous
-        )
-        path.addEllipse(
-            in: CGRect(
-                x: cardRect.midX - 5.5,
-                y: cardRect.minY - 5,
-                width: 11,
-                height: 11
-            )
-        )
-
-        let radians = CGFloat(rotationDegrees * .pi / 180)
-        let rotation = CGAffineTransform(translationX: rect.midX, y: rect.midY)
-            .rotated(by: radians)
-            .translatedBy(x: -rect.midX, y: -rect.midY)
-        return path.applying(rotation)
     }
 }
 

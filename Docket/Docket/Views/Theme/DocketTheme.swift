@@ -66,17 +66,10 @@ nonisolated enum DocketTheme {
         static let pinOffsetY: CGFloat = -5
         static let photoHeight: CGFloat = 104
         static let photoCornerRadius: CGFloat = 4
-        static let categoryFooterSpacing: CGFloat = 8
-        static let categoryBadgeSize: CGFloat = 32
-        static let categoryBadgeSymbolFont: Font = .system(size: 14, weight: .bold)
         static let movieArtworkAspectRatio: CGFloat = 2.0 / 3.0
         static let movieCornerRadius: CGFloat = 5
         static let movieContentPadding: CGFloat = 12
-        static let movieTextSpacing: CGFloat = 4
-        static let movieTitleFont: Font = DocketTheme.display(19)
-        static let movieTitleLineLimit = 3
         static let moviePrimaryText = Color.white
-        static let movieSecondaryText = Color.white.opacity(0.82)
         static let cueSpacing: CGFloat = 4
         static let cueIconSpacing: CGFloat = 5
         static let cueSymbolWidth: CGFloat = 12
@@ -85,15 +78,11 @@ nonisolated enum DocketTheme {
         static let statusSpacing: CGFloat = 4
         static let statusDotSize: CGFloat = 6
         static let statusFont: Font = .caption2.weight(.bold)
-        static let moviePosterGradientColors = [
-            Color.black.opacity(0.04),
-            Color.black.opacity(0.02),
-            Color.black.opacity(0.22),
-            Color.black.opacity(0.9),
-        ]
         static let movieBadgeHorizontalPadding: CGFloat = 7
         static let movieBadgeVerticalPadding: CGFloat = 5
-        static let movieBadgeBackground = Color.black.opacity(0.52)
+        /// Poster cards carry no scrim, so this capsule is the only thing keeping
+        /// the status readable over arbitrary artwork — including bright posters.
+        static let movieBadgeBackground = Color.black.opacity(0.62)
     }
 
     enum BoardReaction {
@@ -109,40 +98,107 @@ nonisolated enum DocketTheme {
         static let shadowOpacity = 0.24
         static let shadowRadius: CGFloat = 2
         static let shadowY: CGFloat = 1
-        static let holdDuration = 0.45
-        static let popoverSpacing: CGFloat = 14
-        static let popoverPadding: CGFloat = 16
-        static let popoverMaximumWidth: CGFloat = 330
-        static let pickerButtonSize: CGFloat = 42
-        static let pickerEmojiFont: Font = .system(size: 22)
-        static let pickerSpacing: CGFloat = 4
-        static let popoverTitleFont: Font = DocketTheme.display(17)
-        static let attributionNameFont: Font = .subheadline
-        static let backdropOpacity = 0.48
-        static let overlayTapSpacing: CGFloat = 18
-        static let overlayScreenMargin: CGFloat = 12
-        static let overlayInitialScale: CGFloat = 0.12
-        static let overlayInitialRotation = -3.5
-        static let overlayDismissedScale: CGFloat = 0.12
-        static let overlayDismissedRotation = 2.0
-        static let overlayShadowOpacity = 0.42
-        static let overlayShadowRadius: CGFloat = 12
-        static let overlayShadowY: CGFloat = 6
-        static let overlayPresentationAnimation = Animation.spring(
-            response: 0.18,
-            dampingFraction: 0.68
+    }
+
+    /// The custom long-press surface: a dimmed backdrop with one centered
+    /// column — tapback picker, the lifted item, who reacted, action menu.
+    enum BoardLongPress {
+        /// Long enough not to fire while scrolling the board, short enough that
+        /// the lift still feels like a direct response to the press.
+        static let holdDuration = 0.4
+        /// The width of the lifted card, and the reference every other element
+        /// in the column is sized against. Kept in step with
+        /// `DocketDetailTheme.QuickLook.width`, which the lifted card uses — a
+        /// test pins the two together rather than one referring to the other,
+        /// since the themes are otherwise independent.
+        static let surfaceWidth: CGFloat = 320
+        /// The action menu sits narrower than the card it belongs to, the way a
+        /// system context menu does — a menu as wide as its preview reads as a
+        /// second card rather than as something attached to the first.
+        static let menuWidth: CGFloat = 272
+        static let spacing: CGFloat = 12
+        static let screenMargin: CGFloat = 16
+        /// Below roughly two thirds the card stops being readable, at which
+        /// point scrolling the column beats shrinking it further.
+        static let minimumCardScale: CGFloat = 0.62
+
+        static let backdropOpacity = 0.55
+        static let cornerRadius: CGFloat = 14
+        static let shadowOpacity = 0.42
+        static let shadowRadius: CGFloat = 18
+        static let shadowY: CGFloat = 8
+
+        /// Slight squeeze of the board card under the finger, before the press
+        /// becomes a lift.
+        static let pressedCardScale: CGFloat = 0.97
+        static let pressAnimation = Animation.easeOut(duration: 0.16)
+        static let presentationAnimation = Animation.spring(
+            response: 0.34,
+            dampingFraction: 0.78
         )
-        static let overlayDismissalAnimation = Animation.easeIn(duration: 0.11)
-        static let backdropPresentationAnimation = Animation.easeOut(duration: 0.12)
-        static let backdropDismissalAnimation = Animation.easeIn(duration: 0.1)
-        static let selectedCardCutoutPadding: CGFloat = 2
-        static let selectedCardCutoutCornerRadius: CGFloat = 12
-        static let pickerOverlaySize = CGSize(
-            width: CGFloat(BoardReactionKind.allCases.count) * pickerButtonSize
-                + CGFloat(BoardReactionKind.allCases.count - 1) * pickerSpacing
-                + popoverPadding * 2,
-            height: pickerButtonSize + popoverPadding * 2
+        static let dismissalAnimation = Animation.easeIn(duration: 0.16)
+        /// The lifted card enters from wherever it sat on the board, so it
+        /// starts at roughly the width a board card actually occupies.
+        static let liftInitialScale: CGFloat = 0.5
+        static let liftInitialRotation = -2.0
+        static let submenuAnimation = Animation.spring(
+            response: 0.28,
+            dampingFraction: 0.86
         )
+
+        // Picker
+        /// Sized so the widest the bar ever gets — six standard kinds, the
+        /// user's own custom pick, the divider and the `+` — still fits inside
+        /// the narrowest supported phone.
+        static let pickerButtonSize: CGFloat = 38
+        static let pickerEmojiFont: Font = .system(size: 23)
+        static let pickerSpacing: CGFloat = 2
+        static let pickerPadding: CGFloat = 8
+        static let pickerSelectionOpacity = 0.28
+        static let pickerDividerHeight: CGFloat = 26
+        static let pickerPlusFont: Font = .system(size: 20, weight: .medium)
+
+        // Emoji grid, shown when the picker's `+` is tapped.
+        static let emojiGridColumns = 7
+        static let emojiGridCellSize: CGFloat = 38
+        static let emojiGridFont: Font = .system(size: 26)
+        static let emojiGridSpacing: CGFloat = 4
+        static let emojiGridMaximumHeight: CGFloat = 232
+        static let emojiGridPadding: CGFloat = 10
+        static let emojiGridTitleFont: Font = .caption.weight(.semibold)
+        static let emojiGridTitleTracking: CGFloat = 0.8
+
+        // Poster panel, for a movie lifted with its artwork. The poster is its
+        // own card under the title card rather than something inside it, and it
+        // takes whatever height the column has left over — a full-width 2:3
+        // poster is taller than most of a phone, so a fixed size would mean
+        // either a scroll on every movie or a thumbnail.
+        static let posterAspectRatio = DocketTheme.BoardCard.movieArtworkAspectRatio
+        static let posterMinimumHeight: CGFloat = 180
+        /// A deliberate ceiling rather than the full-width height of 480: past
+        /// this the poster starts crowding out the card and menu it is supposed
+        /// to sit with.
+        static let posterMaximumHeight: CGFloat = 290
+        static let posterCornerRadius: CGFloat = 8
+        static let posterBackground = DocketTheme.ink.opacity(0.35)
+
+        // Attribution chips
+        static let chipSpacing: CGFloat = 6
+        static let chipHorizontalPadding: CGFloat = 8
+        static let chipVerticalPadding: CGFloat = 5
+        static let chipEmojiFont: Font = .system(size: 15)
+        static let chipNameFont: Font = .footnote.weight(.medium)
+
+        // Action menu
+        static let menuRowHeight: CGFloat = 48
+        static let menuRowHorizontalPadding: CGFloat = 16
+        static let menuRowSpacing: CGFloat = 14
+        static let menuFont: Font = DocketTheme.displayRegular(17)
+        static let menuSymbolFont: Font = .system(size: 16)
+        static let menuSymbolWidth: CGFloat = 22
+        static let menuChevronFont: Font = .system(size: 13, weight: .semibold)
+        static let menuDividerColor = DocketTheme.ink.opacity(0.1)
+        static let menuDestructiveColor = Color(hex: 0xC0392B)
     }
 
     enum StatusBadge {
@@ -630,6 +686,23 @@ nonisolated enum DocketTheme {
             let clampedProgress = min(max(rawProgress, 0), 1)
             return (clampedProgress / progressStep).rounded() * progressStep
         }
+    }
+
+    // MARK: Avatars
+
+    enum Avatar {
+        static let defaultSize: CGFloat = 44
+        static let initialsScale: CGFloat = 0.4
+        static let ringWidth: CGFloat = 1.5
+
+        /// Avatars inside a reaction attribution stack.
+        static let stackSize: CGFloat = 24
+        /// Ring color separating overlapping avatars from each other.
+        static let stackRingColor = DocketTheme.ink
+        /// Fraction of an avatar hidden behind the one in front when collapsed.
+        static let stackOverlapFraction: CGFloat = 0.55
+        static let stackExpandedSpacing: CGFloat = 4
+        static let stackAnimation = Animation.spring(response: 0.32, dampingFraction: 0.78)
     }
 
     // MARK: Card rotation

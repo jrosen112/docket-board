@@ -48,7 +48,7 @@ The project does not currently require backward-compatible migrations for
 unreleased model/schema changes.
 
 ## Design Direction — "The Board"
-Pinned corkboard aesthetic, not a plain list. Reference: two-column masonry grid, variable card height by content (photo-bearing categories like Hike/Landmark/Restaurant/Activity get taller cards; text-only categories like HappyHour/Movie stay short), color-coded accent per category, slight per-card rotation for a tactile feel.
+Pinned corkboard aesthetic, not a plain list. Reference: two-column masonry grid, variable card height by content (photo-bearing categories like Hike/Landmark/Restaurant/Activity get taller cards; text-only categories like HappyHour stay short; a Movie with poster artwork becomes a bare full-bleed 2:3 poster carrying only its status), color-coded accent per category, slight per-card rotation for a tactile feel.
 
 Palette: ink-navy background (`#14181F`), warm cream cards (`#EFE6D3`), brass/gold primary accent (`#D9A441`). Serif display type (Georgia) for titles.
 
@@ -62,11 +62,21 @@ Current interaction details:
   multi-select sheet; `CLEAR` is the only excluded tap target.
 - Filter state is set-based: empty means all, selections are ORed within
   categories/statuses, and the two dimensions are ANDed together.
-- Long-press shows a rich quick look; its Edit action routes into the same
-  typed detail editor used everywhere else.
-- Double-tap opens an iMessage-style reaction picker. Each participant can
-  leave one reaction per item; holding the top-right reaction badge shows who
-  added each tapback.
+- Long press opens a custom surface, not a `.contextMenu`: the item lifts off
+  the board and floats to a centered column — tapback picker, rich quick look,
+  attribution chips, action menu. The column is always centered so nothing has
+  to be re-anchored for card size or press position; a card too tall for the
+  screen scales down instead. A movie with artwork lifts as a title-only
+  card with its poster as a separate panel beneath, sized to whatever height
+  the column has left; without artwork it lifts as the full quick look. Its Edit action routes into the same typed detail
+  editor used everywhere else.
+- Single tap opens an item, unconditionally. There is no double-tap gesture on a
+  card, so opening never waits out the system multi-tap window.
+- Reactions are picked from the long-press surface: six standard tapbacks plus
+  any emoji from the grid behind `+`. `BoardReactionKind` is a validated
+  single-emoji string, so the set is open without a schema change. Each
+  participant leaves one reaction per item, and who reacted is always visible
+  while an item is lifted.
 - Save operations show progress and successful additions produce a transient
   board notice.
 - The top-bar dice runs an animated, haptic Pick for us roll over the current

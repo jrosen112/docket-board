@@ -305,23 +305,85 @@ final class BoardStoreTests: XCTestCase {
         XCTAssertNil(mock.records[reactionID])
     }
 
+    /// Standard tapbacks read in picker order regardless of when they were
+    /// used; emoji from the grid have no such order to fall back on, so they
+    /// follow in the order they first appeared on the item.
+    func testCustomEmojiFollowStandardKindsInGroups() async throws {
+        let alice = seedProfile(name: "Alice")
+        let jordan = seedProfile(name: "Jordan")
+        mock.profileCreatorRecordNames[jordan.id] = "jordan-icloud-user"
+        seedMovie("Heat", addedBy: alice, dateAdded: .now)
+        let itemID = CKRecord.ID(recordName: "movie-Heat", zoneID: mock.space.zoneID)
+        let pizza = try XCTUnwrap(BoardReactionKind(rawValue: "🍕"))
+
+        // The custom reaction is the older of the two.
+        let jordanReaction = BoardReaction(
+            id: BoardReaction.recordID(for: itemID, profileID: jordan.id),
+            itemID: itemID,
+            reactedBy: jordan.reference,
+            kind: pizza,
+            dateAdded: Date(timeIntervalSince1970: 0)
+        )
+        let aliceReaction = BoardReaction(
+            id: BoardReaction.recordID(for: itemID, profileID: alice.id),
+            itemID: itemID,
+            reactedBy: alice.reference,
+            kind: .love,
+            dateAdded: Date(timeIntervalSince1970: 100)
+        )
+        mock.records[jordanReaction.id] = jordanReaction.toRecord()
+        mock.records[aliceReaction.id] = aliceReaction.toRecord()
+        await store.bootstrap()
+        let movie = try XCTUnwrap(store.items.first)
+
+        XCTAssertEqual(
+            store.reactionGroups(for: movie).map(\.kind),
+            [.love, pizza]
+        )
+        XCTAssertEqual(store.currentReaction(for: movie), .love)
+    }
+
+    /// A grid emoji has to survive the round trip through CloudKit the same way
+    /// a built-in one does — the field was always a string.
+    func testCustomEmojiReactionRoundTripsThroughCloudKit() async throws {
+        let alice = seedProfile()
+        seedMovie("Heat", addedBy: alice, dateAdded: .now)
+        await store.bootstrap()
+        let movie = try XCTUnwrap(store.items.first)
+        let taco = try XCTUnwrap(BoardReactionKind(rawValue: "🌮"))
+
+        await store.setReaction(taco, for: movie)
+
+        let reactionID = BoardReaction.recordID(for: movie.id, profileID: alice.id)
+        XCTAssertEqual(
+            BoardReaction(record: try XCTUnwrap(mock.records[reactionID]))?.kind,
+            taco
+        )
+        XCTAssertEqual(store.currentReaction(for: movie), taco)
+    }
+
     func testReactionAttributionsGroupPeopleByTapback() async throws {
         let alice = seedProfile(name: "Alice")
         let jordan = seedProfile(name: "Jordan")
         mock.profileCreatorRecordNames[jordan.id] = "jordan-icloud-user"
         seedMovie("Heat", addedBy: alice, dateAdded: .now)
         let itemID = CKRecord.ID(recordName: "movie-Heat", zoneID: mock.space.zoneID)
+        // Explicit dates: people are ordered by when they reacted, and two
+        // defaulted `.now` timestamps can tie, leaving the order to come from
+        // dictionary iteration instead.
         let aliceReaction = BoardReaction(
             id: BoardReaction.recordID(for: itemID, profileID: alice.id),
             itemID: itemID,
             reactedBy: alice.reference,
-            kind: .like
+            kind: .like,
+            dateAdded: Date(timeIntervalSince1970: 100)
         )
         let jordanReaction = BoardReaction(
             id: BoardReaction.recordID(for: itemID, profileID: jordan.id),
             itemID: itemID,
             reactedBy: jordan.reference,
-            kind: .like
+            kind: .like,
+            dateAdded: Date(timeIntervalSince1970: 200)
         )
         mock.records[aliceReaction.id] = aliceReaction.toRecord()
         mock.records[jordanReaction.id] = jordanReaction.toRecord()
@@ -333,7 +395,18 @@ final class BoardStoreTests: XCTestCase {
             [
                 BoardReactionAttribution(
                     kind: .like,
-                    names: ["Alice Nguyen", "Jordan Nguyen"]
+                    people: [
+                        BoardReactionPerson(
+                            profileID: alice.id,
+                            displayName: "Alice Nguyen",
+                            initials: "AN"
+                        ),
+                        BoardReactionPerson(
+                            profileID: jordan.id,
+                            displayName: "Jordan Nguyen",
+                            initials: "JN"
+                        ),
+                    ]
                 )
             ])
     }

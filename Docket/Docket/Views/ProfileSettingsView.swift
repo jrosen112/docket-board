@@ -14,12 +14,7 @@ struct ProfileSettingsView: View {
     }
 
     private var initials: String {
-        guard let profile = store.currentProfile else { return "?" }
-        return [profile.firstName.first, profile.lastName.first]
-            .compactMap { $0 }
-            .map(String.init)
-            .joined()
-            .uppercased()
+        store.currentProfile?.initials ?? "?"
     }
 
     var body: some View {
@@ -58,14 +53,10 @@ struct ProfileSettingsView: View {
 
     private var identityCard: some View {
         HStack(spacing: DocketTheme.ProfileSettings.cardSpacing) {
-            Text(initials)
-                .font(DocketTheme.ProfileSettings.avatarFont)
-                .foregroundStyle(DocketTheme.ink)
-                .frame(
-                    width: DocketTheme.ProfileSettings.avatarSize,
-                    height: DocketTheme.ProfileSettings.avatarSize
-                )
-                .background(DocketTheme.brass, in: Circle())
+            ProfileAvatar(
+                initials: initials,
+                size: DocketTheme.ProfileSettings.avatarSize
+            )
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(profileName)

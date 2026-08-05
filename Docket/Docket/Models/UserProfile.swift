@@ -37,6 +37,18 @@ nonisolated struct UserProfile: Identifiable, Equatable {
             .joined(separator: " ")
     }
 
+    /// Avatar fallback until `profilePicture` exists. Takes the first character of
+    /// each name so multi-scalar graphemes stay intact, and falls back to "?" so
+    /// an avatar is never blank.
+    var initials: String {
+        let letters = [firstName, lastName]
+            .compactMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).first }
+            .map(String.init)
+            .joined()
+            .uppercased()
+        return letters.isEmpty ? "?" : letters
+    }
+
     /// Reference used by items' `addedBy`. `.none` so deleting a profile never
     /// cascades into deleting the items that person added.
     var reference: CKRecord.Reference {

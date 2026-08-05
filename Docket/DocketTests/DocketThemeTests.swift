@@ -71,4 +71,31 @@ final class DocketThemeTests: XCTestCase {
             + 1_000
         XCTAssertEqual(DocketTheme.BoardScrollNote.progress(for: beyondFade), 1)
     }
+
+    // MARK: Long-press surface
+
+    /// The lifted card is a `BoardItemQuickLookView` at its own fixed width, and
+    /// the picker, chips, and menu are laid out at the surface width. If those
+    /// ever drift apart the column stops reading as one object.
+    func testLongPressSurfaceMatchesTheLiftedCardWidth() {
+        XCTAssertEqual(
+            DocketTheme.BoardLongPress.surfaceWidth,
+            DocketDetailTheme.QuickLook.width
+        )
+    }
+
+    /// The picker has to fit the narrowest supported phone even in its widest
+    /// state: six standard kinds, the user's own custom pick, a divider and `+`.
+    func testWidestPickerBarFitsTheNarrowestPhone() {
+        let tokens = DocketTheme.BoardLongPress.self
+        let slots = CGFloat(BoardReactionKind.standard.count + 2)
+        let width =
+            slots * tokens.pickerButtonSize
+            + (slots - 1) * tokens.pickerSpacing
+            + tokens.pickerPadding * 2
+            // Divider rule plus the padding on either side of it.
+            + 5
+
+        XCTAssertLessThanOrEqual(width, 375 - tokens.screenMargin * 2)
+    }
 }

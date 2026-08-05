@@ -35,7 +35,8 @@ struct BoardView: View {
     @State private var photoViewerTarget: BoardPhotoViewerTarget?
     @State private var diceRoll: DiceRoll?
     @State private var lastRandomItemID: CKRecord.ID?
-    @State private var reactionPopover: BoardReactionPopover?
+    @State private var longPressTarget: CKRecord.ID?
+    @State private var pressedItemID: CKRecord.ID?
 
     private var filteredItems: [any SharedListItem] {
         filter.apply(to: store.items).filter {
@@ -157,11 +158,14 @@ struct BoardView: View {
                 store.consumeItemNavigationRequest(request.id)
             }
         }
-        .overlayPreferenceValue(BoardReactionCardAnchorPreferenceKey.self) { anchors in
+        .overlayPreferenceValue(BoardCardAnchorPreferenceKey.self) { anchors in
             GeometryReader { geometry in
-                reactionPickerOverlay(anchors: anchors, geometry: geometry)
+                longPressOverlay(anchors: anchors, geometry: geometry)
             }
             .ignoresSafeArea()
+        }
+        .sensoryFeedback(.impact(flexibility: .soft), trigger: longPressTarget) { _, target in
+            target != nil
         }
     }
 
@@ -315,17 +319,10 @@ struct BoardView: View {
                 BoardCard(
                     item: item,
                     reactionGroups: store.reactionGroups(for: item),
-                    onReactionHold: {
-                        reactionPopover = BoardReactionPopover(
-                            itemID: item.id,
-                            mode: .attributions,
-                            tapLocation: nil
-                        )
-                    },
                     showsPin: false
                 )
                 .anchorPreference(
-                    key: BoardReactionCardAnchorPreferenceKey.self,
+                    key: BoardCardAnchorPreferenceKey.self,
                     value: .bounds
                 ) { [item.id: $0] }
             }
@@ -334,37 +331,7 @@ struct BoardView: View {
         // MasonryLayout accounts for this inset without moving the paper.
         .padding(captureInset)
         .contentShape(.interaction, Rectangle().inset(by: captureInset))
-        .contentShape(
-            .contextMenuPreview,
-            BoardCardPreviewShape(
-                captureInset: captureInset,
-                rotationDegrees: DocketTheme.rotationDegrees(for: item.id.recordName)
-            )
-        )
         .matchedTransitionSource(id: item.id, in: boardTransitionNamespace)
-        .gesture(
-            SpatialTapGesture(count: 2)
-                .exclusively(before: TapGesture(count: 1))
-                .onEnded { value in
-                    switch value {
-                    case .first(let tap):
-                        withAnimation(
-                            DocketTheme.BoardReaction.overlayPresentationAnimation
-                        ) {
-                            reactionPopover = BoardReactionPopover(
-                                itemID: item.id,
-                                mode: .picker,
-                                tapLocation: CGPoint(
-                                    x: tap.location.x - captureInset,
-                                    y: tap.location.y - captureInset
-                                )
-                            )
-                        }
-                    case .second:
-                        detailTarget = DetailTarget(id: item.id)
-                    }
-                }
-        )
         .pinchToOpenPhotos(
             isEnabled: !photos.isEmpty
                 && !isPhysicallyInserting
@@ -377,79 +344,38 @@ struct BoardView: View {
                 )
             }
         )
-        .contextMenu {
-            Button {
-                detailTarget = DetailTarget(id: item.id, startsEditing: true)
-            } label: {
-                Label("Edit", systemImage: "pencil")
-            }
-            Menu {
-                ForEach(BoardReactionKind.allCases) { kind in
-                    Button {
-                        Task { await store.setReaction(kind, for: item) }
-                    } label: {
-                        Text(
-                            store.currentReaction(for: item) == kind
-                                ? "\(kind.rawValue) \(kind.label) ✓"
-                                : "\(kind.rawValue) \(kind.label)"
-                        )
-                    }
-                }
-            } label: {
-                Label("React", systemImage: "face.smiling")
-            }
-            if !otherBoards.isEmpty {
-                Menu {
-                    ForEach(otherBoards) { destination in
-                        Button {
-                            beginTransfer(item, to: destination, kind: .duplicate)
-                        } label: {
-                            Label(destination.title, systemImage: "rectangle.stack.fill")
-                        }
-                        .disabled(pendingTransfer != nil)
-                    }
-                } label: {
-                    Label("Duplicate to Board", systemImage: "square.on.square")
-                }
-
-                Menu {
-                    ForEach(otherBoards) { destination in
-                        Button {
-                            moveCandidate = BoardMoveCandidate(
-                                item: item,
-                                destination: destination
-                            )
-                        } label: {
-                            Label(destination.title, systemImage: "rectangle.stack.fill")
-                        }
-                        .disabled(pendingTransfer != nil)
-                    }
-                } label: {
-                    Label("Move to Board", systemImage: "arrow.right.square")
+        // `.onLongPressGesture` rather than a composed gesture: it is the one
+        // form that leaves the enclosing scroll view alone. A `.gesture`, an
+        // exclusive pair, and a `.simultaneousGesture` all put a long-press
+        // recognizer in front of the scroll pan, and the board stops scrolling.
+        //
+        // Order matters as much as form. Attached after the tap it never fires
+        // at all, because the tap is then the inner gesture and claims the
+        // sequence — which is what kept this surface shut. Inner here, tap
+        // outer, and the tap declines when a hold already opened the surface.
+        .onLongPressGesture(
+            minimumDuration: DocketTheme.BoardLongPress.holdDuration,
+            perform: {
+                longPressTarget = item.id
+            },
+            onPressingChanged: { isPressing in
+                withAnimation(DocketTheme.BoardLongPress.pressAnimation) {
+                    pressedItemID = isPressing ? item.id : nil
                 }
             }
-            Button(role: .destructive) {
-                deleteCandidate = BoardDeleteCandidate(item: item)
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
-        } preview: {
-            BoardItemQuickLookView(
-                item: item,
-                addedBy: store.displayName(for: item)
-            )
+        )
+        // Single tap is unconditional so opening an item is instant. Pairing it
+        // with a double tap meant every open had to wait out the system
+        // multi-tap window first, just to prove no second tap was coming.
+        .onTapGesture {
+            guard longPressTarget == nil else { return }
+            detailTarget = DetailTarget(id: item.id)
         }
-        .popover(
-            isPresented: reactionAttributionBinding(for: item.id),
-            attachmentAnchor: .rect(.bounds),
-            arrowEdge: .top
-        ) {
-            BoardReactionAttributionView(
-                title: item.title,
-                attributions: store.reactionAttributions(for: item)
-            )
-            .presentationCompactAdaptation(.popover)
-        }
+        .scaleEffect(
+            pressedItemID == item.id
+                ? DocketTheme.BoardLongPress.pressedCardScale
+                : 1
+        )
         .zIndex(
             physicalDeleteCandidates[item.id] == nil && !isPhysicallyInserting
                 ? 0 : 10
@@ -466,115 +392,117 @@ struct BoardView: View {
         )
     }
 
-    private func reactionAttributionBinding(for itemID: CKRecord.ID) -> Binding<Bool> {
-        Binding(
-            get: {
-                reactionPopover?.itemID == itemID
-                    && reactionPopover?.mode == .attributions
-            },
-            set: { isPresented in
-                guard !isPresented, reactionPopover?.itemID == itemID else { return }
-                reactionPopover = nil
-            }
-        )
-    }
-
     @ViewBuilder
-    private func reactionPickerOverlay(
+    private func longPressOverlay(
         anchors: [CKRecord.ID: Anchor<CGRect>],
         geometry: GeometryProxy
     ) -> some View {
-        ZStack {
-            if let target = reactionPopover,
-                target.mode == .picker,
-                let tapLocation = target.tapLocation,
-                let anchor = anchors[target.itemID],
-                let item = store.items.first(where: { $0.id == target.itemID })
-            {
-                let cardRect = geometry[anchor]
-                let placement = reactionPickerPlacement(
-                    cardRect: cardRect,
-                    tapLocation: tapLocation,
-                    containerSize: geometry.size
-                )
+        if let itemID = longPressTarget,
+            let item = store.items.first(where: { $0.id == itemID })
+        {
+            BoardLongPressOverlay(
+                item: item,
+                addedBy: store.displayName(for: item),
+                attributions: store.reactionAttributions(for: item),
+                currentReaction: store.currentReaction(for: item),
+                sourceFrame: anchors[itemID].map { geometry[$0] },
+                containerSize: geometry.size,
+                safeAreaInsets: geometry.safeAreaInsets,
+                actions: longPressActions(for: item),
+                onSelectReaction: { kind in
+                    dismissLongPress()
+                    Task { await store.setReaction(kind, for: item) }
+                },
+                onDismiss: dismissLongPress
+            )
+            .transition(.opacity.animation(DocketTheme.BoardLongPress.dismissalAnimation))
+        }
+    }
 
-                BoardReactionBackdropShape(
-                    cutoutRect: cardRect.insetBy(
-                        dx: -DocketTheme.BoardReaction.selectedCardCutoutPadding,
-                        dy: -DocketTheme.BoardReaction.selectedCardCutoutPadding
-                    ),
-                    cutoutCornerRadius:
-                        DocketTheme.BoardReaction.selectedCardCutoutCornerRadius
-                )
-                .fill(
-                    Color.black.opacity(DocketTheme.BoardReaction.backdropOpacity),
-                    style: FillStyle(eoFill: true)
-                )
-                .contentShape(Rectangle())
-                .onTapGesture(perform: dismissReactionPicker)
-                .transition(.boardReactionBackdrop)
+    private func dismissLongPress() {
+        withAnimation(DocketTheme.BoardLongPress.dismissalAnimation) {
+            longPressTarget = nil
+        }
+    }
 
-                BoardReactionPickerView(
-                    selectedKind: store.currentReaction(for: item),
-                    onSelect: { kind in
-                        dismissReactionPicker()
-                        Task { await store.setReaction(kind, for: item) }
+    /// The menu half of the long-press surface. Board transfers are submenus
+    /// because they need a destination; everything else acts immediately, and
+    /// the two that can't be undone still route through their own alert.
+    private func longPressActions(
+        for item: any SharedListItem
+    ) -> [BoardLongPressAction] {
+        var actions: [BoardLongPressAction] = [
+            BoardLongPressAction(
+                id: "edit",
+                title: "Edit",
+                symbol: "pencil",
+                handler: {
+                    dismissLongPress()
+                    detailTarget = DetailTarget(id: item.id, startsEditing: true)
+                }
+            )
+        ]
+
+        if !otherBoards.isEmpty {
+            actions.append(
+                BoardLongPressAction(
+                    id: "duplicate",
+                    title: "Duplicate to Board",
+                    symbol: "square.on.square",
+                    isEnabled: pendingTransfer == nil,
+                    children: boardDestinations(for: item, kind: .duplicate)
+                )
+            )
+            actions.append(
+                BoardLongPressAction(
+                    id: "move",
+                    title: "Move to Board",
+                    symbol: "arrow.right.square",
+                    isEnabled: pendingTransfer == nil,
+                    children: boardDestinations(for: item, kind: .move)
+                )
+            )
+        }
+
+        actions.append(
+            BoardLongPressAction(
+                id: "delete",
+                title: "Delete",
+                symbol: "trash",
+                isDestructive: true,
+                handler: {
+                    dismissLongPress()
+                    deleteCandidate = BoardDeleteCandidate(item: item)
+                }
+            )
+        )
+        return actions
+    }
+
+    private func boardDestinations(
+        for item: any SharedListItem,
+        kind: BoardItemTransferKind
+    ) -> [BoardLongPressAction] {
+        otherBoards.map { destination in
+            BoardLongPressAction(
+                id: "\(kind)-\(destination.id)",
+                title: destination.title,
+                symbol: "rectangle.stack.fill",
+                isEnabled: pendingTransfer == nil,
+                handler: {
+                    dismissLongPress()
+                    switch kind {
+                    case .duplicate:
+                        beginTransfer(item, to: destination, kind: .duplicate)
+                    case .move:
+                        moveCandidate = BoardMoveCandidate(
+                            item: item,
+                            destination: destination
+                        )
                     }
-                )
-                .fixedSize()
-                .position(placement.position)
-                .transition(.boardReactionPicker(translation: placement.translation))
-                .zIndex(1)
-            }
-        }
-    }
-
-    private func dismissReactionPicker() {
-        withAnimation(DocketTheme.BoardReaction.overlayDismissalAnimation) {
-            reactionPopover = nil
-        }
-    }
-
-    private func reactionPickerPlacement(
-        cardRect: CGRect,
-        tapLocation: CGPoint,
-        containerSize: CGSize
-    ) -> BoardReactionPickerPlacement {
-        let pickerSize = DocketTheme.BoardReaction.pickerOverlaySize
-        let halfWidth = pickerSize.width / 2
-        let halfHeight = pickerSize.height / 2
-        let margin = DocketTheme.BoardReaction.overlayScreenMargin
-        let globalTap = CGPoint(
-            x: cardRect.minX + tapLocation.x,
-            y: cardRect.minY + tapLocation.y
-        )
-        let x = min(
-            max(globalTap.x, halfWidth + margin),
-            containerSize.width - halfWidth - margin
-        )
-        let preferredY =
-            globalTap.y
-            + DocketTheme.BoardReaction.overlayTapSpacing
-            + halfHeight
-        let maximumY = containerSize.height - halfHeight - margin
-        let minimumY = halfHeight + margin
-        let y =
-            preferredY <= maximumY
-            ? preferredY
-            : max(
-                globalTap.y
-                    - DocketTheme.BoardReaction.overlayTapSpacing
-                    - halfHeight,
-                minimumY
+                }
             )
-        let position = CGPoint(x: x, y: y)
-        return BoardReactionPickerPlacement(
-            position: position,
-            translation: CGSize(
-                width: globalTap.x - position.x,
-                height: globalTap.y - position.y
-            )
-        )
+        }
     }
 
     private func beginAdding(category: ItemCategory) {
@@ -1025,23 +953,9 @@ private struct DetailTarget: Identifiable, Hashable {
     var startsEditing = false
 }
 
-private struct BoardReactionPopover {
-    enum Mode: Equatable {
-        case picker
-        case attributions
-    }
-
-    let itemID: CKRecord.ID
-    let mode: Mode
-    let tapLocation: CGPoint?
-}
-
-private struct BoardReactionPickerPlacement {
-    let position: CGPoint
-    let translation: CGSize
-}
-
-private struct BoardReactionCardAnchorPreferenceKey: PreferenceKey {
+/// Where each card sits, so the long-press surface can fly the lifted item in
+/// from the board rather than fading it in at the center.
+private struct BoardCardAnchorPreferenceKey: PreferenceKey {
     static let defaultValue: [CKRecord.ID: Anchor<CGRect>] = [:]
 
     static func reduce(
@@ -1049,86 +963,6 @@ private struct BoardReactionCardAnchorPreferenceKey: PreferenceKey {
         nextValue: () -> [CKRecord.ID: Anchor<CGRect>]
     ) {
         value.merge(nextValue(), uniquingKeysWith: { _, newest in newest })
-    }
-}
-
-private struct BoardReactionPickerTransitionModifier: ViewModifier {
-    let opacity: Double
-    let scale: CGFloat
-    let rotation: Double
-    let translation: CGSize
-
-    func body(content: Content) -> some View {
-        content
-            .opacity(opacity)
-            .scaleEffect(scale)
-            .rotationEffect(.degrees(rotation))
-            .offset(translation)
-    }
-}
-
-private struct BoardReactionBackdropShape: Shape {
-    let cutoutRect: CGRect
-    let cutoutCornerRadius: CGFloat
-
-    func path(in rect: CGRect) -> Path {
-        var path = Path(rect)
-        path.addRoundedRect(
-            in: cutoutRect,
-            cornerSize: CGSize(
-                width: cutoutCornerRadius,
-                height: cutoutCornerRadius
-            )
-        )
-        return path
-    }
-}
-
-extension AnyTransition {
-    fileprivate static func boardReactionPicker(translation: CGSize) -> AnyTransition {
-        .asymmetric(
-            insertion: .modifier(
-                active: BoardReactionPickerTransitionModifier(
-                    opacity: 0,
-                    scale: DocketTheme.BoardReaction.overlayInitialScale,
-                    rotation: DocketTheme.BoardReaction.overlayInitialRotation,
-                    translation: translation
-                ),
-                identity: BoardReactionPickerTransitionModifier(
-                    opacity: 1,
-                    scale: 1,
-                    rotation: 0,
-                    translation: .zero
-                )
-            )
-            .animation(DocketTheme.BoardReaction.overlayPresentationAnimation),
-            removal: .modifier(
-                active: BoardReactionPickerTransitionModifier(
-                    opacity: 0,
-                    scale: DocketTheme.BoardReaction.overlayDismissedScale,
-                    rotation: DocketTheme.BoardReaction.overlayDismissedRotation,
-                    translation: translation
-                ),
-                identity: BoardReactionPickerTransitionModifier(
-                    opacity: 1,
-                    scale: 1,
-                    rotation: 0,
-                    translation: .zero
-                )
-            )
-            .animation(DocketTheme.BoardReaction.overlayDismissalAnimation)
-        )
-    }
-
-    fileprivate static var boardReactionBackdrop: AnyTransition {
-        .asymmetric(
-            insertion: .opacity.animation(
-                DocketTheme.BoardReaction.backdropPresentationAnimation
-            ),
-            removal: .opacity.animation(
-                DocketTheme.BoardReaction.backdropDismissalAnimation
-            )
-        )
     }
 }
 

@@ -9,25 +9,71 @@
 
 import CloudKit
 
-nonisolated enum BoardReactionKind: String, CaseIterable, Identifiable, Sendable {
-    case love = "❤️"
-    case like = "👍"
-    case dislike = "👎"
-    case laugh = "😂"
-    case emphasize = "‼️"
-    case question = "❓"
+/// One tapback emoji.
+///
+/// The six `standard` kinds are the iMessage set and lead the picker, but the
+/// picker's `+` can produce any emoji, so this is a validated string rather than
+/// a closed enum. CloudKit always stored the emoji itself in `reactionKind`, so
+/// widening the set needs no schema change and no migration — an older build
+/// simply renders an unfamiliar emoji it never offers.
+nonisolated struct BoardReactionKind: RawRepresentable, Hashable, Identifiable, Sendable {
+    let rawValue: String
+
+    /// Fails for anything that is not exactly one emoji, which keeps arbitrary
+    /// text out of a field that is rendered as a glyph everywhere it appears.
+    init?(rawValue: String) {
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count == 1,
+            let character = trimmed.first,
+            Self.isEmoji(character)
+        else { return nil }
+        self.rawValue = trimmed
+    }
+
+    /// Bypasses validation for the built-in set, which is known-good and needs
+    /// to be usable as a `let` constant.
+    private init(builtIn rawValue: String) {
+        self.rawValue = rawValue
+    }
+
+    static let love = BoardReactionKind(builtIn: "❤️")
+    static let like = BoardReactionKind(builtIn: "👍")
+    static let dislike = BoardReactionKind(builtIn: "👎")
+    static let laugh = BoardReactionKind(builtIn: "😂")
+    static let emphasize = BoardReactionKind(builtIn: "‼️")
+    static let question = BoardReactionKind(builtIn: "❓")
+
+    /// The always-offered kinds, in picker order.
+    static let standard: [BoardReactionKind] = [
+        .love, .like, .dislike, .laugh, .emphasize, .question,
+    ]
+
+    private static let standardLabels: [BoardReactionKind: String] = [
+        .love: "Love",
+        .like: "Like",
+        .dislike: "Dislike",
+        .laugh: "Laugh",
+        .emphasize: "Emphasize",
+        .question: "Question",
+    ]
 
     var id: String { rawValue }
 
-    var label: String {
-        switch self {
-        case .love: "Love"
-        case .like: "Like"
-        case .dislike: "Dislike"
-        case .laugh: "Laugh"
-        case .emphasize: "Emphasize"
-        case .question: "Question"
-        }
+    var isStandard: Bool { Self.standardLabels[self] != nil }
+
+    /// Spoken name. Custom emoji have no name of ours to give, so VoiceOver is
+    /// left to read the glyph itself.
+    var label: String { Self.standardLabels[self] ?? rawValue }
+
+    /// A single scalar has to default to emoji presentation on its own; digits
+    /// and `#` are `Emoji=Yes` but only read as emoji inside a keycap sequence,
+    /// which arrives as a multi-scalar cluster carrying U+FE0F.
+    private static func isEmoji(_ character: Character) -> Bool {
+        let scalars = character.unicodeScalars
+        guard let first = scalars.first else { return false }
+        guard scalars.count > 1 else { return first.properties.isEmojiPresentation }
+        return first.properties.isEmoji
+            && scalars.contains { $0.properties.isEmojiPresentation || $0 == "\u{FE0F}" }
     }
 }
 
@@ -106,9 +152,21 @@ nonisolated struct BoardReactionGroup: Identifiable, Equatable, Sendable {
     var id: BoardReactionKind { kind }
 }
 
+/// One person behind a tapback. Carries enough to draw an avatar, not just a
+/// name: `imageData` stays nil until the `profilePicture` CKAsset work lands, at
+/// which point avatars upgrade from initials without touching call sites.
+nonisolated struct BoardReactionPerson: Identifiable, Equatable, Sendable {
+    let profileID: CKRecord.ID
+    let displayName: String
+    let initials: String
+    var imageData: Data?
+
+    var id: CKRecord.ID { profileID }
+}
+
 nonisolated struct BoardReactionAttribution: Identifiable, Equatable, Sendable {
     let kind: BoardReactionKind
-    let names: [String]
+    let people: [BoardReactionPerson]
 
     var id: BoardReactionKind { kind }
 }

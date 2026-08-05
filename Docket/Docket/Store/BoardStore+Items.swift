@@ -210,11 +210,10 @@ extension BoardStore {
 
     func reactionGroups(for item: any SharedListItem) -> [BoardReactionGroup] {
         let mine = currentProfile?.id
-        return BoardReactionKind.allCases.compactMap { kind in
+        return orderedKinds(for: item).map { kind in
             let matches = reactions.filter {
                 $0.itemID == item.id && $0.kind == kind
             }
-            guard !matches.isEmpty else { return nil }
             return BoardReactionGroup(
                 kind: kind,
                 count: matches.count,
@@ -223,6 +222,24 @@ extension BoardStore {
                 } ?? false
             )
         }
+    }
+
+    /// Kinds actually present on an item. Standard tapbacks come first in their
+    /// picker order so the familiar set reads the same everywhere; custom emoji
+    /// follow in the order they were first used on this item.
+    private func orderedKinds(for item: any SharedListItem) -> [BoardReactionKind] {
+        let itemReactions =
+            reactions
+            .filter { $0.itemID == item.id }
+            .sorted { $0.dateAdded < $1.dateAdded }
+        let present = Set(itemReactions.map(\.kind))
+
+        var ordered = BoardReactionKind.standard.filter(present.contains)
+        for reaction in itemReactions
+        where !reaction.kind.isStandard && !ordered.contains(reaction.kind) {
+            ordered.append(reaction.kind)
+        }
+        return ordered
     }
 
     func currentReaction(for item: any SharedListItem) -> BoardReactionKind? {
@@ -235,19 +252,26 @@ extension BoardStore {
     func reactionAttributions(
         for item: any SharedListItem
     ) -> [BoardReactionAttribution] {
-        BoardReactionKind.allCases.compactMap { kind in
-            let names =
+        orderedKinds(for: item).compactMap { kind in
+            let people =
                 reactions
                 .filter { $0.itemID == item.id && $0.kind == kind }
                 .sorted { $0.dateAdded < $1.dateAdded }
-                .map { reaction in
-                    profiles.first { $0.id == reaction.profileID }?.displayName
+                .map { reaction -> BoardReactionPerson in
+                    let profile = profiles.first { $0.id == reaction.profileID }
+                    let name =
+                        profile?.displayName
                         .trimmingCharacters(in: .whitespacesAndNewlines)
                         .orNil
-                        ?? "Someone"
+                    return BoardReactionPerson(
+                        profileID: reaction.profileID,
+                        displayName: name ?? "Someone",
+                        // A missing profile still gets an avatar rather than a gap.
+                        initials: profile?.initials ?? "?"
+                    )
                 }
-            guard !names.isEmpty else { return nil }
-            return BoardReactionAttribution(kind: kind, names: names)
+            guard !people.isEmpty else { return nil }
+            return BoardReactionAttribution(kind: kind, people: people)
         }
     }
 

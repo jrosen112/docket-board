@@ -41,10 +41,17 @@ The current app supports:
   standard destructive confirmation alert, conflict detection, and
   attribution.
 - Multi-select category/status filtering over a two-column masonry board.
-- Rich long-press quick looks with category facts, notes, attribution, and
-  direct entry into the current detail editor.
-- iMessage-style reactions opened by double-tapping a card, with one tapback
-  per participant and a hold-to-view attribution popover on the card badge.
+- A custom long-press surface in place of `.contextMenu`: the pressed item
+  lifts off the board and floats to a centered column of tapback picker, rich
+  quick look, attribution chips, and a pinned paper action menu whose
+  board-transfer rows push in place. Because the column is always centered,
+  card size and press position never change the arrangement — only how far the
+  card has to scale down to fit (`BoardLongPressLayoutSolver`).
+- Reactions picked from that surface: the six standard tapbacks plus any emoji
+  from the grid behind `+`, one per participant, with who reacted always
+  visible while an item is lifted. Cards carry no double-tap gesture, so a
+  single tap opens an item immediately instead of waiting for the system
+  multi-tap window to expire.
 - Visible save progress, reusable success/refresh notices, and animated board
   changes for filtering, additions, deletions, and refreshes.
 - Silent CloudKit change notifications and local notifications for items added
@@ -141,6 +148,11 @@ same shared zone. Profiles are first-class records and the current device's
 profile identity is remembered per board. A decoded profile also retains its
 CloudKit creator identity so the same iCloud user can reclaim it on another
 device without adding an app-specific account field.
+
+`BoardReactionKind` is a validated single-emoji string rather than a closed
+enum, so the picker's `+` can produce any emoji; the six standard kinds are
+statics on the same type and lead every ordering. The CloudKit field was always
+a string, so this needs no schema change and no migration.
 
 Each reaction is a separate `BoardReaction` record referencing both its item
 and participant profile. Its deterministic item/profile record name enforces
@@ -419,9 +431,16 @@ views.
   cues disappear, author names stay off cards, and category-aware status copy
   remains in the footer. Paper cards rely on their category header, color, and
   stripe instead of a redundant footer badge, allowing sparse cards to collapse
-  to their content. Poster cards keep the badge because they have no category
-  header; cards with fewer than three cues use a shorter crop while denser cards
-  preserve the artwork's native 2:3 character.
+  to their content. A movie without board artwork is a paper card and shows
+  these cues like any other item.
+- A movie with board artwork is instead a bare full-bleed poster at the
+  artwork's native 2:3 ratio. The poster already states the title and that the
+  item is a movie, so the card overlays nothing but its status chip — no title,
+  cues, category badge, or gradient scrim. Removing the scrim leaves the chip's
+  own capsule as the sole legibility mechanism over arbitrary artwork, so that
+  capsule is deliberately opaque enough for bright posters. Because the card
+  carries almost no visible text, it supplies an explicit accessibility label
+  with the title and status.
 - `DetailViews/` contains the typed Restaurant, Bar, Recipe, and Movie detail screens,
   the new-item screen, and their shared inline-editing components.
 - Each typed detail includes a shared Plans & History card. It edits an optional
@@ -563,11 +582,21 @@ Important manual checks:
    swipe-down dismissal.
 6. Select multiple categories and statuses. Verify the compact count, CLEAR,
    Cancel, explicit apply, swipe-to-apply, and card reflow animations.
-7. Long-press a card. Verify the rich quick look, full address wrapping, and
-   that Edit opens the current detail editor rather than a legacy form.
-8. Double-tap a card and choose each reaction. Verify a top-right badge appears,
-   choosing another replaces yours, choosing yours again removes it, and
-   holding the badge shows every participant grouped under their reaction.
+7. Long-press a card. Verify it lifts and floats to the same centered position
+   every time, from a short bar card and from a tall recipe, pressed at the top
+   and at the very bottom of the board. Verify the rich quick look, full
+   address wrapping, that a movie with a poster lifts as a title-only card with
+   its full poster on its own panel beneath while one without a poster still
+   lifts as the full quick look, that a long recipe shrinks rather than pushing the
+   picker or menu off screen, and that Edit opens the current detail editor.
+   Verify the board still scrolls under a finger that starts on a card, and
+   that a single tap after a hold does not also open the detail view.
+8. From that surface, verify the tapback row: choosing another replaces yours,
+   choosing yours again removes it, `+` opens the emoji grid, an emoji from the
+   grid appears in the row so it can be taken back, and the chips under the
+   card name whoever reacted. Verify Duplicate/Move push their board list in
+   place and that the back row returns. Confirm a single tap anywhere on a card
+   still opens its detail view with no perceptible delay.
 9. Add and delete items. Verify save progress, post-dismiss success feedback,
    the standard destructive alert from the detail toolbar, and card
    insertion/removal animation.
@@ -602,6 +631,12 @@ Important manual checks:
     before this field existed, and a movie whose poster was replaced with a
     hand-picked photo — each should keep showing the stored image with no error
     and no swap to unrelated artwork.
+17. Put several movies on the board, including a very bright poster and a very
+    dark one. Confirm the artwork is completely unobscured, the only overlay is
+    the status chip, and the chip stays readable on both extremes. Confirm a
+    movie with no board artwork still renders as a paper card with its year,
+    runtime, and service cues. With VoiceOver on, confirm a poster card
+    announces its title and status.
 
 ## Remaining work
 
@@ -643,6 +678,11 @@ Important manual checks:
   selection re-sets it immediately afterward; `TMDBService` reports a path only
   when its poster really downloaded. A stale pairing would sharpen one movie's
   photo into another movie's poster.
+- Keep poster cards free of overlaid content beyond the status chip. The
+  artwork is the information design: it already carries title, tone, and genre.
+  Anything added back over the art needs a scrim to stay legible, and the scrim
+  was what damaged the poster in the first place. Metadata belongs in the quick
+  look and detail view, which already show it.
 - Keep the photo viewer's high-resolution upgrade additive: the stored copy
   always renders first, the remote image only fades in over it, and every
   failure path leaves the stored copy on screen with no error UI.
